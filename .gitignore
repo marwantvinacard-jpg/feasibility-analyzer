@@ -1,0 +1,27 @@
+# dependencies
+/node_modules
+/.pnp
+.pnp.js
+
+# next
+/.next/
+/out/
+next-env.d.ts
+
+# production
+/build
+
+# misc
+.DS_Store
+*.pem
+*.tsbuildinfo
+
+# env / secrets — NEVER commit
+.env
+.env.local
+.env*.local
+
+# engine run outputs
+/scratch
+/out-reports
+*.pdf

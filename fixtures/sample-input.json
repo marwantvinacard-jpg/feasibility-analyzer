@@ -1,0 +1,13 @@
+{
+  "business_idea": "A subscription meal-prep service delivering healthy, locally-sourced dinners to busy professionals",
+  "target_customer": "Urban working professionals aged 25-45 who value health but lack time to cook",
+  "location": "Austin, USA",
+  "problem_solved": "Busy professionals struggle to eat healthy on weeknights and rely on expensive takeout",
+  "product_service": "Weekly boxes of 5 chef-designed, pre-portioned dinners with 15-minute cook times",
+  "revenue_model": "Subscription: $89/week for 5 dinners, with tiered plans and add-ons",
+  "competitors": "HelloFresh, Blue Apron, Factor, local meal-prep kitchens",
+  "monthly_cost": 42000,
+  "monthly_revenue": 68000,
+  "unique_advantage": "Hyper-local sourcing partnerships and 15-minute cook times vs competitors' 30-40 minutes",
+  "currency": "USD"
+}
