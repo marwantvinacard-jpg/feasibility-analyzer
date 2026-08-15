@@ -21,7 +21,7 @@ export function Badge({
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-semibold",
+        "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold",
         tone ? toneSoft[tone] : "border-border bg-surface-2 text-muted",
         className
       )}
@@ -31,9 +31,13 @@ export function Badge({
   );
 }
 
+/** Small uppercase kicker, gold-tinted for the editorial feel. */
 export function Eyebrow({ children }: { children: React.ReactNode }) {
   return (
-    <span className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">{children}</span>
+    <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-brand">
+      <span className="h-px w-6 bg-brand/50" />
+      {children}
+    </span>
   );
 }
 
@@ -45,13 +49,14 @@ type BtnProps = {
   type?: "button" | "submit";
   onClick?: () => void;
   disabled?: boolean;
+  "aria-label"?: string;
 };
 
 export function Button({ href, variant = "primary", className, children, ...rest }: BtnProps) {
   const cls = cn("btn", variant === "primary" ? "btn-primary" : "btn-ghost", className);
   if (href) {
     return (
-      <Link href={href} className={cls}>
+      <Link href={href} className={cls} aria-label={rest["aria-label"]}>
         {children}
       </Link>
     );

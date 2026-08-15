@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Button } from "@/components/kit";
+import { Icon } from "@/components/icons";
 import { StageProgress } from "@/components/StageProgress";
 import { ReportView } from "@/components/ReportView";
 import { streamAnalyze } from "@/lib/sse";
@@ -65,9 +66,11 @@ export default function AnalysisPage() {
   if (phase === "missing")
     return (
       <div className="mx-auto max-w-md py-20 text-center">
-        <div className="text-4xl">🔍</div>
-        <h2 className="mt-3 text-lg font-semibold">Analysis not found</h2>
-        <Button href="/app" variant="ghost" className="mt-5">← Back to dashboard</Button>
+        <span className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-surface-2 text-faint">
+          <Icon name="search" size={26} />
+        </span>
+        <h2 className="font-display mt-4 text-lg font-semibold">Analysis not found</h2>
+        <Button href="/app" variant="ghost" className="mt-5">Back to dashboard</Button>
       </div>
     );
 
@@ -76,11 +79,13 @@ export default function AnalysisPage() {
   if (phase === "failed")
     return (
       <div className="mx-auto max-w-md py-20 text-center">
-        <div className="text-4xl">⚠️</div>
-        <h2 className="mt-3 text-lg font-semibold">Analysis failed</h2>
+        <span className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-stop/12 text-stop">
+          <Icon name="x" size={26} strokeWidth={2} />
+        </span>
+        <h2 className="font-display mt-4 text-lg font-semibold">Analysis failed</h2>
         <p className="mt-1 text-sm text-muted">{error}</p>
         <div className="mt-5 flex justify-center gap-2">
-          <Button variant="ghost" href="/app">← Dashboard</Button>
+          <Button variant="ghost" href="/app">Dashboard</Button>
           {rec && <Button onClick={() => run(rec)}>Retry</Button>}
         </div>
       </div>
@@ -90,12 +95,14 @@ export default function AnalysisPage() {
     return (
       <div className="mx-auto max-w-4xl space-y-5">
         <div className="no-print flex items-center justify-between">
-          <button onClick={() => router.push("/app")} className="text-sm text-muted hover:text-ink">← Dashboard</button>
+          <button onClick={() => router.push("/app")} className="inline-flex items-center gap-1.5 text-sm text-muted hover:text-ink">
+            <Icon name="arrow" size={16} className="rotate-180" /> Dashboard
+          </button>
           <div className="flex gap-2">
             <a href={`/app/analysis/${id}/print`} target="_blank" rel="noreferrer" className="btn btn-ghost text-sm">
-              ⬇ Download PDF
+              <Icon name="download" size={17} /> Download PDF
             </a>
-            <Button href="/app/new" className="text-sm">＋ New analysis</Button>
+            <Button href="/app/new" className="text-sm"><Icon name="plus" size={17} /> New analysis</Button>
           </div>
         </div>
         <ReportView result={rec.result} />

@@ -54,14 +54,16 @@ export function money(n: number, currency = "USD"): string {
   }
 }
 
+import type { IconName } from "@/components/icons";
+
 export const DIMENSION_META: Record<
   string,
-  { label: string; blurb: string; icon: string }
+  { label: string; blurb: string; icon: IconName }
 > = {
-  market: { label: "Market", blurb: "Size, demand & timing", icon: "📈" },
-  financial: { label: "Financial", blurb: "Profit, margin & break-even", icon: "💰" },
-  technical: { label: "Technical", blurb: "Execution & scalability", icon: "🛠️" },
-  competitive: { label: "Competitive", blurb: "Rivals & differentiation", icon: "⚔️" },
-  location: { label: "Location & Legal", blurb: "Place, economy & rules", icon: "📍" },
-  risk: { label: "Risk", blurb: "What could go wrong", icon: "🛡️" },
+  market: { label: "Market", blurb: "Size, demand & timing", icon: "market" },
+  financial: { label: "Financial", blurb: "Profit, margin & break-even", icon: "financial" },
+  technical: { label: "Technical", blurb: "Execution & scalability", icon: "technical" },
+  competitive: { label: "Competitive", blurb: "Rivals & differentiation", icon: "competitive" },
+  location: { label: "Location & Legal", blurb: "Place, economy & rules", icon: "location" },
+  risk: { label: "Risk", blurb: "What could go wrong", icon: "risk" },
 };

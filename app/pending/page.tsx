@@ -19,7 +19,7 @@ export default function PendingPage() {
 
   return (
     <AuthShell
-      title="You're on the list 🎉"
+      title="You're on the list"
       subtitle={`Thanks, ${user.name}. Your account is under review.`}
     >
       <div className="space-y-4 text-sm text-muted">

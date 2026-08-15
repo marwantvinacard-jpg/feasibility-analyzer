@@ -13,13 +13,13 @@ export function AuthShell({
   footer?: React.ReactNode;
 }) {
   return (
-    <div className="bg-grid min-h-dvh">
+    <div className="bg-paper-glow min-h-dvh">
       <div className="mx-auto flex min-h-dvh max-w-md flex-col justify-center px-5 py-10">
         <div className="mb-8 flex justify-center">
           <Logo />
         </div>
-        <div className="card animate-fade-up p-7">
-          <h1 className="text-2xl font-bold tracking-tight">{title}</h1>
+        <div className="card animate-fade-up p-7 shadow-lift">
+          <h1 className="font-display text-2xl font-semibold tracking-tight">{title}</h1>
           {subtitle && <p className="mt-1.5 text-sm text-muted">{subtitle}</p>}
           <div className="mt-6">{children}</div>
         </div>

@@ -1,13 +1,14 @@
 import Link from "next/link";
 import { cn } from "@/lib/ui";
+import { Icon } from "@/components/icons";
 
-/** Wordmark: a compass-like mark (feasibility = finding your direction) + name. */
+/** Wordmark: a compass mark (feasibility = finding your direction) + serif-tinged name. */
 export function Logo({ className, href = "/" }: { className?: string; href?: string }) {
   return (
-    <Link href={href} className={cn("inline-flex items-center gap-2.5 font-semibold", className)}>
+    <Link href={href} className={cn("group inline-flex items-center gap-2.5", className)}>
       <Mark />
-      <span className="text-[1.05rem] tracking-tight">
-        Feasibility<span className="text-brand">AI</span>
+      <span className="text-[1.1rem] font-semibold tracking-tightest">
+        Feasibility<span className="font-display italic text-brand">AI</span>
       </span>
     </Link>
   );
@@ -17,15 +18,12 @@ export function Mark({ className }: { className?: string }) {
   return (
     <span
       className={cn(
-        "grid h-8 w-8 place-items-center rounded-xl bg-gradient-to-b from-brand-2 to-brand text-white shadow-glow",
+        "grid h-8 w-8 place-items-center rounded-lg bg-brand text-white shadow-[0_6px_16px_-8px_rgb(var(--brand)/0.9)]",
         className
       )}
       aria-hidden
     >
-      <svg width="17" height="17" viewBox="0 0 24 24" fill="none">
-        <path d="M12 2v3M12 19v3M2 12h3M19 12h3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-        <path d="m14.5 9.5-2 5-5 2 2-5 5-2Z" fill="currentColor" opacity="0.95" />
-      </svg>
+      <Icon name="compass" size={18} strokeWidth={1.75} />
     </span>
   );
 }

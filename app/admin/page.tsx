@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Logo } from "@/components/Brand";
 import { Badge, Button, Container } from "@/components/kit";
+import { Icon } from "@/components/icons";
 import { useSession, type Account, type UserStatus } from "@/lib/session";
 import { cn } from "@/lib/ui";
 
@@ -41,8 +42,8 @@ export default function AdminPage() {
 
       <Container className="space-y-8 py-8">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">User management</h1>
-          <p className="mt-1 text-sm text-muted">Approve new accounts and manage access.</p>
+          <h1 className="font-display text-3xl font-semibold tracking-tight">User management</h1>
+          <p className="mt-1.5 text-sm text-muted">Approve new accounts and manage access.</p>
         </div>
 
         <div className="grid gap-4 sm:grid-cols-4">
@@ -54,19 +55,24 @@ export default function AdminPage() {
 
         {/* Pending queue */}
         <section>
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-faint">Pending approval</h2>
+          <h2 className="label mb-3">Pending approval</h2>
           {pending.length === 0 ? (
-            <div className="card py-10 text-center text-sm text-muted">No accounts awaiting approval 🎉</div>
+            <div className="card py-10 text-center text-sm text-muted">No accounts awaiting approval.</div>
           ) : (
             <div className="space-y-3">
               {pending.map((u) => (
                 <div key={u.uid} className="card flex flex-wrap items-center justify-between gap-3 p-4">
-                  <div>
-                    <div className="font-semibold">{u.name}</div>
-                    <div className="text-xs text-faint">{u.email} · joined {new Date(u.createdAt).toLocaleDateString()}</div>
+                  <div className="flex items-center gap-3">
+                    <span className="grid h-10 w-10 place-items-center rounded-full bg-surface-2 text-muted">
+                      <Icon name="user" size={18} />
+                    </span>
+                    <div>
+                      <div className="font-semibold">{u.name}</div>
+                      <div className="text-xs text-faint">{u.email} · joined {new Date(u.createdAt).toLocaleDateString()}</div>
+                    </div>
                   </div>
                   <div className="flex gap-2">
-                    <Button onClick={() => setStatus(u.uid, "approved")}>✓ Approve</Button>
+                    <Button onClick={() => setStatus(u.uid, "approved")}><Icon name="check" size={17} strokeWidth={2.25} /> Approve</Button>
                     <button onClick={() => setStatus(u.uid, "rejected")} className="btn btn-ghost text-stop">Reject</button>
                   </div>
                 </div>
@@ -77,7 +83,7 @@ export default function AdminPage() {
 
         {/* All users */}
         <section>
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-faint">All accounts</h2>
+          <h2 className="label mb-3">All accounts</h2>
           <div className="card overflow-x-auto p-0">
             <table className="w-full text-sm">
               <thead>
@@ -105,8 +111,8 @@ export default function AdminPage() {
 function Stat({ label, value, tone }: { label: string; value: number; tone?: "go" | "warn" | "stop" }) {
   return (
     <div className="card p-4">
-      <div className="text-xs text-faint">{label}</div>
-      <div className={cn("mt-1 text-2xl font-bold", tone === "go" ? "text-go" : tone === "warn" ? "text-warn" : tone === "stop" ? "text-stop" : "")}>
+      <div className="label">{label}</div>
+      <div className={cn("num mt-1 text-2xl font-semibold", tone === "go" ? "text-go" : tone === "warn" ? "text-warn" : tone === "stop" ? "text-stop" : "")}>
         {value}
       </div>
     </div>
@@ -131,7 +137,7 @@ function UserRow({
       </td>
       <td className="p-3"><Badge tone={tone}>{u.status}</Badge></td>
       <td className="p-3 capitalize text-muted">{u.role}</td>
-      <td className="p-3 tabular-nums">{u.credits}</td>
+      <td className="num p-3">{u.credits}</td>
       <td className="p-3">
         <div className="flex justify-end gap-1.5">
           <button onClick={onGrant} className="btn btn-ghost px-2.5 py-1 text-xs">+3 credits</button>

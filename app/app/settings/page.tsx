@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Badge, Button } from "@/components/kit";
+import { Icon } from "@/components/icons";
 import { useSession } from "@/lib/session";
 import { cn } from "@/lib/ui";
 
@@ -15,13 +16,13 @@ export default function SettingsPage() {
   return (
     <div className="mx-auto max-w-2xl space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Settings</h1>
-        <p className="mt-1 text-sm text-muted">Manage your profile, AI key, and usage.</p>
+        <h1 className="font-display text-3xl font-semibold tracking-tight">Settings</h1>
+        <p className="mt-1.5 text-sm text-muted">Manage your profile, AI key, and usage.</p>
       </div>
 
       {/* Profile */}
       <section className="card p-5">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-faint">Profile</h2>
+        <h2 className="label">Profile</h2>
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
           <Field label="Name" value={user.name} />
           <Field label="Email" value={user.email} />
@@ -32,7 +33,7 @@ export default function SettingsPage() {
 
       {/* AI key mode */}
       <section className="card p-5">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-faint">AI engine</h2>
+        <h2 className="label">AI engine</h2>
         <p className="mt-1 text-sm text-muted">
           Run on our platform key (uses credits) or bring your own for higher limits at cost.
         </p>
@@ -66,7 +67,9 @@ export default function SettingsPage() {
             </div>
             <p className="mt-2 text-xs text-faint">
               {saved ? (
-                <span className="text-go">✓ Key saved (concept — encrypted with Cloud KMS in production).</span>
+                <span className="inline-flex items-center gap-1 text-go">
+                  <Icon name="check" size={13} strokeWidth={2.5} /> Key saved (concept — encrypted with Cloud KMS in production).
+                </span>
               ) : (
                 "Stored encrypted; never shown again. Works with OpenAI, Gemini, Groq, or a local Ollama endpoint."
               )}

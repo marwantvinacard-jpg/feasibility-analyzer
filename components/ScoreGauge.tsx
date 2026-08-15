@@ -43,9 +43,9 @@ export function ScoreGauge({
         />
       </svg>
       <div className="absolute grid place-items-center text-center">
-        <div className={cn("text-4xl font-bold tabular-nums", toneText[tone])}>{score}</div>
-        <div className="text-xs font-medium text-faint">{label ?? "/ 100"}</div>
-        {sublabel && <div className="mt-0.5 text-[0.7rem] text-muted">{sublabel}</div>}
+        <div className={cn("num text-[2.6rem] font-semibold leading-none", toneText[tone])}>{score}</div>
+        <div className="label mt-1.5">{label ?? "/ 100"}</div>
+        {sublabel && <div className="mt-1 text-[0.72rem] font-medium text-muted">{sublabel}</div>}
       </div>
     </div>
   );

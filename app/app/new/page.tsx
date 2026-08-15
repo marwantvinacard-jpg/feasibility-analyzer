@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button, Badge } from "@/components/kit";
+import { Icon } from "@/components/icons";
 import { useSession } from "@/lib/session";
 import { newId, saveAnalysis } from "@/lib/store";
 import type { BusinessInput } from "@/lib/engine/types";
@@ -109,14 +110,14 @@ export default function NewAnalysis() {
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">New feasibility analysis</h1>
-        <p className="mt-1 text-sm text-muted">Fill the 10 fields below — or describe your idea and let AI pre-fill them.</p>
+        <h1 className="font-display text-3xl font-semibold tracking-tight">New feasibility analysis</h1>
+        <p className="mt-1.5 text-sm text-muted">Fill the 10 fields below — or describe your idea and let AI pre-fill them.</p>
       </div>
 
       {/* AI pre-fill */}
       <div className="card p-5">
         <div className="flex items-center gap-2">
-          <Badge tone="go">✨ AI pre-fill</Badge>
+          <Badge tone="go"><Icon name="spark" size={13} /> AI pre-fill</Badge>
           <span className="text-sm text-muted">Paste a paragraph about your business</span>
         </div>
         <textarea
@@ -127,7 +128,7 @@ export default function NewAnalysis() {
         />
         <div className="mt-3 flex items-center gap-3">
           <Button variant="ghost" onClick={prefill} disabled={prefilling || describe.trim().length < 8}>
-            {prefilling ? "Reading…" : "Pre-fill fields →"}
+            {prefilling ? "Reading…" : <>Pre-fill fields <Icon name="arrow" size={16} /></>}
           </Button>
           {prefillNote && <span className="text-xs text-muted">{prefillNote}</span>}
         </div>
@@ -157,7 +158,7 @@ export default function NewAnalysis() {
             <div key={f.key} className={f.long ? "sm:col-span-2" : ""}>
               <label className="mb-1.5 flex items-center gap-2 text-sm font-medium">
                 {f.label}
-                {FILLED(input[f.key]) && <span className="text-go">✓</span>}
+                {FILLED(input[f.key]) && <Icon name="check" size={14} className="text-go" strokeWidth={2.5} />}
               </label>
               {f.long ? (
                 <textarea
@@ -199,7 +200,7 @@ export default function NewAnalysis() {
         <p className="text-xs text-faint">
           {user.keyMode === "platform" ? `Costs 1 credit · ${user.credits} remaining` : "Running on your own key"}
         </p>
-        <Button onClick={run} disabled={completeness < 100}>Run analysis →</Button>
+        <Button onClick={run} disabled={completeness < 100}>Run analysis <Icon name="arrow" size={18} /></Button>
       </div>
     </div>
   );
@@ -220,7 +221,7 @@ function NumberField({
     <div>
       <label className="mb-1.5 flex items-center gap-2 text-sm font-medium">
         {label}
-        {value > 0 && <span className="text-go">✓</span>}
+        {value > 0 && <Icon name="check" size={14} className="text-go" strokeWidth={2.5} />}
       </label>
       <div className="relative">
         <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-faint">
