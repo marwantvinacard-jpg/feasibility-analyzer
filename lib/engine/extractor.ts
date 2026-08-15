@@ -91,14 +91,44 @@ export async function extractFromText(
   return computeCompleteness(merged);
 }
 
-/** Mock extraction: keep whatever was already provided, mark the rest needed. */
-function mockExtract(_text: string, previous: Partial<BusinessInput>) {
+/**
+ * Mock extraction with a real best-effort heuristic parse, so the "AI pre-fill"
+ * UX works with zero keys: it fills what it can reliably read from the text
+ * (business idea, location, the two money figures) and leaves the rest for the
+ * user — exactly how the live extractor behaves, just shallower. A real LLM key
+ * fills all 10.
+ */
+function mockExtract(text: string, previous: Partial<BusinessInput>) {
   const base: Record<string, string | number> = {};
   for (const f of ALL_FIELDS) {
     const v = (previous as Record<string, unknown>)[f];
     if (NUMERIC.has(f)) base[f] = realNumber(v) ? Number(v) : "DATA_NEEDED";
     else base[f] = realText(v) ? String(v) : "DATA_NEEDED";
   }
+  if (!text) return base;
+
+  const firstSentence = text.split(/[.!?\n]/)[0]?.trim();
+  if (base.business_idea === "DATA_NEEDED" && firstSentence && firstSentence.length > 6) {
+    base.business_idea = firstSentence.slice(0, 160);
+  }
+
+  // Location: "in Austin", "based in Berlin, Germany".
+  const loc = text.match(/\b(?:in|based in|located in|from)\s+([A-Z][a-zA-Z]+(?:,\s*[A-Z][a-zA-Z]+)?)/);
+  if (base.location === "DATA_NEEDED" && loc) base.location = loc[1];
+
+  // Money: associate each figure with cost vs revenue by nearby keywords.
+  for (const m of text.matchAll(/([\d][\d,]*\.?\d*)\s*(k|thousand|m|million)?/gi)) {
+    let n = Number(m[1].replace(/,/g, ""));
+    if (!n) continue;
+    const unit = (m[2] ?? "").toLowerCase();
+    if (unit.startsWith("k") || unit === "thousand") n *= 1_000;
+    if (unit.startsWith("m")) n *= 1_000_000;
+    if (n < 100) continue; // ignore prices like "$89"
+    const around = text.slice(Math.max(0, m.index! - 40), m.index! + 40).toLowerCase();
+    if (/(cost|spend|expense|burn|operating)/.test(around) && base.monthly_cost === "DATA_NEEDED") base.monthly_cost = n;
+    else if (/(revenue|sales|earn|make|income|turnover)/.test(around) && base.monthly_revenue === "DATA_NEEDED") base.monthly_revenue = n;
+  }
+
   return base;
 }
 

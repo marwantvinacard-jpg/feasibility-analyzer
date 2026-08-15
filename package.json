@@ -12,7 +12,7 @@
     "engine": "tsx scripts/run-engine.ts"
   },
   "dependencies": {
-    "next": "15.1.6",
+    "next": "^15.5.23",
     "openai": "^4.77.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",

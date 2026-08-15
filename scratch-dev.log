@@ -1,0 +1,93 @@
+
+> feasibility-ai@0.1.0 dev
+> next dev
+
+   ▲ Next.js 15.5.23
+   - Local:        http://localhost:3210
+   - Network:      http://192.168.1.6:3210
+
+ ✓ Starting...
+ ✓ Ready in 2.9s
+ ○ Compiling / ...
+ ✓ Compiled / in 2.6s (623 modules)
+ GET / 200 in 2890ms
+ GET / 200 in 105ms
+ ✓ Compiled in 113ms (242 modules)
+ GET / 200 in 40ms
+ ✓ Compiled in 85ms (242 modules)
+ GET / 200 in 37ms
+ ✓ Compiled in 112ms (600 modules)
+ GET / 200 in 85ms
+ ✓ Compiled in 66ms (242 modules)
+ GET / 200 in 43ms
+ ✓ Compiled in 58ms (600 modules)
+ GET / 200 in 54ms
+ ✓ Compiled in 68ms (242 modules)
+ GET / 200 in 58ms
+ ✓ Compiled in 86ms (600 modules)
+ GET / 200 in 85ms
+ GET / 200 in 55ms
+ ✓ Compiled in 89ms (242 modules)
+ GET / 200 in 41ms
+ ✓ Compiled in 67ms (242 modules)
+ GET / 200 in 38ms
+ ✓ Compiled in 121ms (600 modules)
+ GET / 200 in 122ms
+ GET / 200 in 50ms
+ ✓ Compiled in 78ms (242 modules)
+ GET / 200 in 37ms
+ ✓ Compiled in 110ms (600 modules)
+ GET / 200 in 109ms
+ GET / 200 in 52ms
+ ✓ Compiled in 84ms (242 modules)
+ GET / 200 in 40ms
+ ✓ Compiled in 67ms (242 modules)
+ GET / 200 in 36ms
+ ✓ Compiled in 83ms (242 modules)
+ GET / 200 in 50ms
+ ✓ Compiled in 91ms (600 modules)
+ GET / 200 in 93ms
+ GET / 200 in 60ms
+ ✓ Compiled in 70ms (242 modules)
+ GET / 200 in 40ms
+ GET / 200 in 41ms
+ ✓ Compiled in 63ms (242 modules)
+ GET / 200 in 66ms
+ ✓ Compiled in 85ms (600 modules)
+ GET / 200 in 85ms
+ GET / 200 in 50ms
+ ✓ Compiled in 84ms (242 modules)
+ GET / 200 in 42ms
+ ✓ Compiled in 109ms (600 modules)
+ GET / 200 in 108ms
+ GET / 200 in 54ms
+ ✓ Compiled /signup in 298ms (617 modules)
+ GET /signup 200 in 454ms
+ ✓ Compiled /pending in 154ms (624 modules)
+ GET /pending 200 in 207ms
+ ✓ Compiled /app in 212ms (639 modules)
+ GET /app 200 in 254ms
+ GET /app 200 in 14ms
+ ✓ Compiled /app/new in 155ms (646 modules)
+ GET /app/new 200 in 257ms
+ ✓ Compiled in 193ms (258 modules)
+ GET /app/new 200 in 18ms
+ ✓ Compiled /api/extract in 356ms (723 modules)
+ POST /api/extract 200 in 864ms
+ ✓ Compiled /app/analysis/[id] in 368ms (664 modules)
+ GET /app/analysis/an_fcjcixz0rjp 200 in 672ms
+ ✓ Compiled /api/analyze in 159ms (735 modules)
+ POST /api/analyze 200 in 1805ms
+ ✓ Compiled /app/analysis/[id]/print in 228ms (733 modules)
+ GET /app/analysis/an_fcjcixz0rjp/print 200 in 591ms
+ ✓ Compiled /login in 273ms (664 modules)
+ GET /login 200 in 425ms
+ ✓ Compiled in 152ms (270 modules)
+ GET /login 200 in 52ms
+ ✓ Compiled in 464ms (673 modules)
+ GET /login 200 in 70ms
+ ✓ Compiled in 169ms (673 modules)
+ GET /login 200 in 71ms
+ GET /login 200 in 117ms
+ ✓ Compiled /admin in 203ms (666 modules)
+ GET /admin 200 in 244ms

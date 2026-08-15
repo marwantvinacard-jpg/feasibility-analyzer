@@ -1,0 +1,168 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Light theme (default). Dark below. */
+  --bg: 247 248 251;
+  --surface: 255 255 255;
+  --surface-2: 244 246 250;
+  --border: 226 230 238;
+  --ink: 17 22 38;
+  --muted: 90 99 122;
+  --faint: 140 149 170;
+  --brand: 88 80 236; /* indigo/violet */
+  --brand-2: 124 92 246;
+  --go: 22 163 110; /* emerald */
+  --warn: 202 138 4; /* amber */
+  --stop: 220 74 74; /* rose */
+  --font-sans: "Inter";
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: 8 10 18;
+    --surface: 17 20 32;
+    --surface-2: 24 28 43;
+    --border: 38 44 64;
+    --ink: 236 239 247;
+    --muted: 158 166 187;
+    --faint: 110 119 142;
+    --brand: 129 122 255;
+    --brand-2: 160 130 255;
+    --go: 46 200 140;
+    --warn: 234 179 8;
+    --stop: 244 108 108;
+  }
+}
+
+:root[data-theme="dark"] {
+  --bg: 8 10 18;
+  --surface: 17 20 32;
+  --surface-2: 24 28 43;
+  --border: 38 44 64;
+  --ink: 236 239 247;
+  --muted: 158 166 187;
+  --faint: 110 119 142;
+  --brand: 129 122 255;
+  --brand-2: 160 130 255;
+  --go: 46 200 140;
+  --warn: 234 179 8;
+  --stop: 244 108 108;
+}
+
+* {
+  border-color: rgb(var(--border));
+}
+
+html {
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  background: rgb(var(--bg));
+  color: rgb(var(--ink));
+  font-family: var(--font-sans), system-ui, sans-serif;
+}
+
+/* Subtle grid/glow backdrop for hero + app surfaces. */
+.bg-grid {
+  background-image:
+    radial-gradient(60rem 40rem at 70% -10%, rgb(var(--brand) / 0.16), transparent 60%),
+    radial-gradient(50rem 30rem at 0% 10%, rgb(var(--brand-2) / 0.12), transparent 55%);
+}
+.bg-dots {
+  background-image: radial-gradient(rgb(var(--border) / 0.9) 1px, transparent 1px);
+  background-size: 22px 22px;
+}
+
+.card {
+  background: rgb(var(--surface));
+  border: 1px solid rgb(var(--border));
+  border-radius: 1.25rem;
+  box-shadow: var(--tw-shadow, 0 1px 2px rgb(0 0 0 / 0.04), 0 8px 24px -12px rgb(0 0 0 / 0.12));
+}
+
+.input {
+  width: 100%;
+  background: rgb(var(--surface-2));
+  border: 1px solid rgb(var(--border));
+  border-radius: 0.7rem;
+  padding: 0.6rem 0.8rem;
+  color: rgb(var(--ink));
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.input:focus {
+  border-color: rgb(var(--brand));
+  box-shadow: 0 0 0 3px rgb(var(--brand) / 0.18);
+}
+.input::placeholder {
+  color: rgb(var(--faint));
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 0.7rem;
+  font-weight: 600;
+  padding: 0.6rem 1rem;
+  transition: transform 0.06s ease, background 0.15s, opacity 0.15s, box-shadow 0.15s;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.btn:active {
+  transform: translateY(1px);
+}
+.btn-primary {
+  background: linear-gradient(180deg, rgb(var(--brand-2)), rgb(var(--brand)));
+  color: white;
+  box-shadow: 0 8px 24px -10px rgb(var(--brand) / 0.7);
+}
+.btn-primary:hover {
+  filter: brightness(1.05);
+}
+.btn-ghost {
+  background: transparent;
+  color: rgb(var(--ink));
+  border: 1px solid rgb(var(--border));
+}
+.btn-ghost:hover {
+  background: rgb(var(--surface-2));
+}
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+@keyframes shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+.shimmer {
+  position: relative;
+  overflow: hidden;
+}
+.shimmer::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgb(var(--brand) / 0.12), transparent);
+  animation: shimmer 1.4s infinite;
+}
+
+/* Print: only the report body should print. */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  body {
+    background: white;
+    color: black;
+  }
+}

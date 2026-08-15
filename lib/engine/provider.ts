@@ -37,26 +37,44 @@ export interface LlmProvider {
   structured<T>(call: StructuredCall<T>): Promise<StructuredResult<T>>;
 }
 
+/**
+ * OpenAI-compatible provider. Because Gemini, Groq, Cerebras and OpenRouter all
+ * speak the OpenAI Chat Completions API, one class covers every hosted option —
+ * just point `baseURL` at the provider and pass its key + model. (Ollama gets a
+ * dedicated native branch elsewhere for grammar-constrained schemas.) In mock
+ * mode it returns the caller's fixture with an optional small delay so the web
+ * UI can show believable live per-stage progress.
+ */
 export class OpenAIProvider implements LlmProvider {
   readonly mock: boolean;
   readonly model: string;
   private client: OpenAI | null;
+  private mockDelayMs: number;
 
-  constructor(opts: { apiKey?: string; model?: string; mock?: boolean } = {}) {
+  constructor(
+    opts: { apiKey?: string; model?: string; mock?: boolean; baseURL?: string; mockDelayMs?: number } = {}
+  ) {
     this.mock = opts.mock ?? process.env.FEASIBILITY_MOCK === "true";
     this.model = opts.model ?? process.env.FEASIBILITY_MODEL ?? "gpt-4o";
+    this.mockDelayMs = opts.mockDelayMs ?? Number(process.env.FEASIBILITY_MOCK_DELAY_MS ?? 0);
     const apiKey = opts.apiKey ?? process.env.OPENAI_API_KEY;
+    const baseURL = opts.baseURL ?? process.env.FEASIBILITY_BASE_URL;
     // In mock mode we never touch the network, so a missing key is fine.
-    this.client = this.mock ? null : new OpenAI({ apiKey });
+    this.client = this.mock ? null : new OpenAI({ apiKey, baseURL });
     if (!this.mock && !apiKey) {
       throw new Error(
-        "OPENAI_API_KEY is not set. Set it in .env.local, or run with FEASIBILITY_MOCK=true."
+        "No LLM API key set. Set OPENAI_API_KEY (or a compatible key + FEASIBILITY_BASE_URL) in .env.local, or run with FEASIBILITY_MOCK=true."
       );
     }
   }
 
   async structured<T>(call: StructuredCall<T>): Promise<StructuredResult<T>> {
     if (this.mock) {
+      if (this.mockDelayMs > 0) {
+        // Jitter so stages don't finish in lockstep.
+        const jitter = this.mockDelayMs * (0.6 + Math.random() * 0.8);
+        await new Promise((r) => setTimeout(r, jitter));
+      }
       const data = call.schema.parse(call.mockValue);
       return { data, tokensIn: 0, tokensOut: 0 };
     }
