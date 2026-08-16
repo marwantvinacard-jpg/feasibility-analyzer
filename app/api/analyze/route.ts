@@ -10,7 +10,7 @@ import { SerpApiProvider } from "@/lib/engine/search";
 import type { BusinessInput } from "@/lib/engine/types";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+export const maxDuration = 120; // 7 live LLM calls; Vercel Pro allows well beyond this
 
 export async function POST(req: Request) {
   const { input } = (await req.json()) as { input: BusinessInput };

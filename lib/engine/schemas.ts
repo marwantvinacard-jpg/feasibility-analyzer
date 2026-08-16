@@ -219,11 +219,16 @@ export const RiskSchema = z
   })
   .strict();
 
-/** OpenAI structured-outputs wants a name + strict JSON Schema. */
+/**
+ * Build the JSON Schema for structured outputs. Must be fully INLINED — no
+ * top-level `$ref`/`definitions` and no `$schema` — because Gemini's OpenAI-compat
+ * endpoint rejects those ("reference to undefined schema"). Passing a `name` to
+ * zodToJsonSchema is what created the `$ref` wrapper, so we omit it and set the
+ * response_format name separately.
+ */
 export function jsonSchemaFor(name: string, schema: z.ZodTypeAny) {
-  return {
-    name,
-    strict: true,
-    schema: zodToJsonSchema(schema, { name, target: "openAi", $refStrategy: "none" }),
-  };
+  const js = zodToJsonSchema(schema, { target: "openAi", $refStrategy: "none" }) as Record<string, unknown>;
+  delete js.$schema;
+  delete js.definitions;
+  return { name, strict: true, schema: js };
 }
