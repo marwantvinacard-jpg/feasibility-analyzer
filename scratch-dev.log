@@ -31,3 +31,4 @@
  POST /api/admin/user 200 in 2393ms
  GET /login 200 in 262ms
  GET /app 200 in 38ms
+[?25h

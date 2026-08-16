@@ -7,6 +7,7 @@ import { AuthShell } from "@/components/AuthShell";
 import { Button } from "@/components/kit";
 import { Icon } from "@/components/icons";
 import { useSession } from "@/lib/session";
+import { friendlyAuthError } from "@/lib/authErrors";
 
 export default function SignupPage() {
   const { signUpEmail, signInGoogle } = useSession();
@@ -80,16 +81,4 @@ export default function SignupPage() {
       <p className="mt-4 text-center text-xs text-faint">Accounts are reviewed by an admin before access is granted.</p>
     </AuthShell>
   );
-}
-
-export function friendlyAuthError(err: unknown): string {
-  const code = (err as { code?: string })?.code ?? "";
-  if (code.includes("email-already-in-use")) return "That email already has an account — try logging in.";
-  if (code.includes("invalid-email")) return "That doesn't look like a valid email.";
-  if (code.includes("weak-password")) return "Password should be at least 6 characters.";
-  if (code.includes("invalid-credential") || code.includes("wrong-password") || code.includes("user-not-found"))
-    return "Wrong email or password.";
-  if (code.includes("popup-closed")) return "Google sign-in was cancelled.";
-  if (code.includes("network")) return "Network error — check your connection.";
-  return (err as Error)?.message ?? "Something went wrong. Please try again.";
 }

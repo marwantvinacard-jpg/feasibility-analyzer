@@ -6,7 +6,7 @@ import Link from "next/link";
 import { AuthShell } from "@/components/AuthShell";
 import { Button } from "@/components/kit";
 import { useSession } from "@/lib/session";
-import { friendlyAuthError } from "@/app/signup/page";
+import { friendlyAuthError } from "@/lib/authErrors";
 
 export default function LoginPage() {
   const { signInEmail, signInGoogle } = useSession();
