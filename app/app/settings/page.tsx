@@ -42,13 +42,13 @@ export default function SettingsPage() {
             active={user.keyMode === "platform"}
             title="Platform key"
             desc="Simplest. Each report uses one credit."
-            onClick={() => setKeyMode(user.uid, "platform")}
+            onClick={() => setKeyMode("platform")}
           />
           <ModeCard
             active={user.keyMode === "byok"}
             title="Bring your own key"
             desc="Use your own AI key. No per-report credit."
-            onClick={() => setKeyMode(user.uid, "byok")}
+            onClick={() => setKeyMode("byok")}
           />
         </div>
 

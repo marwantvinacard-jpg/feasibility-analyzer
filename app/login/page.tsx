@@ -6,24 +6,26 @@ import Link from "next/link";
 import { AuthShell } from "@/components/AuthShell";
 import { Button } from "@/components/kit";
 import { useSession } from "@/lib/session";
+import { friendlyAuthError } from "@/app/signup/page";
 
 export default function LoginPage() {
-  const { login } = useSession();
+  const { signInEmail, signInGoogle } = useSession();
   const router = useRouter();
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
 
-  function submit(e: React.FormEvent) {
-    e.preventDefault();
+  async function run(fn: () => Promise<void>) {
     setError("");
-    const acct = login(email);
-    if (!acct) {
-      setError("No account with that email. Try a demo account below, or sign up.");
-      return;
+    setBusy(true);
+    try {
+      await fn();
+      router.push("/app"); // the app guard routes pending → /pending
+    } catch (err) {
+      setError(friendlyAuthError(err));
+      setBusy(false);
     }
-    if (acct.role === "admin") router.push("/admin");
-    else if (acct.status === "approved") router.push("/app");
-    else router.push("/pending");
   }
 
   return (
@@ -37,31 +39,23 @@ export default function LoginPage() {
         </>
       }
     >
-      <form onSubmit={submit} className="space-y-4">
+      <form onSubmit={(e) => { e.preventDefault(); run(() => signInEmail(email, password)); }} className="space-y-4">
         <div>
           <label className="mb-1.5 block text-sm font-medium">Email</label>
-          <input
-            className="input"
-            type="email"
-            placeholder="you@company.com"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-          />
+          <input className="input" type="email" placeholder="you@company.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
+        </div>
+        <div>
+          <label className="mb-1.5 block text-sm font-medium">Password</label>
+          <input className="input" type="password" placeholder="Your password" value={password} onChange={(e) => setPassword(e.target.value)} required />
         </div>
         {error && <p className="text-sm text-stop">{error}</p>}
-        <Button type="submit" className="w-full">Log in</Button>
+        <Button type="submit" className="w-full" disabled={busy}>{busy ? "Signing in…" : "Log in"}</Button>
       </form>
 
-      <div className="mt-6 rounded-xl border border-border bg-surface-2 p-3 text-xs text-muted">
-        <div className="mb-1.5 font-semibold text-ink">Demo accounts (concept build)</div>
-        <button className="block hover:text-brand" onClick={() => setEmail("demo@feasibility.ai")}>
-          • demo@feasibility.ai — approved user
-        </button>
-        <button className="block hover:text-brand" onClick={() => setEmail("admin@feasibility.ai")}>
-          • admin@feasibility.ai — admin panel
-        </button>
+      <div className="my-4 flex items-center gap-3 text-xs text-faint">
+        <span className="h-px flex-1 bg-border" /> or <span className="h-px flex-1 bg-border" />
       </div>
+      <Button variant="ghost" className="w-full" onClick={() => run(signInGoogle)} disabled={busy}>Continue with Google</Button>
     </AuthShell>
   );
 }

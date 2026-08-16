@@ -5,18 +5,41 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { AuthShell } from "@/components/AuthShell";
 import { Button } from "@/components/kit";
+import { Icon } from "@/components/icons";
 import { useSession } from "@/lib/session";
 
 export default function SignupPage() {
-  const { signup } = useSession();
+  const { signUpEmail, signInGoogle } = useSession();
   const router = useRouter();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
 
-  function submit(e: React.FormEvent) {
+  async function submit(e: React.FormEvent) {
     e.preventDefault();
-    signup(email, name);
-    router.push("/pending");
+    setError("");
+    setBusy(true);
+    try {
+      await signUpEmail(name, email, password);
+      router.push("/pending");
+    } catch (err) {
+      setError(friendlyAuthError(err));
+      setBusy(false);
+    }
+  }
+
+  async function google() {
+    setError("");
+    setBusy(true);
+    try {
+      await signInGoogle();
+      router.push("/pending");
+    } catch (err) {
+      setError(friendlyAuthError(err));
+      setBusy(false);
+    }
   }
 
   return (
@@ -37,20 +60,36 @@ export default function SignupPage() {
         </div>
         <div>
           <label className="mb-1.5 block text-sm font-medium">Work email</label>
-          <input
-            className="input"
-            type="email"
-            placeholder="you@company.com"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-          />
+          <input className="input" type="email" placeholder="you@company.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
         </div>
-        <Button type="submit" className="w-full">Create account →</Button>
-        <p className="text-center text-xs text-faint">
-          Accounts are reviewed by an admin before access is granted.
-        </p>
+        <div>
+          <label className="mb-1.5 block text-sm font-medium">Password</label>
+          <input className="input" type="password" placeholder="At least 6 characters" value={password} onChange={(e) => setPassword(e.target.value)} minLength={6} required />
+        </div>
+        {error && <p className="text-sm text-stop">{error}</p>}
+        <Button type="submit" className="w-full" disabled={busy}>
+          {busy ? "Creating…" : <>Create account <Icon name="arrow" size={17} /></>}
+        </Button>
       </form>
+
+      <div className="my-4 flex items-center gap-3 text-xs text-faint">
+        <span className="h-px flex-1 bg-border" /> or <span className="h-px flex-1 bg-border" />
+      </div>
+      <Button variant="ghost" className="w-full" onClick={google} disabled={busy}>Continue with Google</Button>
+
+      <p className="mt-4 text-center text-xs text-faint">Accounts are reviewed by an admin before access is granted.</p>
     </AuthShell>
   );
+}
+
+export function friendlyAuthError(err: unknown): string {
+  const code = (err as { code?: string })?.code ?? "";
+  if (code.includes("email-already-in-use")) return "That email already has an account — try logging in.";
+  if (code.includes("invalid-email")) return "That doesn't look like a valid email.";
+  if (code.includes("weak-password")) return "Password should be at least 6 characters.";
+  if (code.includes("invalid-credential") || code.includes("wrong-password") || code.includes("user-not-found"))
+    return "Wrong email or password.";
+  if (code.includes("popup-closed")) return "Google sign-in was cancelled.";
+  if (code.includes("network")) return "Network error — check your connection.";
+  return (err as Error)?.message ?? "Something went wrong. Please try again.";
 }

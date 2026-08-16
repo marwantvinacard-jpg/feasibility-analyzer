@@ -40,7 +40,7 @@ const FILLED = (v: unknown) => (typeof v === "number" ? v > 0 : String(v ?? "").
 const KEYS: FieldKey[] = [...TEXT_FIELDS.map((f) => f.key), "monthly_cost", "monthly_revenue"];
 
 export default function NewAnalysis() {
-  const { user, spendCredit } = useSession();
+  const { user } = useSession();
   const router = useRouter();
 
   const [input, setInput] = useState<BusinessInput>(emptyInput);
@@ -101,7 +101,7 @@ export default function NewAnalysis() {
       status: "queued",
       input: { ...input, monthly_cost: Number(input.monthly_cost), monthly_revenue: Number(input.monthly_revenue) },
     });
-    if (user!.keyMode === "platform") spendCredit(user!.uid);
+    // Credit enforcement moves server-side when analyses persist to Firestore (next milestone).
     router.push(`/app/analysis/${id}`);
   }
 

@@ -5,42 +5,29 @@
    ▲ Next.js 15.5.23
    - Local:        http://localhost:3210
    - Network:      http://192.168.18.18:3210
+   - Environments: .env.local
 
  ✓ Starting...
- ✓ Ready in 1511ms
+ ✓ Ready in 1372ms
  ○ Compiling / ...
- ✓ Compiled / in 2.5s (648 modules)
- GET / 200 in 2857ms
- GET / 200 in 120ms
- ✓ Compiled /login in 314ms (640 modules)
- GET /login 200 in 400ms
- GET /login 200 in 16ms
- ✓ Compiled /app in 179ms (641 modules)
- GET /app 200 in 231ms
- GET / 200 in 171ms
- ✓ Compiled /app/analysis/[id] in 301ms (658 modules)
- GET /app/analysis/an_fcjcixz0rjp 200 in 703ms
- GET /app 200 in 34ms
- ✓ Compiled /app/new in 205ms (665 modules)
- GET /app/new 200 in 259ms
- GET /app 200 in 40ms
- ✓ Compiled /app/settings in 213ms (672 modules)
- GET /app/settings 200 in 270ms
+ ✓ Compiled / in 3.5s (861 modules)
+ GET / 200 in 4115ms
+ ○ Compiling /signup ...
+ ✓ Compiled /signup in 761ms (853 modules)
+ GET /signup 200 in 1050ms
+ ✓ Compiled /pending in 222ms (836 modules)
+ GET /pending 200 in 313ms
+ GET /signup 200 in 268ms
+ GET /pending 200 in 23ms
+ ○ Compiling /app ...
+ ✓ Compiled /app in 754ms (851 modules)
+ GET /app 200 in 858ms
+ ✓ Compiled /login in 303ms (858 modules)
+ GET /login 200 in 588ms
+ GET /app 200 in 30ms
+ ✓ Compiled /admin in 250ms (865 modules)
+ GET /admin 200 in 457ms
+ ✓ Compiled /api/admin/user in 325ms (893 modules)
+ POST /api/admin/user 200 in 2393ms
+ GET /login 200 in 262ms
  GET /app 200 in 38ms
- ✓ Compiled in 250ms (270 modules)
- GET /app 200 in 15ms
- ✓ Compiled in 37ms (256 modules)
- ✓ Compiled in 98ms (270 modules)
- ✓ Compiled in 126ms (270 modules)
- ✓ Compiled in 77ms (270 modules)
- ✓ Compiled in 69ms (270 modules)
- ✓ Compiled in 71ms (270 modules)
- ✓ Compiled in 79ms (270 modules)
- ✓ Compiled in 79ms (270 modules)
- ✓ Compiled in 32ms (256 modules)
- GET / 200 in 128ms
-   Reload env: .env.local
- ✓ Compiled in 193ms (662 modules)
- ✓ Compiled in 38ms (256 modules)
- ✓ Compiled in 94ms (270 modules)
- GET / 200 in 173ms
