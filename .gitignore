@@ -32,3 +32,5 @@ firebase-debug.log
 *serviceAccount*.json
 serviceAccountKey.json
 .firebaserc
+.vercel
+.env*
