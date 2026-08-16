@@ -39,4 +39,13 @@ export function adminApp(): App {
 }
 
 export const adminAuth = () => getAuth(adminApp());
-export const adminDb = () => getFirestore(adminApp());
+
+let db: ReturnType<typeof getFirestore> | null = null;
+export function adminDb() {
+  if (!db) {
+    db = getFirestore(adminApp());
+    // Result objects can carry undefined optional fields; don't reject them.
+    db.settings({ ignoreUndefinedProperties: true });
+  }
+  return db;
+}

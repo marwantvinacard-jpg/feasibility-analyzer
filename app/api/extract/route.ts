@@ -5,6 +5,7 @@
 import { NextResponse } from "next/server";
 import { extractFromText } from "@/lib/engine/extractor";
 import { createLlm } from "@/lib/engine/factory";
+import { requireUser, HttpError } from "@/lib/firebase/verify";
 import type { BusinessInput } from "@/lib/engine/types";
 
 export const runtime = "nodejs";
@@ -17,6 +18,7 @@ function makeProvider() {
 
 export async function POST(req: Request) {
   try {
+    await requireUser(req); // signed-in only — don't let anyone burn our AI key
     const { text, previous } = (await req.json()) as {
       text: string;
       previous?: Partial<BusinessInput>;
@@ -27,9 +29,7 @@ export async function POST(req: Request) {
     const result = await extractFromText(makeProvider(), text, previous ?? {});
     return NextResponse.json(result);
   } catch (err) {
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Extraction failed" },
-      { status: 500 }
-    );
+    if (err instanceof HttpError) return NextResponse.json({ error: err.message }, { status: err.status });
+    return NextResponse.json({ error: err instanceof Error ? err.message : "Extraction failed" }, { status: 500 });
   }
 }

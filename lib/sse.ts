@@ -1,23 +1,39 @@
 "use client";
 
-// Minimal SSE-over-POST reader for /api/analyze. EventSource can't POST a body,
-// so we read the fetch stream and parse `event:`/`data:` frames ourselves.
+// SSE-over-POST reader for /api/analyze. Sends the Firebase ID token, surfaces
+// server gate errors (out of credits / not approved) via onError, and reports
+// the server-generated analysisId so the caller can navigate to the record.
 
 export interface AnalyzeHandlers {
-  onStart?: (data: { stages: string[] }) => void;
+  onStart?: (data: { stages: string[]; analysisId: string }) => void;
   onProgress?: (data: { stage: string; status: string }) => void;
-  onDone?: (result: any) => void;
+  onDone?: (data: { analysisId: string }) => void;
   onError?: (message: string) => void;
 }
 
-export async function streamAnalyze(input: unknown, handlers: AnalyzeHandlers): Promise<void> {
+export async function streamAnalyze(
+  input: unknown,
+  token: string,
+  handlers: AnalyzeHandlers
+): Promise<void> {
   const res = await fetch("/api/analyze", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
     body: JSON.stringify({ input }),
   });
-  if (!res.ok || !res.body) {
-    handlers.onError?.(`Request failed (${res.status})`);
+
+  if (!res.ok) {
+    let msg = `Request failed (${res.status})`;
+    try {
+      msg = (await res.json()).error ?? msg;
+    } catch {
+      /* keep default */
+    }
+    handlers.onError?.(msg);
+    return;
+  }
+  if (!res.body) {
+    handlers.onError?.("No response stream.");
     return;
   }
 
@@ -30,7 +46,6 @@ export async function streamAnalyze(input: unknown, handlers: AnalyzeHandlers): 
     if (done) break;
     buffer += decoder.decode(value, { stream: true });
 
-    // Frames are separated by a blank line.
     let sep: number;
     while ((sep = buffer.indexOf("\n\n")) !== -1) {
       const frame = buffer.slice(0, sep);

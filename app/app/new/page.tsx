@@ -4,9 +4,11 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button, Badge } from "@/components/kit";
 import { Icon } from "@/components/icons";
+import { StageProgress } from "@/components/StageProgress";
 import { useSession } from "@/lib/session";
-import { newId, saveAnalysis } from "@/lib/store";
-import type { BusinessInput } from "@/lib/engine/types";
+import { streamAnalyze } from "@/lib/sse";
+import { getIdToken } from "@/lib/firebase/analyses";
+import { SIX_STAGES, type BusinessInput, type StageName, type StageStatus } from "@/lib/engine/types";
 import { cn } from "@/lib/ui";
 
 type FieldKey = keyof BusinessInput;
@@ -23,21 +25,13 @@ const TEXT_FIELDS: { key: FieldKey; label: string; placeholder: string; long?: b
 ];
 
 const emptyInput: BusinessInput = {
-  business_idea: "",
-  target_customer: "",
-  location: "",
-  problem_solved: "",
-  product_service: "",
-  revenue_model: "",
-  competitors: "",
-  monthly_cost: 0,
-  monthly_revenue: 0,
-  unique_advantage: "",
-  currency: "USD",
+  business_idea: "", target_customer: "", location: "", problem_solved: "", product_service: "",
+  revenue_model: "", competitors: "", monthly_cost: 0, monthly_revenue: 0, unique_advantage: "", currency: "USD",
 };
 
 const FILLED = (v: unknown) => (typeof v === "number" ? v > 0 : String(v ?? "").trim().length > 2);
 const KEYS: FieldKey[] = [...TEXT_FIELDS.map((f) => f.key), "monthly_cost", "monthly_revenue"];
+const initialStages = () => Object.fromEntries(SIX_STAGES.map((s) => [s, "pending"])) as Record<StageName, StageStatus>;
 
 export default function NewAnalysis() {
   const { user } = useSession();
@@ -48,6 +42,8 @@ export default function NewAnalysis() {
   const [prefilling, setPrefilling] = useState(false);
   const [prefillNote, setPrefillNote] = useState("");
   const [error, setError] = useState("");
+  const [phase, setPhase] = useState<"form" | "running">("form");
+  const [stageStatus, setStageStatus] = useState<Record<StageName, StageStatus>>(initialStages);
 
   const filledCount = useMemo(() => KEYS.filter((k) => FILLED(input[k])).length, [input]);
   const completeness = Math.round((filledCount / KEYS.length) * 100);
@@ -62,19 +58,17 @@ export default function NewAnalysis() {
     setPrefilling(true);
     setPrefillNote("");
     try {
+      const token = await getIdToken();
       const res = await fetch("/api/extract", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ text: describe, previous: input }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Could not extract");
-      const d = data.data as Partial<BusinessInput>;
-      setInput((p) => ({ ...p, ...cleanMerge(p, d) }));
+      setInput((p) => ({ ...p, ...cleanMerge(p, data.data as Partial<BusinessInput>) }));
       setPrefillNote(
-        data.completeness >= 100
-          ? "Filled every field — review and run."
-          : `Filled ${data.fields_provided ?? ""} fields · ${data.missingFieldsReadable?.length ?? 0} still need you.`
+        data.completeness >= 100 ? "Filled every field — review and run." : `Filled fields · ${data.missingFieldsReadable?.length ?? 0} still need you.`
       );
     } catch (e) {
       setPrefillNote(e instanceof Error ? e.message : "Extraction failed");
@@ -83,29 +77,45 @@ export default function NewAnalysis() {
     }
   }
 
-  function run() {
+  async function run() {
     setError("");
     if (completeness < 100) {
       setError(`Please fill all 10 fields for an accurate report. Missing ${missing.length}.`);
       return;
     }
-    if (user!.keyMode === "platform" && user!.credits < 1) {
-      setError("You're out of credits. Add your own key in Settings or top up.");
+    if (user!.credits < 1) {
+      setError("You're out of credits. Ask an admin to add more, or contact support.");
       return;
     }
-    const id = newId();
-    saveAnalysis({
-      id,
-      uid: user!.uid,
-      createdAt: Date.now(),
-      status: "queued",
-      input: { ...input, monthly_cost: Number(input.monthly_cost), monthly_revenue: Number(input.monthly_revenue) },
-    });
-    // Credit enforcement moves server-side when analyses persist to Firestore (next milestone).
-    router.push(`/app/analysis/${id}`);
+    setPhase("running");
+    setStageStatus(initialStages());
+    try {
+      const token = await getIdToken();
+      await streamAnalyze(
+        { ...input, monthly_cost: Number(input.monthly_cost), monthly_revenue: Number(input.monthly_revenue) },
+        token,
+        {
+          onProgress: ({ stage, status }) =>
+            setStageStatus((prev) => ({ ...prev, [stage as StageName]: status as StageStatus })),
+          onDone: ({ analysisId }) => router.push(`/app/analysis/${analysisId}`),
+          onError: (message) => { setError(message); setPhase("form"); },
+        }
+      );
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not start analysis.");
+      setPhase("form");
+    }
   }
 
   if (!user) return null;
+
+  if (phase === "running") {
+    return (
+      <div className="py-6">
+        <StageProgress status={stageStatus} />
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
@@ -114,7 +124,6 @@ export default function NewAnalysis() {
         <p className="mt-1.5 text-sm text-muted">Fill the 10 fields below — or describe your idea and let AI pre-fill them.</p>
       </div>
 
-      {/* AI pre-fill */}
       <div className="card p-5">
         <div className="flex items-center gap-2">
           <Badge tone="go"><Icon name="spark" size={13} /> AI pre-fill</Badge>
@@ -134,24 +143,19 @@ export default function NewAnalysis() {
         </div>
       </div>
 
-      {/* Completeness meter */}
       <div className="card flex items-center gap-4 p-4">
         <div className="flex-1">
           <div className="mb-1 flex justify-between text-xs">
             <span className="font-medium">Completeness</span>
-            <span className="tabular-nums text-muted">{completeness}%</span>
+            <span className="num text-muted">{completeness}%</span>
           </div>
           <div className="h-2 w-full overflow-hidden rounded-full bg-border/60">
-            <div
-              className={cn("h-full rounded-full transition-all", completeness === 100 ? "bg-go" : "bg-brand")}
-              style={{ width: `${completeness}%` }}
-            />
+            <div className={cn("h-full rounded-full transition-all", completeness === 100 ? "bg-go" : "bg-brand")} style={{ width: `${completeness}%` }} />
           </div>
         </div>
         <Badge tone={completeness === 100 ? "go" : "warn"}>{filledCount}/10 fields</Badge>
       </div>
 
-      {/* Fields */}
       <div className="card space-y-5 p-5 sm:p-6">
         <div className="grid gap-5 sm:grid-cols-2">
           {TEXT_FIELDS.map((f) => (
@@ -161,62 +165,28 @@ export default function NewAnalysis() {
                 {FILLED(input[f.key]) && <Icon name="check" size={14} className="text-go" strokeWidth={2.5} />}
               </label>
               {f.long ? (
-                <textarea
-                  className="input min-h-[70px] resize-y"
-                  placeholder={f.placeholder}
-                  value={String(input[f.key] ?? "")}
-                  onChange={(e) => set(f.key, e.target.value as never)}
-                />
+                <textarea className="input min-h-[70px] resize-y" placeholder={f.placeholder} value={String(input[f.key] ?? "")} onChange={(e) => set(f.key, e.target.value as never)} />
               ) : (
-                <input
-                  className="input"
-                  placeholder={f.placeholder}
-                  value={String(input[f.key] ?? "")}
-                  onChange={(e) => set(f.key, e.target.value as never)}
-                />
+                <input className="input" placeholder={f.placeholder} value={String(input[f.key] ?? "")} onChange={(e) => set(f.key, e.target.value as never)} />
               )}
             </div>
           ))}
-
-          {/* Numeric */}
-          <NumberField
-            label="Monthly operating cost"
-            value={input.monthly_cost}
-            onChange={(n) => set("monthly_cost", n)}
-            currency={input.currency}
-          />
-          <NumberField
-            label="Expected monthly revenue"
-            value={input.monthly_revenue}
-            onChange={(n) => set("monthly_revenue", n)}
-            currency={input.currency}
-          />
+          <NumberField label="Monthly operating cost" value={input.monthly_cost} onChange={(n) => set("monthly_cost", n)} currency={input.currency} />
+          <NumberField label="Expected monthly revenue" value={input.monthly_revenue} onChange={(n) => set("monthly_revenue", n)} currency={input.currency} />
         </div>
       </div>
 
       {error && <p className="text-sm text-stop">{error}</p>}
 
       <div className="flex items-center justify-between">
-        <p className="text-xs text-faint">
-          {user.keyMode === "platform" ? `Costs 1 credit · ${user.credits} remaining` : "Running on your own key"}
-        </p>
+        <p className="text-xs text-faint">Costs 1 credit · <span className="num">{user.credits}</span> remaining</p>
         <Button onClick={run} disabled={completeness < 100}>Run analysis <Icon name="arrow" size={18} /></Button>
       </div>
     </div>
   );
 }
 
-function NumberField({
-  label,
-  value,
-  onChange,
-  currency,
-}: {
-  label: string;
-  value: number;
-  onChange: (n: number) => void;
-  currency?: string;
-}) {
+function NumberField({ label, value, onChange, currency }: { label: string; value: number; onChange: (n: number) => void; currency?: string }) {
   return (
     <div>
       <label className="mb-1.5 flex items-center gap-2 text-sm font-medium">
@@ -224,23 +194,13 @@ function NumberField({
         {value > 0 && <Icon name="check" size={14} className="text-go" strokeWidth={2.5} />}
       </label>
       <div className="relative">
-        <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-faint">
-          {currency === "USD" ? "$" : currency}
-        </span>
-        <input
-          className="input pl-7"
-          type="number"
-          min={0}
-          placeholder="0"
-          value={value || ""}
-          onChange={(e) => onChange(Number(e.target.value))}
-        />
+        <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-faint">{currency === "USD" ? "$" : currency}</span>
+        <input className="input pl-7" type="number" min={0} placeholder="0" value={value || ""} onChange={(e) => onChange(Number(e.target.value))} />
       </div>
     </div>
   );
 }
 
-/** Only overwrite empty fields with pre-filled values (don't clobber user edits). */
 function cleanMerge(prev: BusinessInput, next: Partial<BusinessInput>): Partial<BusinessInput> {
   const out: Partial<BusinessInput> = {};
   for (const [k, v] of Object.entries(next) as [FieldKey, unknown][]) {

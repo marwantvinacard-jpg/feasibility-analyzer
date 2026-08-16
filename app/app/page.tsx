@@ -5,7 +5,8 @@ import Link from "next/link";
 import { Button, Badge } from "@/components/kit";
 import { Icon, type IconName } from "@/components/icons";
 import { useSession } from "@/lib/session";
-import { listAnalyses, deleteAnalysis, type AnalysisRecord } from "@/lib/store";
+import { subscribeAnalyses, deleteAnalysis } from "@/lib/firebase/analyses";
+import type { AnalysisDoc } from "@/lib/analysisTypes";
 import { scoreTone, toneText, verdictTone, cn, type Tone } from "@/lib/ui";
 
 const TONE_CHIP: Record<Tone, string> = {
@@ -16,56 +17,45 @@ const TONE_CHIP: Record<Tone, string> = {
 
 export default function Dashboard() {
   const { user } = useSession();
-  const [items, setItems] = useState<AnalysisRecord[]>([]);
+  const [items, setItems] = useState<AnalysisDoc[]>([]);
 
   useEffect(() => {
-    if (user) setItems(listAnalyses(user.uid));
+    if (!user) return;
+    const unsub = subscribeAnalyses(user.uid, setItems);
+    return () => unsub();
   }, [user]);
 
   if (!user) return null;
-
-  function remove(id: string) {
-    deleteAnalysis(id);
-    setItems(listAnalyses(user!.uid));
-  }
 
   return (
     <div className="mx-auto max-w-5xl space-y-8">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="font-display text-3xl font-semibold tracking-tight">
-            Welcome back, {user.name.split(" ")[0]}
-          </h1>
+          <h1 className="font-display text-3xl font-semibold tracking-tight">Welcome back, {user.name.split(" ")[0]}</h1>
           <p className="mt-1.5 text-sm text-muted">Run a new feasibility analysis or revisit a past report.</p>
         </div>
         <Button href="/app/new"><Icon name="plus" size={18} /> New analysis</Button>
       </div>
 
-      {/* Stat cards */}
       <div className="grid gap-4 sm:grid-cols-3">
         <StatCard label="Credits remaining" value={String(user.credits)} icon="spark" tone />
         <StatCard label="Reports run" value={String(items.filter((i) => i.status === "complete").length)} icon="doc" />
         <StatCard label="Key mode" value={user.keyMode === "byok" ? "Own key" : "Platform"} icon="sliders" />
       </div>
 
-      {/* History */}
       <div>
         <h2 className="label mb-3">Your analyses</h2>
         {items.length === 0 ? (
           <div className="card grid place-items-center py-16 text-center">
-            <span className="grid h-14 w-14 place-items-center rounded-2xl bg-brand/10 text-brand">
-              <Icon name="doc" size={26} />
-            </span>
+            <span className="grid h-14 w-14 place-items-center rounded-2xl bg-brand/10 text-brand"><Icon name="doc" size={26} /></span>
             <h3 className="font-display mt-4 text-lg font-semibold">No analyses yet</h3>
-            <p className="mt-1 max-w-sm text-sm text-muted">
-              Describe a business idea and get a full six-dimension feasibility report in minutes.
-            </p>
+            <p className="mt-1 max-w-sm text-sm text-muted">Describe a business idea and get a full six-dimension feasibility report in minutes.</p>
             <Button href="/app/new" className="mt-5">Analyze your first idea <Icon name="arrow" size={17} /></Button>
           </div>
         ) : (
           <div className="space-y-3">
             {items.map((a) => (
-              <AnalysisRow key={a.id} a={a} onDelete={() => remove(a.id)} />
+              <AnalysisRow key={a.id} a={a} onDelete={() => deleteAnalysis(a.id)} />
             ))}
           </div>
         )}
@@ -88,7 +78,7 @@ function StatCard({ label, value, icon, tone }: { label: string; value: string; 
   );
 }
 
-function AnalysisRow({ a, onDelete }: { a: AnalysisRecord; onDelete: () => void }) {
+function AnalysisRow({ a, onDelete }: { a: AnalysisDoc; onDelete: () => void }) {
   const score = a.result?.overall.overall_score;
   const rec = a.result?.overall.recommendation;
   const tone = rec ? verdictTone(rec) : "warn";
@@ -96,18 +86,11 @@ function AnalysisRow({ a, onDelete }: { a: AnalysisRecord; onDelete: () => void 
 
   return (
     <div className="card flex items-center gap-4 p-4">
-      <span
-        className={cn(
-          "grid h-11 w-11 shrink-0 place-items-center rounded-xl",
-          a.status === "complete" ? TONE_CHIP[tone] : a.status === "failed" ? "bg-stop/12 text-stop" : "bg-surface-2 text-faint"
-        )}
-      >
+      <span className={cn("grid h-11 w-11 shrink-0 place-items-center rounded-xl", a.status === "complete" ? TONE_CHIP[tone] : a.status === "failed" ? "bg-stop/12 text-stop" : "bg-surface-2 text-faint")}>
         <Icon name={statusIcon} size={19} strokeWidth={2} />
       </span>
       <div className="min-w-0 flex-1">
-        <Link href={`/app/analysis/${a.id}`} className="block truncate font-semibold hover:text-brand">
-          {a.input.business_idea || "Untitled analysis"}
-        </Link>
+        <Link href={`/app/analysis/${a.id}`} className="block truncate font-semibold hover:text-brand">{a.input.business_idea || "Untitled analysis"}</Link>
         <div className="mt-0.5 flex items-center gap-2 text-xs text-faint">
           <span className="truncate">{a.input.location}</span>
           <span>·</span>
@@ -124,9 +107,7 @@ function AnalysisRow({ a, onDelete }: { a: AnalysisRecord; onDelete: () => void 
       )}
       <div className="flex items-center gap-1">
         <Link href={`/app/analysis/${a.id}`} className="btn btn-ghost px-3 text-xs" style={{ minHeight: 36 }}>Open</Link>
-        <button onClick={onDelete} className="grid h-9 w-9 place-items-center rounded-lg text-faint hover:text-stop" aria-label="Delete analysis">
-          <Icon name="x" size={16} />
-        </button>
+        <button onClick={onDelete} className="grid h-9 w-9 place-items-center rounded-lg text-faint hover:text-stop" aria-label="Delete analysis"><Icon name="x" size={16} /></button>
       </div>
     </div>
   );

@@ -1,41 +1,105 @@
-// POST /api/analyze — runs the full feasibility engine and STREAMS per-stage
-// progress back as Server-Sent Events, then a final `done` event with the whole
-// result. This is the concept stand-in for the Cloud Tasks + Cloud Run worker +
-// Firestore onSnapshot progress we'll build at the Firebase step; the client
-// UX (live "Market ✓ · Financial ⏳ …") is identical.
+// POST /api/analyze — the server-authoritative run:
+//   1. verify the caller,
+//   2. enforce approval + credits (atomic decrement, unless out),
+//   3. create the analyses/{id} doc,
+//   4. run the engine, streaming SSE progress AND persisting to Firestore,
+//   5. on failure, mark failed + refund the credit.
+// The client watches Firestore for the record, so reports persist across
+// devices; SSE is just for the live progress bar during the run.
 
+import { FieldValue } from "firebase-admin/firestore";
 import { runFeasibility } from "@/lib/engine/runFeasibility";
 import { createLlm } from "@/lib/engine/factory";
 import { SerpApiProvider } from "@/lib/engine/search";
-import type { BusinessInput } from "@/lib/engine/types";
+import { adminDb } from "@/lib/firebase/admin";
+import { requireUser, HttpError } from "@/lib/firebase/verify";
+import { SIX_STAGES, type BusinessInput, type StageName, type StageStatus } from "@/lib/engine/types";
 
 export const runtime = "nodejs";
-export const maxDuration = 120; // 7 live LLM calls; Vercel Pro allows well beyond this
+export const maxDuration = 120;
+
+const initialStages = () =>
+  Object.fromEntries(SIX_STAGES.map((s) => [s, "pending"])) as Record<StageName, StageStatus>;
 
 export async function POST(req: Request) {
+  let caller;
+  try {
+    caller = await requireUser(req);
+  } catch (err) {
+    const e = err as HttpError;
+    return json({ error: e.message ?? "Unauthorized" }, e.status ?? 401);
+  }
+
   const { input } = (await req.json()) as { input: BusinessInput };
+  if (!input?.business_idea) return json({ error: "Missing business input." }, 400);
 
-  // Provider is chosen from env (FEASIBILITY_PROVIDER / present keys); defaults
-  // to MOCK. mockDelayMs only affects the mock path — real providers ignore it.
-  const llm = createLlm({ mockDelayMs: 700 });
+  const db = adminDb();
+  const userRef = db.collection("users").doc(caller.uid);
+
+  // --- approval + credit gate (atomic) ---
+  let charged = false;
+  try {
+    charged = await db.runTransaction(async (tx) => {
+      const snap = await tx.get(userRef);
+      if (!snap.exists) throw new HttpError(403, "Account not found.");
+      const u = snap.data() as { status?: string; credits?: number };
+      if (u.status !== "approved") throw new HttpError(403, "Your account isn't approved yet.");
+      const credits = u.credits ?? 0;
+      if (credits < 1) throw new HttpError(402, "You're out of credits. Ask an admin to add more.");
+      tx.update(userRef, { credits: credits - 1 });
+      return true;
+    });
+  } catch (err) {
+    const e = err as HttpError;
+    return json({ error: e.message ?? "Not allowed" }, e.status ?? 403);
+  }
+
+  // --- create the analysis record ---
+  const ref = db.collection("analyses").doc();
+  const id = ref.id;
+  await ref.set({
+    id,
+    uid: caller.uid,
+    createdAt: Date.now(),
+    status: "running",
+    input,
+    stageStatus: initialStages(),
+    charged,
+  });
+
+  const llm = createLlm();
   const search = new SerpApiProvider({ mock: llm.mock || !process.env.SERPAPI_API_KEY });
-
   const encoder = new TextEncoder();
+
   const stream = new ReadableStream({
     async start(controller) {
       const send = (event: string, data: unknown) =>
         controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
 
-      send("start", { stages: ["market", "financial", "technical", "competitive", "location", "risk"] });
+      send("start", { analysisId: id, stages: SIX_STAGES });
+      const stageStatus = initialStages();
+
       try {
         const result = await runFeasibility(input, {
           llm,
           search,
-          onProgress: (stage, status) => send("progress", { stage, status }),
+          onProgress: (stage, status) => {
+            stageStatus[stage] = status;
+            send("progress", { stage, status });
+            // best-effort live mirror to Firestore for cross-device watchers
+            ref.update({ [`stageStatus.${stage}`]: status }).catch(() => {});
+          },
         });
-        send("done", result);
+        await ref.update({ status: "complete", result, stageStatus });
+        send("done", { analysisId: id });
       } catch (err) {
-        send("error", { message: err instanceof Error ? err.message : "Analysis failed" });
+        const message = err instanceof Error ? err.message : "Analysis failed";
+        // refund the credit exactly once
+        await Promise.allSettled([
+          ref.update({ status: "failed", error: message }),
+          charged ? userRef.update({ credits: FieldValue.increment(1) }) : Promise.resolve(),
+        ]);
+        send("error", { message });
       } finally {
         controller.close();
       }
@@ -49,4 +113,8 @@ export async function POST(req: Request) {
       Connection: "keep-alive",
     },
   });
+}
+
+function json(body: unknown, status: number) {
+  return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 }
