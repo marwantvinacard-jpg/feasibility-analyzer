@@ -1,6 +1,8 @@
 // Public surface of the FeasibilityAI engine.
 export * from "./types";
 export * from "./provider";
+export * from "./ollama";
+export * from "./factory";
 export * from "./search";
 export * from "./extractor";
 export * from "./financial";

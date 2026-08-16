@@ -30,3 +30,12 @@
  ✓ Compiled in 250ms (270 modules)
  GET /app 200 in 15ms
  ✓ Compiled in 37ms (256 modules)
+ ✓ Compiled in 98ms (270 modules)
+ ✓ Compiled in 126ms (270 modules)
+ ✓ Compiled in 77ms (270 modules)
+ ✓ Compiled in 69ms (270 modules)
+ ✓ Compiled in 71ms (270 modules)
+ ✓ Compiled in 79ms (270 modules)
+ ✓ Compiled in 79ms (270 modules)
+ ✓ Compiled in 32ms (256 modules)
+ GET / 200 in 128ms

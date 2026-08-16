@@ -5,7 +5,7 @@
 //   fragile 6-way merge-by-index.
 
 import type { LlmProvider } from "./provider";
-import { OpenAIProvider } from "./provider";
+import { createLlm } from "./factory";
 import type { SearchProvider } from "./search";
 import { SerpApiProvider } from "./search";
 import { computeFinancials } from "./financial";
@@ -53,7 +53,7 @@ export async function runFeasibility(
   input: BusinessInput,
   opts: RunOptions = {}
 ): Promise<FullResult> {
-  const llm = opts.llm ?? new OpenAIProvider();
+  const llm = opts.llm ?? createLlm();
   const search = opts.search ?? new SerpApiProvider();
   const onProgress = opts.onProgress ?? (() => {});
 

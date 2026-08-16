@@ -8,19 +8,16 @@
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { resolve } from "node:path";
-import { runFeasibility, type BusinessInput } from "../lib/engine";
+import { runFeasibility, activeProviderName, type BusinessInput } from "../lib/engine";
 import { renderReportHtml } from "../lib/report/renderHtml";
 
 const CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 
 async function main() {
-  if (process.env.FEASIBILITY_MOCK === undefined && !process.env.OPENAI_API_KEY) {
-    process.env.FEASIBILITY_MOCK = "true";
-  }
   const inputPath = resolve(process.argv[2] ?? "fixtures/sample-input.json");
   const input = JSON.parse(readFileSync(inputPath, "utf8")) as BusinessInput;
 
-  console.log(`\n▶ Running engine (${process.env.FEASIBILITY_MOCK === "true" ? "MOCK" : "LIVE"}) …`);
+  console.log(`\n▶ Running engine (provider: ${activeProviderName()}) …`);
   const result = await runFeasibility(input);
 
   mkdirSync("scratch", { recursive: true });

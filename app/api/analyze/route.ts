@@ -5,7 +5,7 @@
 // UX (live "Market ✓ · Financial ⏳ …") is identical.
 
 import { runFeasibility } from "@/lib/engine/runFeasibility";
-import { OpenAIProvider } from "@/lib/engine/provider";
+import { createLlm } from "@/lib/engine/factory";
 import { SerpApiProvider } from "@/lib/engine/search";
 import type { BusinessInput } from "@/lib/engine/types";
 
@@ -15,10 +15,10 @@ export const maxDuration = 60;
 export async function POST(req: Request) {
   const { input } = (await req.json()) as { input: BusinessInput };
 
-  // Concept build: MOCK unless real keys are configured AND mock is disabled.
-  const mock = process.env.FEASIBILITY_MOCK !== "false" || !process.env.OPENAI_API_KEY;
-  const llm = new OpenAIProvider({ mock, mockDelayMs: 700 });
-  const search = new SerpApiProvider({ mock: mock || !process.env.SERPAPI_API_KEY });
+  // Provider is chosen from env (FEASIBILITY_PROVIDER / present keys); defaults
+  // to MOCK. mockDelayMs only affects the mock path — real providers ignore it.
+  const llm = createLlm({ mockDelayMs: 700 });
+  const search = new SerpApiProvider({ mock: llm.mock || !process.env.SERPAPI_API_KEY });
 
   const encoder = new TextEncoder();
   const stream = new ReadableStream({

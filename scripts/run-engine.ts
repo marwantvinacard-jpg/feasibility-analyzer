@@ -8,19 +8,14 @@
 
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { resolve } from "node:path";
-import { runFeasibility, type BusinessInput } from "../lib/engine";
-
-// Default to mock unless the caller explicitly opts into live mode.
-if (process.env.FEASIBILITY_MOCK === undefined && !process.env.OPENAI_API_KEY) {
-  process.env.FEASIBILITY_MOCK = "true";
-}
+import { runFeasibility, activeProviderName, type BusinessInput } from "../lib/engine";
 
 async function main() {
   const inputPath = resolve(process.argv[2] ?? "fixtures/sample-input.json");
   const input = JSON.parse(readFileSync(inputPath, "utf8")) as BusinessInput;
 
-  const mock = process.env.FEASIBILITY_MOCK === "true";
-  console.log(`\n▶ Running feasibility engine (${mock ? "MOCK" : "LIVE"}) on: ${inputPath}\n`);
+  // Provider is auto-selected from env (defaults to mock when nothing is set).
+  console.log(`\n▶ Running feasibility engine (provider: ${activeProviderName()}) on: ${inputPath}\n`);
 
   const progress: string[] = [];
   const result = await runFeasibility(input, {

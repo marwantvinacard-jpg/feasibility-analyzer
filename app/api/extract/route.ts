@@ -4,14 +4,15 @@
 
 import { NextResponse } from "next/server";
 import { extractFromText } from "@/lib/engine/extractor";
-import { OpenAIProvider } from "@/lib/engine/provider";
+import { createLlm } from "@/lib/engine/factory";
 import type { BusinessInput } from "@/lib/engine/types";
 
 export const runtime = "nodejs";
 
 function makeProvider() {
-  const mock = process.env.FEASIBILITY_MOCK !== "false" || !process.env.OPENAI_API_KEY;
-  return new OpenAIProvider({ mock, model: process.env.FEASIBILITY_EXTRACT_MODEL, mockDelayMs: 500 });
+  // Same provider selection as analysis. The extractor passes
+  // FEASIBILITY_EXTRACT_MODEL as a per-call model override where supported.
+  return createLlm({ mockDelayMs: 500 });
 }
 
 export async function POST(req: Request) {
