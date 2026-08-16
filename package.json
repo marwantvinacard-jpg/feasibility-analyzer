@@ -9,7 +9,8 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "engine": "tsx scripts/run-engine.ts"
+    "engine": "tsx scripts/run-engine.ts",
+    "pdf": "tsx scripts/build-pdf.ts"
   },
   "dependencies": {
     "next": "^15.5.23",

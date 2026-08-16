@@ -11,3 +11,22 @@
  ○ Compiling / ...
  ✓ Compiled / in 2.5s (648 modules)
  GET / 200 in 2857ms
+ GET / 200 in 120ms
+ ✓ Compiled /login in 314ms (640 modules)
+ GET /login 200 in 400ms
+ GET /login 200 in 16ms
+ ✓ Compiled /app in 179ms (641 modules)
+ GET /app 200 in 231ms
+ GET / 200 in 171ms
+ ✓ Compiled /app/analysis/[id] in 301ms (658 modules)
+ GET /app/analysis/an_fcjcixz0rjp 200 in 703ms
+ GET /app 200 in 34ms
+ ✓ Compiled /app/new in 205ms (665 modules)
+ GET /app/new 200 in 259ms
+ GET /app 200 in 40ms
+ ✓ Compiled /app/settings in 213ms (672 modules)
+ GET /app/settings 200 in 270ms
+ GET /app 200 in 38ms
+ ✓ Compiled in 250ms (270 modules)
+ GET /app 200 in 15ms
+ ✓ Compiled in 37ms (256 modules)
