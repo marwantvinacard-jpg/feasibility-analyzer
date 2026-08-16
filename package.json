@@ -14,7 +14,7 @@
   },
   "dependencies": {
     "firebase": "^12.17.1",
-    "firebase-admin": "^14.2.0",
+    "firebase-admin": "^12.7.0",
     "next": "^15.5.23",
     "ollama": "^0.6.3",
     "openai": "^4.77.0",
