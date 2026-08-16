@@ -1,0 +1,73 @@
+rules_version = '2';
+
+// FeasibilityAI Firestore security rules.
+// Principles:
+//  - A user reads only their own user doc, analyses and reports.
+//  - Clients can NEVER create analyses, set their own status/role/credits, or
+//    read anyone's stored API key. Those are server-only (Admin SDK bypasses
+//    rules) after checking approval + credits.
+//  - Admin = a custom claim (request.auth.token.admin == true), set server-side.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+    function isOwner(uid) { return signedIn() && request.auth.uid == uid; }
+    function isAdmin() { return signedIn() && request.auth.token.admin == true; }
+
+    // --- users ---
+    match /users/{uid} {
+      allow read: if isOwner(uid) || isAdmin();
+
+      // A new signup may create ONLY their own doc, pending, as a normal user,
+      // and may not grant themselves credits/role.
+      allow create: if isOwner(uid)
+        && request.resource.data.status == 'pending'
+        && request.resource.data.role == 'user'
+        && request.resource.data.credits == 0;
+
+      // Users may edit profile fields only — never status, role or credits.
+      allow update: if isOwner(uid)
+        && request.resource.data.status == resource.data.status
+        && request.resource.data.role == resource.data.role
+        && request.resource.data.credits == resource.data.credits;
+
+      // Approvals, role changes and credit grants are admin-only.
+      allow update, delete: if isAdmin();
+
+      // Encrypted BYOK keys live in a server-only subcollection — no client access.
+      match /secrets/{doc} {
+        allow read, write: if false; // Admin SDK only
+      }
+    }
+
+    // --- analyses (created + written by the server worker only) ---
+    match /analyses/{analysisId} {
+      allow read: if isAdmin() || (signedIn() && resource.data.uid == request.auth.uid);
+      allow create, update, delete: if false; // server (Admin SDK) only
+
+      match /stageOutputs/{stage} {
+        allow read: if isAdmin() ||
+          (signedIn() && get(/databases/$(database)/documents/analyses/$(analysisId)).data.uid == request.auth.uid);
+        allow write: if false;
+      }
+    }
+
+    // --- reports ---
+    match /reports/{reportId} {
+      allow read: if isAdmin() || (signedIn() && resource.data.uid == request.auth.uid);
+      allow write: if false; // server only
+    }
+
+    // --- usage ledger (read own, server writes) ---
+    match /usage/{uid}/{document=**} {
+      allow read: if isOwner(uid) || isAdmin();
+      allow write: if false;
+    }
+
+    // --- admin audit log ---
+    match /adminAudit/{entry} {
+      allow read: if isAdmin();
+      allow write: if false; // server only
+    }
+  }
+}

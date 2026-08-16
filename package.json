@@ -13,6 +13,7 @@
     "pdf": "tsx scripts/build-pdf.ts"
   },
   "dependencies": {
+    "firebase": "^12.17.1",
     "next": "^15.5.23",
     "ollama": "^0.6.3",
     "openai": "^4.77.0",

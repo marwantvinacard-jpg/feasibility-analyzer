@@ -39,3 +39,8 @@
  ✓ Compiled in 79ms (270 modules)
  ✓ Compiled in 32ms (256 modules)
  GET / 200 in 128ms
+   Reload env: .env.local
+ ✓ Compiled in 193ms (662 modules)
+ ✓ Compiled in 38ms (256 modules)
+ ✓ Compiled in 94ms (270 modules)
+ GET / 200 in 173ms

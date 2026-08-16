@@ -25,3 +25,10 @@ next-env.d.ts
 /scratch
 /out-reports
 *.pdf
+
+# firebase
+.firebase/
+firebase-debug.log
+*serviceAccount*.json
+serviceAccountKey.json
+.firebaserc

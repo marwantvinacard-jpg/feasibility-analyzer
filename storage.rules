@@ -1,0 +1,19 @@
+rules_version = '2';
+
+// FeasibilityAI Cloud Storage rules — report PDFs.
+// A user downloads only their own PDFs; only the server (Admin SDK) writes them.
+service firebase.storage {
+  match /b/{bucket}/o {
+    function signedIn() { return request.auth != null; }
+    function isAdmin() { return signedIn() && request.auth.token.admin == true; }
+
+    match /reports/{uid}/{fileName} {
+      allow read: if isAdmin() || (signedIn() && request.auth.uid == uid);
+      allow write: if false; // server only
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
