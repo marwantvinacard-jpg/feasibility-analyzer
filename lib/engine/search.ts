@@ -52,11 +52,21 @@ export class SerpApiProvider implements SearchProvider {
   }
 }
 
+/** Stages that fetch research. The financial model is not a scoring dimension. */
+export type ResearchStage = StageName | "financial_model";
+
 /** Stage-specific queries. Kept few + generic so results cache well. */
-function queriesFor(stage: StageName, input: BusinessInput): string[] {
+function queriesFor(stage: ResearchStage, input: BusinessInput): string[] {
   const idea = input.business_idea;
   const loc = input.location;
   switch (stage) {
+    case "financial_model":
+      return [
+        `${idea} startup cost breakdown ${loc}`,
+        `${idea} equipment fit-out cost ${loc}`,
+        `commercial rent per sqm ${loc}`,
+        `${input.product_service} average price ${loc}`,
+      ];
     case "market":
       return [`${idea} market size ${loc}`, `${idea} industry trends ${new Date().getFullYear()}`];
     case "competitive":
@@ -80,7 +90,7 @@ export interface ResearchContext {
 /** Runs the capped queries for a stage and formats snippets + sources. */
 export async function gatherResearch(
   provider: SearchProvider,
-  stage: StageName,
+  stage: ResearchStage,
   input: BusinessInput,
   maxQueries = Number(process.env.FEASIBILITY_MAX_SEARCHES_PER_STAGE ?? 4)
 ): Promise<ResearchContext> {

@@ -12,9 +12,12 @@ import { computeFinancials } from "./financial";
 import { scoreRisks } from "./risk";
 import { computeCategoryScores, overallAssessment, summarize } from "./scorer";
 import { generateReport, type ReportContent } from "./report";
+import { generateStudy, type FinancialStudy } from "./study";
+import type { FinancialModel } from "./financialModel";
 import {
   runCompetitive,
   runFinancial,
+  runFinancialModel,
   runLocation,
   runMarket,
   runRisk,
@@ -40,6 +43,12 @@ export interface RunOptions {
 
 export interface FullResult extends FeasibilityResult {
   report: ReportContent;
+  /**
+   * The 15-section financial feasibility study. Absent when the model or
+   * narrative step failed, and absent on analyses run before the study existed —
+   * every consumer must treat it as optional.
+   */
+  study?: FinancialStudy;
 }
 
 /** Rough gpt-4o pricing (USD/1M tokens). Estimate only — real cost logged per run. */
@@ -75,6 +84,11 @@ export async function runFeasibility(
     risk: () => runRisk(llm, search, input),
   };
 
+  // The financial model rides along with the six scoring stages. It is not a
+  // dimension and carries no score, so its failure degrades to "no study"
+  // rather than affecting the verdict.
+  const modelPromise = runFinancialModel(llm, search, input);
+
   const outputs = await Promise.all(
     SIX_STAGES.map(async (stage) => {
       stageStatus[stage] = "running";
@@ -85,13 +99,14 @@ export async function runFeasibility(
       return out;
     })
   );
+  const modelOut = await modelPromise;
 
   const stages: StageResults = {};
   const sources: Source[] = [];
   let tokensIn = 0;
   let tokensOut = 0;
-  for (const out of outputs) {
-    if (out.ok && out.data) (stages as any)[out.stage] = out.data;
+  for (const out of [...outputs, modelOut]) {
+    if (out.ok && out.data && out.stage !== "financial_model") (stages as any)[out.stage] = out.data;
     sources.push(...out.sources);
     tokensIn += out.tokensIn;
     tokensOut += out.tokensOut;
@@ -105,17 +120,17 @@ export async function runFeasibility(
   const overall = overallAssessment(scores);
   const { criticalIssues, strengths, conditions, nextSteps } = summarize(scores, overall);
 
-  // 5) Report narrative content (rendered to PDF/web downstream).
-  const report = await generateReport(llm, {
-    input,
-    stages,
-    financials,
-    riskScoring,
-    scores,
-    overall,
-  });
-  tokensIn += report.tokensIn;
-  tokensOut += report.tokensOut;
+  // 5) Narrative content — the feasibility report, and the financial study when
+  //    a model was produced. Independent calls, so they run together.
+  const model = modelOut.ok ? (modelOut.data as FinancialModel) : null;
+  const [report, studyOut] = await Promise.all([
+    generateReport(llm, { input, stages, financials, riskScoring, scores, overall }),
+    model
+      ? generateStudy(llm, { input, model, stages, riskScoring }).catch(() => null)
+      : Promise.resolve(null),
+  ]);
+  tokensIn += report.tokensIn + (studyOut?.tokensIn ?? 0);
+  tokensOut += report.tokensOut + (studyOut?.tokensOut ?? 0);
 
   const uniqueSources = dedupeSources(sources);
 
@@ -140,6 +155,7 @@ export async function runFeasibility(
       costCents: estimateCostCents(tokensIn, tokensOut),
     },
     report: report.content,
+    ...(studyOut ? { study: studyOut.study } : {}),
   };
 }
 

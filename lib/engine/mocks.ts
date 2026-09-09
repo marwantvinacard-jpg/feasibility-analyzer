@@ -4,6 +4,7 @@
 // orchestration + math can be tested in isolation. A couple of scores are
 // nudged by the input so mock runs don't all look identical.
 
+import type { FinancialModel } from "./financialModel";
 import type {
   BusinessInput,
   CompetitiveAnalysis,
@@ -48,6 +49,119 @@ export function mockFinancialJudgment(_input: BusinessInput): FinancialJudgment 
     concerns: ["Revenue projection is optimistic for year one (mock)."],
     strengths: ["Positive contribution margin at stated pricing (mock)."],
     recommendations: ["Validate pricing with 10 design-partner customers (mock)."],
+  };
+}
+
+/**
+ * Mock model reconciled to the user's own monthly cost/revenue, so a demo study
+ * doesn't contradict the demo feasibility report sitting next to it.
+ */
+export function mockFinancialModel(input: BusinessInput): FinancialModel {
+  const cost = Number(input.monthly_cost) || 10000;
+  const revenue = Number(input.monthly_revenue) || 15000;
+  const capex = cost * 4;
+  const price = 100;
+
+  // The stated monthly cost is TOTAL cost, so it has to be split between direct
+  // cost and OpEx — adding COGS on top of it would double-count and make the
+  // study contradict the feasibility scorecard sitting next to it.
+  const COGS_SHARE = 0.4;
+  const opexPool = cost * (1 - COGS_SHARE);
+
+  const capexLine = (category: string, item: string, share: number, depreciable: boolean) => ({
+    category,
+    item,
+    amount: Math.round(capex * share),
+    basis: "Benchmark share of total setup cost (mock).",
+    depreciable,
+  });
+  const opexLine = (category: string, item: string, share: number, variable: boolean) => ({
+    category,
+    item,
+    monthly_amount: Math.round(opexPool * share),
+    basis: "Share of the stated monthly operating cost (mock).",
+    variable_with_revenue: variable,
+  });
+
+  return {
+    currency: input.currency ?? "USD",
+    capex: [
+      capexLine("Fit-out", "Premises fit-out and build", 0.4, true),
+      capexLine("Equipment", "Core operating equipment", 0.3, true),
+      capexLine("Licensing & permits", "Registration and trade licences", 0.05, false),
+      capexLine("Deposits", "Lease and utility deposits", 0.1, false),
+      capexLine("Pre-opening", "Hiring, training and launch marketing", 0.1, false),
+      capexLine("Contingency", "Contingency reserve", 0.05, false),
+    ],
+    opex: [
+      opexLine("Staffing", "Salaries and benefits", 0.45, false),
+      opexLine("Rent", "Premises rent", 0.2, false),
+      opexLine("Utilities", "Power, water, connectivity", 0.06, false),
+      opexLine("Marketing", "Customer acquisition", 0.12, true),
+      opexLine("Maintenance", "Upkeep and repairs", 0.05, false),
+      opexLine("Insurance", "Liability and asset cover", 0.04, false),
+      opexLine("Admin", "Accounting, software, sundries", 0.08, false),
+    ],
+    revenue_streams: [
+      {
+        name: input.product_service || "Primary offering",
+        unit_label: "orders/month",
+        units_per_month: Math.round(revenue / price),
+        price_per_unit: price,
+        utilization_percent: 100,
+        cogs_percent: revenue > 0 ? Math.round(((cost * COGS_SHARE) / revenue) * 1000) / 10 : 30,
+        ramp_months: 6,
+        basis: "Derived from the stated expected monthly revenue (mock).",
+      },
+    ],
+    pricing_benchmarks: [
+      { reference: "Incumbent A", price_point: "$95-$110", note: "Comparable offering (mock)." },
+    ],
+    assumptions: {
+      projection_years: 5,
+      revenue_growth_percent_by_year: [12, 10, 8, 6],
+      cost_inflation_percent: 4,
+      seasonality_index: Array(12).fill(1),
+      discount_rate_percent: 15,
+      tax_rate_percent: 20,
+      depreciation_years: 7,
+      working_capital_months: 3,
+    },
+    assumption_notes: [
+      {
+        area: "Revenue",
+        assumption: "Mature volume is reached six months after opening",
+        value: "6-month linear ramp",
+        basis: "Typical ramp for a new entrant (mock).",
+        confidence: "Medium",
+      },
+      {
+        area: "Costs",
+        assumption: "Operating cost matches the figure supplied in the brief",
+        value: `${Math.round(cost)} per month`,
+        basis: "Stated by the applicant (mock).",
+        confidence: "Medium",
+      },
+      {
+        area: "Macro",
+        assumption: "Cost inflation applies to fixed operating costs from year 2",
+        value: "4% per year",
+        basis: "Recent headline inflation (mock).",
+        confidence: "Medium",
+      },
+    ],
+    funding: {
+      equity_percent: 40,
+      debt_percent: 30,
+      owner_capital_percent: 30,
+      debt_interest_percent: 8,
+      debt_term_years: 5,
+      structure_rationale: "Balanced mix keeps debt service affordable pre-break-even (mock).",
+    },
+    exclusions: [
+      "No terminal or exit value is included in the return metrics (mock).",
+      "Owner drawings and financing fees are excluded (mock).",
+    ],
   };
 }
 

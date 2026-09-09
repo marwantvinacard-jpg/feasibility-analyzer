@@ -24,6 +24,15 @@ const TEXT_FIELDS: { key: FieldKey; label: string; placeholder: string; long?: b
   { key: "unique_advantage", label: "Unique advantage", placeholder: "What makes you different / better?", long: true },
 ];
 
+const CURRENCIES = [
+  { code: "USD", label: "US Dollar" },
+  { code: "SAR", label: "Saudi Riyal" },
+  { code: "TND", label: "Tunisian Dinar" },
+  { code: "AED", label: "UAE Dirham" },
+  { code: "EUR", label: "Euro" },
+  { code: "GBP", label: "Pound Sterling" },
+];
+
 const emptyInput: BusinessInput = {
   business_idea: "", target_customer: "", location: "", problem_solved: "", product_service: "",
   revenue_model: "", competitors: "", monthly_cost: 0, monthly_revenue: 0, unique_advantage: "", currency: "USD",
@@ -92,7 +101,15 @@ export default function NewAnalysis() {
     try {
       const token = await getIdToken();
       await streamAnalyze(
-        { ...input, monthly_cost: Number(input.monthly_cost), monthly_revenue: Number(input.monthly_revenue) },
+        {
+          ...input,
+          monthly_cost: Number(input.monthly_cost),
+          monthly_revenue: Number(input.monthly_revenue),
+          // Blank optionals would otherwise reach the model as a stated budget
+          // of zero or an empty funding preference.
+          capex_budget: Number(input.capex_budget) > 0 ? Number(input.capex_budget) : undefined,
+          funding_preference: input.funding_preference?.trim() || undefined,
+        },
         token,
         {
           onProgress: ({ stage, status }) =>
@@ -174,7 +191,63 @@ export default function NewAnalysis() {
           <NumberField label="Monthly operating cost" value={input.monthly_cost} onChange={(n) => set("monthly_cost", n)} currency={input.currency} />
           <NumberField label="Expected monthly revenue" value={input.monthly_revenue} onChange={(n) => set("monthly_revenue", n)} currency={input.currency} />
         </div>
+        <p className="text-xs text-faint">
+          Monthly operating cost should be your <em>total</em> monthly cost, including direct/cost-of-sales — the
+          financial study splits it into COGS and operating expenses.
+        </p>
       </div>
+
+      <details className="card group p-5">
+        <summary className="flex cursor-pointer list-none items-center justify-between">
+          <span className="flex items-center gap-2 text-sm font-medium">
+            <Icon name="financial" size={16} className="text-brand" />
+            Financial study options
+            <span className="text-xs font-normal text-faint">optional · sensible defaults</span>
+          </span>
+          <Icon name="chevron" size={16} className="text-faint transition group-open:rotate-180" />
+        </summary>
+        <div className="mt-4 grid gap-5 sm:grid-cols-2">
+          <div>
+            <label className="mb-1.5 block text-sm font-medium">Currency</label>
+            <select
+              className="input"
+              value={input.currency ?? "USD"}
+              onChange={(e) => set("currency", e.target.value)}
+            >
+              {CURRENCIES.map((c) => (
+                <option key={c.code} value={c.code}>{c.code} — {c.label}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="mb-1.5 block text-sm font-medium">Projection horizon</label>
+            <select
+              className="input"
+              value={input.projection_years ?? 5}
+              onChange={(e) => set("projection_years", Number(e.target.value))}
+            >
+              {[3, 4, 5].map((y) => (
+                <option key={y} value={y}>{y} years</option>
+              ))}
+            </select>
+          </div>
+          <NumberField
+            label="Known setup budget"
+            value={input.capex_budget ?? 0}
+            onChange={(n) => set("capex_budget", n)}
+            currency={input.currency}
+          />
+          <div>
+            <label className="mb-1.5 block text-sm font-medium">Preferred funding mix</label>
+            <input
+              className="input"
+              placeholder="e.g. 60% equity, 40% bank loan"
+              value={input.funding_preference ?? ""}
+              onChange={(e) => set("funding_preference", e.target.value)}
+            />
+          </div>
+        </div>
+      </details>
 
       {error && <p className="text-sm text-stop">{error}</p>}
 

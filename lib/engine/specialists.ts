@@ -4,8 +4,9 @@
 // capped web-research context injected first.
 
 import type { LlmProvider } from "./provider";
-import type { SearchProvider } from "./search";
+import type { ResearchStage, SearchProvider } from "./search";
 import { gatherResearch } from "./search";
+import { FinancialModelSchema } from "./financialModel";
 import {
   CompetitiveSchema,
   FinancialJudgmentSchema,
@@ -16,6 +17,7 @@ import {
 } from "./schemas";
 import {
   COMPETITIVE_PROMPT,
+  FINANCIAL_MODEL_PROMPT,
   FINANCIAL_PROMPT,
   LOCATION_PROMPT,
   MARKET_PROMPT,
@@ -25,6 +27,7 @@ import {
 import {
   mockCompetitive,
   mockFinancialJudgment,
+  mockFinancialModel,
   mockLocation,
   mockMarket,
   mockRisk,
@@ -34,11 +37,10 @@ import type {
   BusinessInput,
   FinancialCalculations,
   Source,
-  StageName,
 } from "./types";
 
 export interface StageOutput<T> {
-  stage: StageName;
+  stage: ResearchStage;
   data: T | null;
   ok: boolean;
   error?: string;
@@ -54,7 +56,7 @@ const businessBlock = (input: BusinessInput) =>
 async function runStage<T>(
   llm: LlmProvider,
   search: SearchProvider,
-  stage: StageName,
+  stage: ResearchStage,
   system: string,
   schema: any,
   schemaName: string,
@@ -107,6 +109,34 @@ export function runFinancial(
     "financial_judgment",
     input,
     mockFinancialJudgment(input),
+    extra
+  );
+}
+
+/**
+ * Builds the cost/revenue model behind the financial feasibility study. Not a
+ * scoring dimension — it produces drivers, which projections.ts turns into the
+ * P&L, cash flow, break-even and return metrics.
+ */
+export function runFinancialModel(llm: LlmProvider, search: SearchProvider, input: BusinessInput) {
+  const horizon = input.projection_years ?? 5;
+  const extra =
+    `\n\nModel currency: ${input.currency ?? "USD"}. Projection horizon: ${horizon} years.` +
+    (input.capex_budget
+      ? `\nThe applicant states a setup budget of ${input.capex_budget} — reconcile your CapEx lines to it and flag any shortfall in the assumption notes.`
+      : "") +
+    (input.funding_preference
+      ? `\nThe applicant's preferred funding structure: ${input.funding_preference}.`
+      : "");
+  return runStage(
+    llm,
+    search,
+    "financial_model",
+    FINANCIAL_MODEL_PROMPT,
+    FinancialModelSchema,
+    "financial_model",
+    input,
+    mockFinancialModel(input),
     extra
   );
 }

@@ -17,6 +17,16 @@ export interface BusinessInput {
   unique_advantage: string;
   /** ISO currency code for display, e.g. "USD". Defaults to USD. */
   currency?: string;
+
+  // --- Optional inputs for the financial feasibility study. All have sensible
+  // defaults, so the original 10-field flow is unchanged when they are absent.
+
+  /** Length of the financial projection, 3-5 years. Defaults to 5. */
+  projection_years?: number;
+  /** Known setup budget, when the applicant has one. Anchors the CapEx model. */
+  capex_budget?: number;
+  /** Preferred funding mix in the applicant's own words, e.g. "60% equity, 40% bank loan". */
+  funding_preference?: string;
 }
 
 export const REQUIRED_TEXT_FIELDS = [
