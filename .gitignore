@@ -34,3 +34,6 @@ serviceAccountKey.json
 .firebaserc
 .vercel
 .env*
+
+# local Vercel link backups
+.vercel*.bak/
