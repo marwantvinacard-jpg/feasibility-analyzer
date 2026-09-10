@@ -1,53 +1,60 @@
 "use client";
 
-// Client-side reads of the analyses collection (writes are server-only per the
-// security rules). Live via onSnapshot so the dashboard + report update in real
-// time — including a run in progress watched from another device.
+// Client reads of analyses. Firestore is server-only now (no client auth), so
+// these poll lightweight API routes instead of using onSnapshot. The function
+// names/shapes are unchanged so callers didn't need touching — "subscribe"
+// just means "poll until you unsubscribe".
 
-import { collection, doc, onSnapshot, query, where } from "firebase/firestore";
-import { getFirebase } from "./client";
+import { getClientId } from "@/lib/session";
 import type { AnalysisDoc } from "@/lib/analysisTypes";
 
-/** Subscribe to all of a user's analyses (sorted newest-first client-side to avoid a composite index). */
+const LIST_MS = 2500;
+const ONE_MS = 1500;
+
+/** Poll all of this browser's analyses (newest-first). Returns an unsubscribe fn. */
 export function subscribeAnalyses(uid: string, cb: (items: AnalysisDoc[]) => void): () => void {
-  const fb = getFirebase();
-  if (!fb) return () => {};
-  const q = query(collection(fb.db, "analyses"), where("uid", "==", uid));
-  return onSnapshot(
-    q,
-    (snap) => {
-      const items = snap.docs.map((d) => d.data() as AnalysisDoc).sort((a, b) => b.createdAt - a.createdAt);
-      cb(items);
-    },
-    () => cb([])
-  );
+  let alive = true;
+  const tick = async () => {
+    try {
+      const r = await fetch(`/api/analyses?clientId=${encodeURIComponent(uid)}`, { cache: "no-store" });
+      if (!alive) return;
+      const items = r.ok ? ((await r.json()).items as AnalysisDoc[]) : [];
+      cb(items.sort((a, b) => b.createdAt - a.createdAt));
+    } catch {
+      if (alive) cb([]);
+    }
+  };
+  tick();
+  const h = setInterval(tick, LIST_MS);
+  return () => { alive = false; clearInterval(h); };
 }
 
-/** Subscribe to a single analysis (live progress while running, then the result). */
+/** Poll a single analysis (live progress while running, then the result). */
 export function subscribeAnalysis(id: string, cb: (item: AnalysisDoc | null) => void): () => void {
-  const fb = getFirebase();
-  if (!fb) return () => {};
-  return onSnapshot(
-    doc(fb.db, "analyses", id),
-    (snap) => cb(snap.exists() ? (snap.data() as AnalysisDoc) : null),
-    () => cb(null)
-  );
+  let alive = true;
+  let h: ReturnType<typeof setInterval> | null = null;
+  const tick = async () => {
+    try {
+      const r = await fetch(`/api/analysis/${encodeURIComponent(id)}`, { cache: "no-store" });
+      if (!alive) return;
+      const item = r.ok ? ((await r.json()).item as AnalysisDoc | null) : null;
+      cb(item);
+      // stop polling once the run is settled
+      if (item && item.status !== "running" && h) { clearInterval(h); h = null; }
+    } catch {
+      if (alive) cb(null);
+    }
+  };
+  tick();
+  h = setInterval(tick, ONE_MS);
+  return () => { alive = false; if (h) clearInterval(h); };
 }
 
-/** Delete an analysis via the server (clients can't delete directly). */
+/** Delete an analysis via the server. */
 export async function deleteAnalysis(id: string): Promise<void> {
-  const fb = getFirebase();
-  const token = await fb!.auth.currentUser!.getIdToken();
   await fetch("/api/analysis/delete", {
     method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ id }),
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id, clientId: getClientId() }),
   });
-}
-
-/** Convenience: get the current user's ID token for authorized API calls. */
-export async function getIdToken(): Promise<string> {
-  const fb = getFirebase();
-  if (!fb?.auth.currentUser) throw new Error("Not signed in.");
-  return fb.auth.currentUser.getIdToken();
 }

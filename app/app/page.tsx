@@ -38,9 +38,9 @@ export default function Dashboard() {
       </div>
 
       <div className="grid gap-4 sm:grid-cols-3">
-        <StatCard label="Credits remaining" value={String(user.credits)} icon="spark" tone />
-        <StatCard label="Reports run" value={String(items.filter((i) => i.status === "complete").length)} icon="doc" />
-        <StatCard label="Key mode" value={user.keyMode === "byok" ? "Own key" : "Platform"} icon="sliders" />
+        <StatCard label="Reports run" value={String(items.filter((i) => i.status === "complete").length)} icon="doc" tone />
+        <StatCard label="In progress" value={String(items.filter((i) => i.status === "running").length)} icon="spark" />
+        <StatCard label="Total" value={String(items.length)} icon="grid" />
       </div>
 
       <div>

@@ -33,8 +33,7 @@ function SiteNav() {
           <a href="#faq" className="transition-colors hover:text-ink">FAQ</a>
         </nav>
         <div className="flex items-center gap-2">
-          <Button href="/login" variant="ghost" className="hidden sm:inline-flex">Log in</Button>
-          <Button href="/signup">Get started</Button>
+          <Button href="/app">Open the app</Button>
         </div>
       </Container>
     </header>
@@ -59,13 +58,13 @@ function Hero() {
             score and recommendation you can act on.
           </p>
           <div className="mt-8 flex flex-wrap items-center gap-3">
-            <Button href="/signup" className="px-5 text-base">
+            <Button href="/app" className="px-5 text-base">
               Analyze my idea <Icon name="arrow" size={18} />
             </Button>
-            <Button href="/login" variant="ghost" className="text-base">See a sample report</Button>
+            
           </div>
           <p className="mt-5 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-faint">
-            <Icon name="check" size={15} className="text-go" /> Free credits on approval
+            <Icon name="check" size={15} className="text-go" /> No sign-up required
             <span className="text-border">·</span> No credit card
             <span className="text-border">·</span> Your own AI key optional
           </p>
@@ -227,7 +226,7 @@ function SampleReport() {
             ))}
           </ul>
           <div className="mt-8">
-            <Button href="/signup">Create your first report</Button>
+            <Button href="/app">Create your first report</Button>
           </div>
         </div>
         <div className="card p-6 shadow-lift">
@@ -311,7 +310,7 @@ function PlanCard({
         ))}
       </ul>
       <div className="mt-6">
-        <Button href="/signup" variant={highlight ? "primary" : "ghost"} className="w-full">Get started</Button>
+        <Button href="/app" variant={highlight ? "primary" : "ghost"} className="w-full">Get started</Button>
       </div>
     </div>
   );
@@ -356,8 +355,7 @@ function Footer() {
         </div>
         <p className="text-xs text-faint">© {new Date().getFullYear()} FeasibilityAI · Concept build</p>
         <div className="flex gap-5 text-sm text-muted">
-          <Link href="/login" className="hover:text-ink">Log in</Link>
-          <Link href="/signup" className="hover:text-ink">Get started</Link>
+          <Link href="/app" className="hover:text-ink">Open the app</Link>
         </div>
       </Container>
     </footer>

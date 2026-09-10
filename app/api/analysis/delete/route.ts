@@ -1,27 +1,24 @@
-// POST /api/analysis/delete — owner (or admin) deletes an analysis. Clients
-// can't delete directly (security rules), so this verifies ownership server-side.
-
+// POST /api/analysis/delete — delete an analysis. No auth (the app has no login);
+// scoped to the caller's browser clientId so one browser can't wipe another's.
 import { NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebase/admin";
-import { requireUser, HttpError } from "@/lib/firebase/verify";
 
 export const runtime = "nodejs";
 
 export async function POST(req: Request) {
   try {
-    const caller = await requireUser(req);
-    const { id } = (await req.json()) as { id: string };
-    if (!id) throw new HttpError(400, "id required.");
+    const { id, clientId } = (await req.json()) as { id: string; clientId?: string };
+    if (!id) return NextResponse.json({ error: "id required." }, { status: 400 });
 
     const ref = adminDb().collection("analyses").doc(id);
     const snap = await ref.get();
-    if (!snap.exists) return NextResponse.json({ ok: true }); // already gone
-    if (snap.data()?.uid !== caller.uid && !caller.admin) throw new HttpError(403, "Not your analysis.");
-
+    if (!snap.exists) return NextResponse.json({ ok: true });
+    if (clientId && snap.data()?.uid && snap.data()?.uid !== clientId) {
+      return NextResponse.json({ error: "Not your analysis." }, { status: 403 });
+    }
     await ref.delete();
     return NextResponse.json({ ok: true });
-  } catch (err) {
-    if (err instanceof HttpError) return NextResponse.json({ error: err.message }, { status: err.status });
+  } catch {
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }

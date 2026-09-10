@@ -25,9 +25,7 @@ export default function SettingsPage() {
         <h2 className="label">Profile</h2>
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
           <Field label="Name" value={user.name} />
-          <Field label="Email" value={user.email} />
-          <Field label="Account status" value={user.status} />
-          <Field label="Credits" value={String(user.credits)} />
+          <Field label="Mode" value="No sign-in required" />
         </div>
       </section>
 
@@ -35,13 +33,13 @@ export default function SettingsPage() {
       <section className="card p-5">
         <h2 className="label">AI engine</h2>
         <p className="mt-1 text-sm text-muted">
-          Run on our platform key (uses credits) or bring your own for higher limits at cost.
+          Run on the platform key, or bring your own for higher limits.
         </p>
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
           <ModeCard
             active={user.keyMode === "platform"}
             title="Platform key"
-            desc="Simplest. Each report uses one credit."
+            desc="Simplest. Uses the platform AI key."
             onClick={() => setKeyMode("platform")}
           />
           <ModeCard
@@ -79,7 +77,7 @@ export default function SettingsPage() {
       </section>
 
       <p className="text-center text-xs text-faint">
-        Concept build · authentication & billing are wired at the Firebase step.
+        No sign-in — every visitor runs on the platform key.
       </p>
     </div>
   );

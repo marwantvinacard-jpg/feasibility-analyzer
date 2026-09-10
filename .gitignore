@@ -40,3 +40,7 @@ serviceAccountKey.json
 
 # macOS AppleDouble sidecar files (created on exFAT/FAT volumes)
 ._*
+
+# local-only
+.vercel.token
+*.bak

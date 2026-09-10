@@ -1,18 +1,14 @@
-// POST /api/analyze — the server-authoritative run:
-//   1. verify the caller,
-//   2. enforce approval + credits (atomic decrement, unless out),
-//   3. create the analyses/{id} doc,
-//   4. run the engine, streaming SSE progress AND persisting to Firestore,
-//   5. on failure, mark failed + refund the credit.
-// The client watches Firestore for the record, so reports persist across
-// devices; SSE is just for the live progress bar during the run.
+// POST /api/analyze — the server-authoritative run (no auth: the app has no login):
+//   1. create the analyses/{id} doc (scoped to the caller's browser clientId),
+//   2. run the engine, streaming SSE progress AND persisting to Firestore,
+//   3. on failure, mark it failed.
+// The client polls /api/analysis/[id] for the record so reports persist; SSE is
+// just for the live progress bar during the run.
 
-import { FieldValue } from "firebase-admin/firestore";
 import { runFeasibility } from "@/lib/engine/runFeasibility";
 import { createLlm } from "@/lib/engine/factory";
 import { SerpApiProvider } from "@/lib/engine/search";
 import { adminDb } from "@/lib/firebase/admin";
-import { requireUser, HttpError } from "@/lib/firebase/verify";
 import { SIX_STAGES, type BusinessInput, type StageName, type StageStatus } from "@/lib/engine/types";
 
 export const runtime = "nodejs";
@@ -22,49 +18,22 @@ const initialStages = () =>
   Object.fromEntries(SIX_STAGES.map((s) => [s, "pending"])) as Record<StageName, StageStatus>;
 
 export async function POST(req: Request) {
-  let caller;
-  try {
-    caller = await requireUser(req);
-  } catch (err) {
-    const e = err as HttpError;
-    return json({ error: e.message ?? "Unauthorized" }, e.status ?? 401);
-  }
-
-  const { input } = (await req.json()) as { input: BusinessInput };
+  const { input, clientId } = (await req.json()) as { input: BusinessInput; clientId?: string };
   if (!input?.business_idea) return json({ error: "Missing business input." }, 400);
 
+  const uid = (clientId && clientId.trim()) || "guest";
   const db = adminDb();
-  const userRef = db.collection("users").doc(caller.uid);
-
-  // --- approval + credit gate (atomic) ---
-  let charged = false;
-  try {
-    charged = await db.runTransaction(async (tx) => {
-      const snap = await tx.get(userRef);
-      if (!snap.exists) throw new HttpError(403, "Account not found.");
-      const u = snap.data() as { status?: string; credits?: number };
-      if (u.status !== "approved") throw new HttpError(403, "Your account isn't approved yet.");
-      const credits = u.credits ?? 0;
-      if (credits < 1) throw new HttpError(402, "You're out of credits. Ask an admin to add more.");
-      tx.update(userRef, { credits: credits - 1 });
-      return true;
-    });
-  } catch (err) {
-    const e = err as HttpError;
-    return json({ error: e.message ?? "Not allowed" }, e.status ?? 403);
-  }
 
   // --- create the analysis record ---
   const ref = db.collection("analyses").doc();
   const id = ref.id;
   await ref.set({
     id,
-    uid: caller.uid,
+    uid,
     createdAt: Date.now(),
     status: "running",
     input,
     stageStatus: initialStages(),
-    charged,
   });
 
   const llm = createLlm();
@@ -86,7 +55,6 @@ export async function POST(req: Request) {
           onProgress: (stage, status) => {
             stageStatus[stage] = status;
             send("progress", { stage, status });
-            // best-effort live mirror to Firestore for cross-device watchers
             ref.update({ [`stageStatus.${stage}`]: status }).catch(() => {});
           },
         });
@@ -94,11 +62,7 @@ export async function POST(req: Request) {
         send("done", { analysisId: id });
       } catch (err) {
         const message = err instanceof Error ? err.message : "Analysis failed";
-        // refund the credit exactly once
-        await Promise.allSettled([
-          ref.update({ status: "failed", error: message }),
-          charged ? userRef.update({ credits: FieldValue.increment(1) }) : Promise.resolve(),
-        ]);
+        await ref.update({ status: "failed", error: message }).catch(() => {});
         send("error", { message });
       } finally {
         controller.close();

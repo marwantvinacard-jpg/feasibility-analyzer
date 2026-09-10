@@ -5,9 +5,8 @@ import { useRouter } from "next/navigation";
 import { Button, Badge } from "@/components/kit";
 import { Icon } from "@/components/icons";
 import { StageProgress } from "@/components/StageProgress";
-import { useSession } from "@/lib/session";
+import { useSession, getClientId } from "@/lib/session";
 import { streamAnalyze } from "@/lib/sse";
-import { getIdToken } from "@/lib/firebase/analyses";
 import { SIX_STAGES, type BusinessInput, type StageName, type StageStatus } from "@/lib/engine/types";
 import { cn } from "@/lib/ui";
 
@@ -67,10 +66,9 @@ export default function NewAnalysis() {
     setPrefilling(true);
     setPrefillNote("");
     try {
-      const token = await getIdToken();
       const res = await fetch("/api/extract", {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text: describe, previous: input }),
       });
       const data = await res.json();
@@ -92,14 +90,9 @@ export default function NewAnalysis() {
       setError(`Please fill all 10 fields for an accurate report. Missing ${missing.length}.`);
       return;
     }
-    if (user!.credits < 1) {
-      setError("You're out of credits. Ask an admin to add more, or contact support.");
-      return;
-    }
     setPhase("running");
     setStageStatus(initialStages());
     try {
-      const token = await getIdToken();
       await streamAnalyze(
         {
           ...input,
@@ -110,7 +103,7 @@ export default function NewAnalysis() {
           capex_budget: Number(input.capex_budget) > 0 ? Number(input.capex_budget) : undefined,
           funding_preference: input.funding_preference?.trim() || undefined,
         },
-        token,
+        getClientId(),
         {
           onProgress: ({ stage, status }) =>
             setStageStatus((prev) => ({ ...prev, [stage as StageName]: status as StageStatus })),
@@ -252,7 +245,7 @@ export default function NewAnalysis() {
       {error && <p className="text-sm text-stop">{error}</p>}
 
       <div className="flex items-center justify-between">
-        <p className="text-xs text-faint">Costs 1 credit · <span className="num">{user.credits}</span> remaining</p>
+        <p className="text-xs text-faint">Free · no sign-in, no credits</p>
         <Button onClick={run} disabled={completeness < 100}>Run analysis <Icon name="arrow" size={18} /></Button>
       </div>
     </div>

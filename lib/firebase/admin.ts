@@ -45,7 +45,13 @@ export function adminDb() {
   if (!db) {
     db = getFirestore(adminApp());
     // Result objects can carry undefined optional fields; don't reject them.
-    db.settings({ ignoreUndefinedProperties: true });
+    // settings() throws if the Firestore instance was already configured by
+    // another route module (or HMR in dev) — harmless, so swallow it.
+    try {
+      db.settings({ ignoreUndefinedProperties: true });
+    } catch {
+      /* already configured */
+    }
   }
   return db;
 }
