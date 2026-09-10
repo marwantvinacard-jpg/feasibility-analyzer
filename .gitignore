@@ -37,3 +37,6 @@ serviceAccountKey.json
 
 # local Vercel link backups
 .vercel*.bak/
+
+# macOS AppleDouble sidecar files (created on exFAT/FAT volumes)
+._*
