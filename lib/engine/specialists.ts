@@ -49,8 +49,16 @@ export interface StageOutput<T> {
   tokensOut: number;
 }
 
-const businessBlock = (input: BusinessInput) =>
-  `Business data (JSON):\n${JSON.stringify(input, null, 2)}`;
+const businessBlock = (input: BusinessInput) => {
+  const { knowledge_base, ...core } = input;
+  return `Business data (JSON):\n${JSON.stringify(core, null, 2)}`;
+};
+
+/** Applicant-uploaded reference material, appended verbatim (capped upstream). */
+const knowledgeBlock = (input: BusinessInput) =>
+  input.knowledge_base && input.knowledge_base.trim()
+    ? `\n\nReference material provided by the applicant (uploaded documents — use where relevant and cite as "applicant documents"; do not treat as verified):\n"""\n${input.knowledge_base.trim()}\n"""`
+    : "";
 
 /** Generic runner: gather research (if any), call the LLM, validate, capture cost. */
 async function runStage<T>(
@@ -67,7 +75,7 @@ async function runStage<T>(
   try {
     const research =
       stage === "financial" ? { text: "", sources: [] } : await gatherResearch(search, stage, input);
-    const user = `${businessBlock(input)}${extraUser}${research.text}`;
+    const user = `${businessBlock(input)}${knowledgeBlock(input)}${extraUser}${research.text}`;
     const { data, tokensIn, tokensOut } = await llm.structured<T>({
       system,
       user,

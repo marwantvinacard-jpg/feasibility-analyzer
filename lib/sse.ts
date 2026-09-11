@@ -1,25 +1,23 @@
 "use client";
 
-// SSE-over-POST reader for /api/analyze. No auth (the app has no login) — sends
-// the browser clientId so the run is scoped to this browser, and reports the
-// server-generated analysisId so the caller can navigate to the record.
+// SSE-over-POST reader for /api/analyze. No auth, no server DB — the full
+// result arrives in the `done` event and the caller persists it locally.
 
 export interface AnalyzeHandlers {
   onStart?: (data: { stages: string[]; analysisId: string }) => void;
   onProgress?: (data: { stage: string; status: string }) => void;
-  onDone?: (data: { analysisId: string }) => void;
+  onDone?: (data: { analysisId: string; result: unknown }) => void;
   onError?: (message: string) => void;
 }
 
 export async function streamAnalyze(
   input: unknown,
-  clientId: string,
   handlers: AnalyzeHandlers
 ): Promise<void> {
   const res = await fetch("/api/analyze", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ input, clientId }),
+    body: JSON.stringify({ input }),
   });
 
   if (!res.ok) {

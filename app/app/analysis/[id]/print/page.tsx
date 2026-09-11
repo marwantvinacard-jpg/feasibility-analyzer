@@ -7,7 +7,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { Mark } from "@/components/Brand";
 import { ReportView } from "@/components/ReportView";
-import { subscribeAnalysis } from "@/lib/firebase/analyses";
+import { subscribeAnalysis } from "@/lib/analyses";
 import type { AnalysisDoc } from "@/lib/analysisTypes";
 
 export default function PrintPage() {

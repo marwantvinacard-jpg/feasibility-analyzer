@@ -27,6 +27,9 @@ export interface BusinessInput {
   capex_budget?: number;
   /** Preferred funding mix in the applicant's own words, e.g. "60% equity, 40% bank loan". */
   funding_preference?: string;
+
+  /** Free-text extracted from documents the applicant uploaded (optional extra context). */
+  knowledge_base?: string;
 }
 
 export const REQUIRED_TEXT_FIELDS = [

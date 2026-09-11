@@ -1,12 +1,14 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button, Badge } from "@/components/kit";
 import { Icon } from "@/components/icons";
 import { StageProgress } from "@/components/StageProgress";
-import { useSession, getClientId } from "@/lib/session";
+import { useSession } from "@/lib/session";
 import { streamAnalyze } from "@/lib/sse";
+import { saveAnalysis } from "@/lib/store";
+import type { FullResult } from "@/lib/engine/runFeasibility";
 import { SIX_STAGES, type BusinessInput, type StageName, type StageStatus } from "@/lib/engine/types";
 import { cn } from "@/lib/ui";
 
@@ -53,6 +55,37 @@ export default function NewAnalysis() {
   const [phase, setPhase] = useState<"form" | "running">("form");
   const [stageStatus, setStageStatus] = useState<Record<StageName, StageStatus>>(initialStages);
 
+  type Doc = { name: string; chars: number; truncated: boolean; text: string };
+  const [docs, setDocs] = useState<Doc[]>([]);
+  const [ingesting, setIngesting] = useState(false);
+  const [ingestNote, setIngestNote] = useState("");
+  const fileRef = useRef<HTMLInputElement>(null);
+  const knowledgeBase = useMemo(
+    () => docs.map((d) => `### ${d.name}\n${d.text}`).join("\n\n").slice(0, 20000),
+    [docs]
+  );
+
+  async function addFiles(list: FileList | null) {
+    if (!list || list.length === 0) return;
+    setIngesting(true);
+    setIngestNote("");
+    for (const file of Array.from(list)) {
+      try {
+        const fd = new FormData();
+        fd.append("file", file);
+        const res = await fetch("/api/ingest", { method: "POST", body: fd });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error ?? "Could not read file");
+        setDocs((p) => [...p.filter((d) => d.name !== data.name), data as Doc]);
+      } catch (e) {
+        setIngestNote(e instanceof Error ? e.message : "Upload failed");
+      }
+    }
+    setIngesting(false);
+    if (fileRef.current) fileRef.current.value = "";
+  }
+  const removeDoc = (name: string) => setDocs((p) => p.filter((d) => d.name !== name));
+
   const filledCount = useMemo(() => KEYS.filter((k) => FILLED(input[k])).length, [input]);
   const completeness = Math.round((filledCount / KEYS.length) * 100);
   const missing = KEYS.filter((k) => !FILLED(input[k]));
@@ -92,25 +125,33 @@ export default function NewAnalysis() {
     }
     setPhase("running");
     setStageStatus(initialStages());
+    const payload = {
+      ...input,
+      monthly_cost: Number(input.monthly_cost),
+      monthly_revenue: Number(input.monthly_revenue),
+      // Blank optionals would otherwise reach the model as a stated budget
+      // of zero or an empty funding preference.
+      capex_budget: Number(input.capex_budget) > 0 ? Number(input.capex_budget) : undefined,
+      funding_preference: input.funding_preference?.trim() || undefined,
+      knowledge_base: knowledgeBase || undefined,
+    };
     try {
-      await streamAnalyze(
-        {
-          ...input,
-          monthly_cost: Number(input.monthly_cost),
-          monthly_revenue: Number(input.monthly_revenue),
-          // Blank optionals would otherwise reach the model as a stated budget
-          // of zero or an empty funding preference.
-          capex_budget: Number(input.capex_budget) > 0 ? Number(input.capex_budget) : undefined,
-          funding_preference: input.funding_preference?.trim() || undefined,
+      await streamAnalyze(payload, {
+        onProgress: ({ stage, status }) =>
+          setStageStatus((prev) => ({ ...prev, [stage as StageName]: status as StageStatus })),
+        onDone: async ({ analysisId, result }) => {
+          await saveAnalysis({
+            id: analysisId,
+            createdAt: Date.now(),
+            status: "complete",
+            input: payload,
+            stageStatus: (result as FullResult).stageStatus,
+            result: result as FullResult,
+          });
+          router.push(`/app/analysis/${analysisId}`);
         },
-        getClientId(),
-        {
-          onProgress: ({ stage, status }) =>
-            setStageStatus((prev) => ({ ...prev, [stage as StageName]: status as StageStatus })),
-          onDone: ({ analysisId }) => router.push(`/app/analysis/${analysisId}`),
-          onError: (message) => { setError(message); setPhase("form"); },
-        }
-      );
+        onError: (message) => { setError(message); setPhase("form"); },
+      });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not start analysis.");
       setPhase("form");
@@ -151,6 +192,53 @@ export default function NewAnalysis() {
           </Button>
           {prefillNote && <span className="text-xs text-muted">{prefillNote}</span>}
         </div>
+      </div>
+
+      <div className="card p-5">
+        <div className="flex items-center gap-2">
+          <Badge tone="go"><Icon name="doc" size={13} /> Knowledge base</Badge>
+          <span className="text-sm text-muted">Optional — attach PDFs, Word, Excel or text for a sharper analysis</span>
+        </div>
+        <div className="mt-3 flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            onClick={() => fileRef.current?.click()}
+            disabled={ingesting}
+            className="btn btn-ghost text-sm"
+          >
+            <Icon name="plus" size={15} /> {ingesting ? "Reading…" : "Add files"}
+          </button>
+          <input
+            ref={fileRef}
+            type="file"
+            multiple
+            accept=".pdf,.docx,.xlsx,.xls,.csv,.tsv,.txt,.md,.json"
+            className="hidden"
+            onChange={(e) => addFiles(e.target.files)}
+          />
+          {ingestNote && <span className="text-xs text-stop">{ingestNote}</span>}
+        </div>
+        {docs.length > 0 && (
+          <ul className="mt-3 space-y-1.5">
+            {docs.map((d) => (
+              <li key={d.name} className="flex items-center justify-between rounded-lg bg-surface-2 px-3 py-2 text-sm">
+                <span className="flex items-center gap-2 truncate">
+                  <Icon name="doc" size={14} className="shrink-0 text-muted" />
+                  <span className="truncate">{d.name}</span>
+                  <span className="shrink-0 text-xs text-faint">{(d.chars / 1000).toFixed(1)}k chars{d.truncated ? " · truncated" : ""}</span>
+                </span>
+                <button type="button" onClick={() => removeDoc(d.name)} className="shrink-0 text-faint hover:text-stop" aria-label={`Remove ${d.name}`}>
+                  <Icon name="x" size={14} strokeWidth={2} />
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        {docs.length > 0 && (
+          <p className="mt-2 text-xs text-faint">
+            {(knowledgeBase.length / 1000).toFixed(1)}k characters will be attached to every specialist prompt.
+          </p>
+        )}
       </div>
 
       <div className="card flex items-center gap-4 p-4">

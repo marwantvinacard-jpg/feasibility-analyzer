@@ -6,7 +6,7 @@ import { Button } from "@/components/kit";
 import { Icon } from "@/components/icons";
 import { StageProgress } from "@/components/StageProgress";
 import { ReportView } from "@/components/ReportView";
-import { subscribeAnalysis } from "@/lib/firebase/analyses";
+import { subscribeAnalysis } from "@/lib/analyses";
 import type { AnalysisDoc } from "@/lib/analysisTypes";
 import { SIX_STAGES, type StageName, type StageStatus } from "@/lib/engine/types";
 
@@ -63,7 +63,8 @@ export default function AnalysisPage() {
           <button onClick={() => router.push("/app")} className="inline-flex items-center gap-1.5 text-sm text-muted hover:text-ink">
             <Icon name="arrow" size={16} className="rotate-180" /> Dashboard
           </button>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
+            <Button href={`/app/analysis/${id}/stress`} variant="ghost" className="text-sm"><Icon name="sliders" size={17} /> Stress test</Button>
             <a href={`/app/analysis/${id}/print`} target="_blank" rel="noreferrer" className="btn btn-ghost text-sm"><Icon name="download" size={17} /> Download PDF</a>
             <Button href="/app/new" className="text-sm"><Icon name="plus" size={17} /> New analysis</Button>
           </div>

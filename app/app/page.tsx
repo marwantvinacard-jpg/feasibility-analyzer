@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Button, Badge } from "@/components/kit";
 import { Icon, type IconName } from "@/components/icons";
 import { useSession } from "@/lib/session";
-import { subscribeAnalyses, deleteAnalysis } from "@/lib/firebase/analyses";
+import { subscribeAnalyses, deleteAnalysis } from "@/lib/analyses";
 import type { AnalysisDoc } from "@/lib/analysisTypes";
 import { scoreTone, toneText, verdictTone, cn, type Tone } from "@/lib/ui";
 
