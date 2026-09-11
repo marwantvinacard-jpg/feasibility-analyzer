@@ -9,6 +9,10 @@ import { subscribeAnalyses, deleteAnalysis } from "@/lib/analyses";
 import type { AnalysisDoc } from "@/lib/analysisTypes";
 import { scoreTone, toneText, verdictTone, cn, type Tone } from "@/lib/ui";
 import { dashboardGreeting } from "@/lib/greeting";
+import { DashboardInsights } from "@/components/DashboardInsights";
+
+type Filter = "all" | "complete" | "failed" | "running";
+type Sort = "newest" | "oldest" | "score";
 
 const TONE_CHIP: Record<Tone, string> = {
   go: "bg-go/12 text-go",
@@ -19,6 +23,8 @@ const TONE_CHIP: Record<Tone, string> = {
 export default function Dashboard() {
   const { user } = useSession();
   const [items, setItems] = useState<AnalysisDoc[]>([]);
+  const [filter, setFilter] = useState<Filter>("all");
+  const [sort, setSort] = useState<Sort>("newest");
 
   useEffect(() => {
     if (!user) return;
@@ -30,6 +36,20 @@ export default function Dashboard() {
 
   const greeting = dashboardGreeting(user.name.split(" ")[0], user.isFirstSession, items.length > 0);
 
+  const completedScores = items
+    .filter((a) => a.status === "complete" && a.result)
+    .map((a) => a.result!.overall.overall_score);
+  const avgScore = completedScores.length
+    ? Math.round(completedScores.reduce((s, v) => s + v, 0) / completedScores.length)
+    : null;
+
+  const filtered = items.filter((a) => filter === "all" || a.status === filter);
+  const sorted = [...filtered].sort((a, b) => {
+    if (sort === "oldest") return a.createdAt - b.createdAt;
+    if (sort === "score") return (b.result?.overall.overall_score ?? -1) - (a.result?.overall.overall_score ?? -1);
+    return b.createdAt - a.createdAt;
+  });
+
   return (
     <div className="mx-auto max-w-5xl space-y-8">
       <div className="flex flex-wrap items-end justify-between gap-4">
@@ -40,14 +60,33 @@ export default function Dashboard() {
         <Button href="/app/new"><Icon name="plus" size={18} /> New analysis</Button>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-4">
         <StatCard label="Credits remaining" value={String(user.credits)} icon="spark" tone />
         <StatCard label="Reports run" value={String(items.filter((i) => i.status === "complete").length)} icon="doc" />
+        <StatCard label="Avg. feasibility score" value={avgScore === null ? "—" : String(avgScore)} icon="chart" />
         <StatCard label="Key mode" value={user.keyMode === "byok" ? "Own key" : "Platform"} icon="sliders" />
       </div>
 
+      <DashboardInsights items={items} />
+
       <div>
-        <h2 className="label mb-3">Your analyses</h2>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+          <h2 className="label">Your analyses</h2>
+          {items.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2">
+              <FilterTabs value={filter} onChange={setFilter} />
+              <select
+                value={sort}
+                onChange={(e) => setSort(e.target.value as Sort)}
+                className="rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs font-medium text-muted focus:outline-none"
+              >
+                <option value="newest">Newest first</option>
+                <option value="oldest">Oldest first</option>
+                <option value="score">Highest score</option>
+              </select>
+            </div>
+          )}
+        </div>
         {items.length === 0 ? (
           <div className="card grid place-items-center py-16 text-center">
             <span className="grid h-14 w-14 place-items-center rounded-2xl bg-brand/10 text-brand"><Icon name="doc" size={26} /></span>
@@ -55,14 +94,44 @@ export default function Dashboard() {
             <p className="mt-1 max-w-sm text-sm text-muted">Describe a business idea and get a full eight-dimension feasibility report in minutes.</p>
             <Button href="/app/new" className="mt-5">Analyze your first idea <Icon name="arrow" size={17} /></Button>
           </div>
+        ) : sorted.length === 0 ? (
+          <div className="card grid place-items-center py-12 text-center text-sm text-muted">
+            No analyses match this filter.
+          </div>
         ) : (
           <div className="space-y-3">
-            {items.map((a) => (
+            {sorted.map((a) => (
               <AnalysisRow key={a.id} a={a} onDelete={() => deleteAnalysis(a.id)} />
             ))}
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+const FILTERS: { key: Filter; label: string }[] = [
+  { key: "all", label: "All" },
+  { key: "complete", label: "Complete" },
+  { key: "running", label: "Running" },
+  { key: "failed", label: "Failed" },
+];
+
+function FilterTabs({ value, onChange }: { value: Filter; onChange: (f: Filter) => void }) {
+  return (
+    <div className="flex items-center gap-1 rounded-lg border border-border bg-surface p-1">
+      {FILTERS.map((f) => (
+        <button
+          key={f.key}
+          onClick={() => onChange(f.key)}
+          className={cn(
+            "rounded-md px-2.5 py-1 text-xs font-semibold transition-colors",
+            value === f.key ? "bg-brand text-white" : "text-muted hover:text-ink"
+          )}
+        >
+          {f.label}
+        </button>
+      ))}
     </div>
   );
 }

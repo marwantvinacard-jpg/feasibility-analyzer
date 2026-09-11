@@ -31,7 +31,8 @@ export type IconName =
   | "doc"
   | "compass"
   | "operational"
-  | "legal";
+  | "legal"
+  | "chart";
 
 const P: Record<IconName, React.ReactNode> = {
   operational: (
@@ -48,6 +49,11 @@ const P: Record<IconName, React.ReactNode> = {
     </>
   ),
   market: <path d="M4 18 10 12l4 3.5L21 7M15 6.5h6v6" />,
+  chart: (
+    <>
+      <path d="M4 20V10M10 20V4M16 20v-7M22 20H2" strokeLinecap="round" />
+    </>
+  ),
   financial: (
     <>
       <path d="M12 4.5v15" />
