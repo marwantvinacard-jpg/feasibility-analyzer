@@ -9,10 +9,15 @@ export type ReviewStatus = "unreviewed" | "reviewed";
 export interface AnalysisDoc {
   id: string;
   uid: string;
+  /** Set when the owner belongs to an org — lets teammates see it too (see firestore.rules). */
+  orgId?: string;
+  /** Set when this run came through the public API rather than the app UI. */
+  source?: "api";
   createdAt: number;
   status: AnalysisStatus;
   input: BusinessInput;
-  stageStatus: Record<StageName, StageStatus>;
+  /** Absent for API-run analyses, which are synchronous (no live per-stage progress). */
+  stageStatus?: Record<StageName, StageStatus>;
   result?: FullResult;
   error?: string;
   /** true when a credit was charged (so failures can refund exactly once). */

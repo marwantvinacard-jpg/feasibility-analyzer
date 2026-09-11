@@ -1,4 +1,10 @@
 {
-  "indexes": [],
+  "indexes": [
+    {
+      "collectionGroup": "apiKeys",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [{ "fieldPath": "keyHash", "order": "ASCENDING" }]
+    }
+  ],
   "fieldOverrides": []
 }

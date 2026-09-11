@@ -59,9 +59,12 @@ export async function POST(req: Request) {
   // --- create the analysis record ---
   const ref = db.collection("analyses").doc();
   const id = ref.id;
+  const callerDoc = await userRef.get();
+  const orgId = callerDoc.data()?.orgId as string | undefined;
   await ref.set({
     id,
     uid: caller.uid,
+    ...(orgId ? { orgId } : {}),
     createdAt: Date.now(),
     status: "running",
     input,

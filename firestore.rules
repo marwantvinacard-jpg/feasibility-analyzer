@@ -13,6 +13,10 @@ service cloud.firestore {
     function signedIn() { return request.auth != null; }
     function isOwner(uid) { return signedIn() && request.auth.uid == uid; }
     function isAdmin() { return signedIn() && request.auth.token.admin == true; }
+    function isOrgMember(orgId) {
+      return signedIn() &&
+        exists(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid));
+    }
 
     // --- users ---
     match /users/{uid} {
@@ -52,7 +56,8 @@ service cloud.firestore {
 
     // --- analyses (created + written by the server worker only) ---
     match /analyses/{analysisId} {
-      allow read: if isAdmin() || (signedIn() && resource.data.uid == request.auth.uid);
+      allow read: if isAdmin() || (signedIn() && resource.data.uid == request.auth.uid) ||
+        (signedIn() && resource.data.orgId != null && isOrgMember(resource.data.orgId));
       allow create, update, delete: if false; // server (Admin SDK) only
 
       match /stageOutputs/{stage} {
@@ -66,6 +71,25 @@ service cloud.firestore {
         allow read: if isAdmin() ||
           (signedIn() && get(/databases/$(database)/documents/analyses/$(analysisId)).data.uid == request.auth.uid);
         allow write: if false; // server (Admin SDK) only, via /api/scenarios
+      }
+    }
+
+    // --- organizations: multi-tenant workspace layer, additive on top of the
+    // per-user model above. Owner manages branding/keys server-side; any
+    // member can read the org doc and the member roster.
+    match /organizations/{orgId} {
+      allow read: if isAdmin() || isOrgMember(orgId);
+      allow write: if false; // server only, via /api/org routes
+
+      match /members/{uid} {
+        allow read: if isAdmin() || isOrgMember(orgId);
+        allow write: if false; // server only
+      }
+
+      // API key metadata (never the raw secret) — owner-only, server-written.
+      match /apiKeys/{keyId} {
+        allow read: if isAdmin() || isOrgMember(orgId);
+        allow write: if false; // server only, via /api/org/keys
       }
     }
 

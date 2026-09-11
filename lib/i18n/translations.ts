@@ -50,6 +50,12 @@ const en: Dict = {
   "nav.newAnalysis": "New analysis",
   "nav.settings": "Settings",
   "nav.admin": "Admin",
+  "nav.workspace": "Workspace",
+  "nav.organization": "Organization",
+  "nav.team": "Team",
+  "nav.benchmarks": "Benchmarks",
+  "nav.apiAccess": "API access",
+  "nav.legal": "Legal",
 
   // --- landing page ---
   "landing.badge": "Eight-dimension analysis · GO / NO-GO in minutes",
@@ -710,6 +716,12 @@ const ar: Dict = {
   "nav.newAnalysis": "تحليل جديد",
   "nav.settings": "الإعدادات",
   "nav.admin": "الإدارة",
+  "nav.workspace": "مساحة العمل",
+  "nav.organization": "المؤسسة",
+  "nav.team": "الفريق",
+  "nav.benchmarks": "المعايير المرجعية",
+  "nav.apiAccess": "الوصول عبر API",
+  "nav.legal": "الشؤون القانونية",
 
   "landing.badge": "تحليل بثمانية أبعاد · قرار خلال دقائق",
   "landing.heroTitle1": "اعرف إن كانت فكرتك",
@@ -1356,6 +1368,12 @@ const fr: Dict = {
   "nav.newAnalysis": "Nouvelle analyse",
   "nav.settings": "Paramètres",
   "nav.admin": "Administration",
+  "nav.workspace": "Espace de travail",
+  "nav.organization": "Organisation",
+  "nav.team": "Équipe",
+  "nav.benchmarks": "Références",
+  "nav.apiAccess": "Accès API",
+  "nav.legal": "Mentions légales",
 
   "landing.badge": "Analyse à huit dimensions · Décision en quelques minutes",
   "landing.heroTitle1": "Découvrez si votre idée",

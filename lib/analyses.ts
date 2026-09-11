@@ -23,6 +23,21 @@ export function subscribeAnalyses(uid: string, cb: (items: AnalysisDoc[]) => voi
   );
 }
 
+/** Subscribe to every analysis visible to an org (own + teammates') for benchmarking. */
+export function subscribeOrgAnalyses(orgId: string, cb: (items: AnalysisDoc[]) => void): () => void {
+  const fb = getFirebase();
+  if (!fb) return () => {};
+  const q = query(collection(fb.db, "analyses"), where("orgId", "==", orgId));
+  return onSnapshot(
+    q,
+    (snap) => {
+      const items = snap.docs.map((d) => d.data() as AnalysisDoc).sort((a, b) => b.createdAt - a.createdAt);
+      cb(items);
+    },
+    () => cb([])
+  );
+}
+
 /** Subscribe to a single analysis (live progress while running, then the result). */
 export function subscribeAnalysis(id: string, cb: (item: AnalysisDoc | null) => void): () => void {
   const fb = getFirebase();

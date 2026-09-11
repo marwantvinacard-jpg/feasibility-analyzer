@@ -35,6 +35,8 @@ export interface Account {
   subscriptionStatus?: string;
   /** UI language preference, synced across devices once signed in. */
   language?: "en" | "ar" | "fr";
+  /** Org workspace this account belongs to, if any (see lib/orgTypes.ts). */
+  orgId?: string;
 }
 
 interface SessionCtx {
@@ -120,6 +122,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
             isFirstSession,
             subscriptionStatus: d.subscriptionStatus,
             language: d.language,
+            orgId: d.orgId,
           });
           setReady(true);
 

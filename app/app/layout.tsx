@@ -23,6 +23,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     { href: "/app/settings", label: t("nav.settings"), icon: "sliders" },
   ];
 
+  const WORKSPACE_NAV: { href: string; label: string; icon: IconName }[] = [
+    { href: "/app/org", label: t("nav.organization"), icon: "building" },
+    { href: "/app/team", label: t("nav.team"), icon: "user" },
+    { href: "/app/benchmarks", label: t("nav.benchmarks"), icon: "chart" },
+    { href: "/app/api-access", label: t("nav.apiAccess"), icon: "key" },
+    { href: "/app/legal", label: t("nav.legal"), icon: "legal" },
+  ];
+
   useEffect(() => {
     if (!ready) return;
     if (!user) router.replace("/login");
@@ -65,6 +73,29 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             </Link>
           )}
         </nav>
+
+        <div className="mt-6 space-y-1">
+          <div className="px-3 text-[0.68rem] font-semibold uppercase tracking-[0.1em] text-faint">{t("nav.workspace")}</div>
+          <nav className="mt-1.5 space-y-1">
+            {WORKSPACE_NAV.map((n) => {
+              const active = pathname === n.href;
+              return (
+                <Link
+                  key={n.href}
+                  href={n.href}
+                  aria-current={active ? "page" : undefined}
+                  className={cn(
+                    "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition",
+                    active ? "bg-brand/10 text-brand" : "text-muted hover:bg-surface-2 hover:text-ink"
+                  )}
+                >
+                  <Icon name={n.icon} size={18} />
+                  {n.label}
+                </Link>
+              );
+            })}
+          </nav>
+        </div>
 
         <div className="mt-auto space-y-3">
           <LanguageSwitcher className="w-full [&>button]:w-full [&>button]:justify-center" />
