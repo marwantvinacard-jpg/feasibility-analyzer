@@ -25,7 +25,7 @@ export default function SettingsPage() {
         <h2 className="label">Profile</h2>
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
           <Field label="Name" value={user.name} />
-          <Field label="Email" value={user.email} />
+          <Field label="Email" value={user.email} plain />
           <Field label="Account status" value={user.status} />
           <Field label="Credits" value={String(user.credits)} />
         </div>
@@ -85,11 +85,11 @@ export default function SettingsPage() {
   );
 }
 
-function Field({ label, value }: { label: string; value: string }) {
+function Field({ label, value, plain }: { label: string; value: string; plain?: boolean }) {
   return (
     <div>
       <div className="text-xs text-faint">{label}</div>
-      <div className="mt-0.5 font-medium capitalize">{value}</div>
+      <div className={cn("mt-0.5 font-medium", !plain && "capitalize")}>{value}</div>
     </div>
   );
 }

@@ -1,0 +1,14 @@
+import { readFileSync } from "node:fs";
+import { initializeApp, cert } from "firebase-admin/app";
+import { getAuth } from "firebase-admin/auth";
+import { getFirestore } from "firebase-admin/firestore";
+const sa = JSON.parse(readFileSync(new URL("../serviceAccountKey.json", import.meta.url), "utf8"));
+initializeApp({ credential: cert(sa) });
+const email = process.argv[2];
+const auth = getAuth();
+const db = getFirestore();
+const user = await auth.getUserByEmail(email);
+await auth.deleteUser(user.uid);
+await db.collection("users").doc(user.uid).delete();
+console.log(`deleted ${email} (${user.uid})`);
+process.exit(0);
