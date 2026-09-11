@@ -14,6 +14,8 @@ import { money } from "@/lib/ui";
 import { useSession } from "@/lib/session";
 import { downloadElementPdf, slugify } from "@/lib/pdf";
 import { useT } from "@/lib/i18n/LanguageContext";
+import { isExportExempt, EXPORT_UNLOCK_PRICE_USD } from "@/lib/exportAccess";
+import { getIdToken } from "@/lib/analyses";
 
 export default function StressPage() {
   const { id } = useParams<{ id: string }>();
@@ -37,10 +39,30 @@ export default function StressPage() {
       </div>
     );
 
-  return <Board id={String(id)} result={rec.result} createdAt={rec.createdAt} onBack={() => router.push(`/app/analysis/${id}`)} />;
+  return (
+    <Board
+      id={String(id)}
+      result={rec.result}
+      createdAt={rec.createdAt}
+      exportUnlocked={!!rec.exportUnlocked}
+      onBack={() => router.push(`/app/analysis/${id}`)}
+    />
+  );
 }
 
-function Board({ id, result, createdAt, onBack }: { id: string; result: FullResult; createdAt: number; onBack: () => void }) {
+function Board({
+  id,
+  result,
+  createdAt,
+  exportUnlocked,
+  onBack,
+}: {
+  id: string;
+  result: FullResult;
+  createdAt: number;
+  exportUnlocked: boolean;
+  onBack: () => void;
+}) {
   const t = useT();
   const cur = result.input.currency ?? "USD";
   const fields = useMemo(() => stressFields(result, t), [result, t]);
@@ -55,6 +77,28 @@ function Board({ id, result, createdAt, onBack }: { id: string; result: FullResu
   const { user } = useSession();
   const [scenarios, setScenarios] = useState<ScenarioDoc[]>([]);
   const [saving, setSaving] = useState(false);
+  const [unlocking, setUnlocking] = useState(false);
+  const [unlockError, setUnlockError] = useState("");
+  const canExport = isExportExempt(user) || exportUnlocked;
+
+  async function unlockExport() {
+    setUnlockError("");
+    setUnlocking(true);
+    try {
+      const token = await getIdToken();
+      const res = await fetch("/api/stripe/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ kind: "unlock_export", analysisId: id }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Could not start checkout.");
+      window.location.href = data.url;
+    } catch (e) {
+      setUnlockError(e instanceof Error ? e.message : "Checkout failed.");
+      setUnlocking(false);
+    }
+  }
   useEffect(() => {
     const unsub = subscribeScenarios(id, setScenarios);
     return () => unsub();
@@ -111,9 +155,15 @@ function Board({ id, result, createdAt, onBack }: { id: string; result: FullResu
           <button onClick={saveCurrent} disabled={saving || !user} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm text-muted hover:text-ink">
             <Icon name="doc" size={14} /> {saving ? t("stress.savingScenario") : t("stress.saveScenario")}
           </button>
-          <button onClick={download} disabled={downloading} className="btn btn-primary text-sm">
-            <Icon name="download" size={16} /> {downloading ? t("stress.preparingPdf") : t("stress.downloadPdf")}
-          </button>
+          {canExport ? (
+            <button onClick={download} disabled={downloading} className="btn btn-primary text-sm">
+              <Icon name="download" size={16} /> {downloading ? t("stress.preparingPdf") : t("stress.downloadPdf")}
+            </button>
+          ) : (
+            <button onClick={unlockExport} disabled={unlocking} className="btn btn-primary text-sm">
+              <Icon name="key" size={16} /> {unlocking ? t("stress.preparingPdf") : `Unlock export — $${EXPORT_UNLOCK_PRICE_USD.toLocaleString()}`}
+            </button>
+          )}
         </div>
       </div>
 
@@ -123,6 +173,7 @@ function Board({ id, result, createdAt, onBack }: { id: string; result: FullResu
           {t("stress.pageHint")}
           {dirty ? t("stress.showingAdjusted") : t("stress.atBaseline")}
         </p>
+        {unlockError && <p className="mt-2 text-sm text-stop">{unlockError}</p>}
       </div>
 
       <div className="grid gap-5 lg:grid-cols-[300px_1fr]">

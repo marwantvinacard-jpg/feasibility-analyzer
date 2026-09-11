@@ -8,11 +8,12 @@ import { StageProgress } from "@/components/StageProgress";
 import { ReportView } from "@/components/ReportView";
 import { Mark } from "@/components/Brand";
 import { downloadElementPdf, slugify } from "@/lib/pdf";
-import { subscribeAnalysis, reviewAnalysis } from "@/lib/analyses";
+import { subscribeAnalysis, reviewAnalysis, getIdToken } from "@/lib/analyses";
 import { useSession } from "@/lib/session";
 import type { AnalysisDoc } from "@/lib/analysisTypes";
 import { SIX_STAGES, type StageName, type StageStatus } from "@/lib/engine/types";
 import { useT } from "@/lib/i18n/LanguageContext";
+import { isExportExempt, EXPORT_UNLOCK_PRICE_USD } from "@/lib/exportAccess";
 
 const fallbackStages = () =>
   Object.fromEntries(SIX_STAGES.map((s) => [s, "pending"])) as Record<StageName, StageStatus>;
@@ -26,6 +27,27 @@ export default function AnalysisPage() {
   const { user } = useSession();
   const t = useT();
   const [reviewing, setReviewing] = useState(false);
+  const [unlocking, setUnlocking] = useState(false);
+  const [unlockError, setUnlockError] = useState("");
+
+  async function unlockExport(analysisId: string) {
+    setUnlockError("");
+    setUnlocking(true);
+    try {
+      const token = await getIdToken();
+      const res = await fetch("/api/stripe/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ kind: "unlock_export", analysisId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Could not start checkout.");
+      window.location.href = data.url;
+    } catch (e) {
+      setUnlockError(e instanceof Error ? e.message : "Checkout failed.");
+      setUnlocking(false);
+    }
+  }
 
   async function markReviewed() {
     const notes = window.prompt(t("analysis.notesLabel")) ?? "";
@@ -104,12 +126,25 @@ export default function AnalysisPage() {
               </button>
             )}
             <Button href={`/app/analysis/${id}/stress`} variant="ghost" className="text-sm"><Icon name="sliders" size={17} /> {t("analysis.stressTest")}</Button>
-            <button onClick={() => downloadPdf(rec.result!.input.business_idea)} disabled={dl} className="btn btn-ghost text-sm">
-              <Icon name="download" size={17} /> {dl ? t("analysis.preparing") : t("analysis.download")}
-            </button>
+            {isExportExempt(user) || rec.exportUnlocked ? (
+              <button onClick={() => downloadPdf(rec.result!.input.business_idea)} disabled={dl} className="btn btn-ghost text-sm">
+                <Icon name="download" size={17} /> {dl ? t("analysis.preparing") : t("analysis.download")}
+              </button>
+            ) : (
+              <button onClick={() => unlockExport(id)} disabled={unlocking} className="btn btn-ghost text-sm text-brand">
+                <Icon name="key" size={17} /> {unlocking ? t("analysis.preparing") : `Unlock export — $${EXPORT_UNLOCK_PRICE_USD.toLocaleString()}`}
+              </button>
+            )}
             <Button href="/app/new" className="text-sm"><Icon name="plus" size={17} /> {t("nav.newAnalysis")}</Button>
           </div>
         </div>
+        {unlockError && <p className="no-print text-sm text-stop">{unlockError}</p>}
+        {!isExportExempt(user) && !rec.exportUnlocked && (
+          <div className="no-print rounded-xl border border-brand/25 bg-brand/5 px-4 py-3 text-sm text-ink">
+            <span className="font-medium text-brand">This study's export is locked.</span>{" "}
+            <span className="text-muted">Pay a one-time ${EXPORT_UNLOCK_PRICE_USD.toLocaleString()} to unlock the PDF download for this analysis. Viewing it here is always free.</span>
+          </div>
+        )}
         {rec.reviewStatus === "reviewed" && rec.reviewNotes && (
           <div className="no-print rounded-xl border border-go/30 bg-go/8 p-3 text-sm">
             <span className="font-medium text-go">{t("analysis.reviewerNotes")}</span> <span className="text-muted">{rec.reviewNotes}</span>

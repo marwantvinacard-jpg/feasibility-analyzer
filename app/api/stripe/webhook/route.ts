@@ -60,6 +60,24 @@ export async function POST(req: Request) {
           }
         }
 
+        if (session.metadata?.kind === "unlock_export") {
+          const analysisId = session.metadata.analysisId;
+          if (analysisId) {
+            await adminDb().collection("analyses").doc(analysisId).update({ exportUnlocked: true });
+            await adminDb()
+              .collection("payments")
+              .add({
+                uid,
+                type: "export_unlock",
+                analysisId,
+                amountUsd: (session.amount_total ?? 0) / 100,
+                stripeSessionId: session.id,
+                createdAt: Date.now(),
+              });
+            await logAudit({ uid, action: "billing.export_unlocked", target: analysisId, meta: { amountUsd: (session.amount_total ?? 0) / 100 } });
+          }
+        }
+
         if (session.metadata?.kind === "org_plan") {
           const orgId = session.metadata.orgId;
           const planKey = session.metadata.planKey as keyof typeof PLAN_BY_KEY | undefined;

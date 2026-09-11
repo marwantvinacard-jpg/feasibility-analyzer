@@ -13,6 +13,8 @@ export interface AnalysisDoc {
   orgId?: string;
   /** Set when this run came through the public API rather than the app UI. */
   source?: "api";
+  /** True once the one-time export unlock has been paid for this study (or the owner is export-exempt). */
+  exportUnlocked?: boolean;
   createdAt: number;
   status: AnalysisStatus;
   input: BusinessInput;
