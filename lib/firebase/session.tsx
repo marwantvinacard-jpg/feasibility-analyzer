@@ -15,7 +15,7 @@ import {
   updateProfile,
   type User as FbUser,
 } from "firebase/auth";
-import { doc, onSnapshot, setDoc, updateDoc } from "firebase/firestore";
+import { doc, onSnapshot, setDoc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { getFirebase } from "./client";
 import { claimUsernameAndCreateProfile, resolveIdentifierToEmail } from "./usernames";
 
@@ -30,6 +30,9 @@ export interface Account {
   role: UserRole;
   credits: number;
   keyMode: "platform" | "byok";
+  /** True the very first time this account is ever seen signed in (no prior lastSeenAt). */
+  isFirstSession: boolean;
+  subscriptionStatus?: string;
 }
 
 interface SessionCtx {
@@ -63,6 +66,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [fbUser, setFbUser] = useState<FbUser | null>(null);
   const [ready, setReady] = useState(false);
   const docUnsub = useRef<(() => void) | null>(null);
+  const touchedUid = useRef<string | null>(null);
+  const firstSessionCache = useRef<Record<string, boolean>>({});
 
   useEffect(() => {
     const fb = getFirebase();
@@ -95,6 +100,12 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
             return;
           }
           const d = snap.data() as any;
+          // Compute isFirstSession ONCE per uid, from the first snapshot we ever see
+          // for it. Our own lastSeenAt write below echoes back through this same
+          // listener a moment later — recomputing from that live doc would flip a
+          // real "first session" to "returning" mid-render. Cache it instead.
+          if (!(u.uid in firstSessionCache.current)) firstSessionCache.current[u.uid] = !d.lastSeenAt;
+          const isFirstSession = firstSessionCache.current[u.uid];
           setAccount({
             uid: u.uid,
             email: u.email ?? d.email ?? "",
@@ -103,8 +114,20 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
             role: d.role ?? "user",
             credits: d.credits ?? 0,
             keyMode: d.keyMode ?? "platform",
+            isFirstSession,
+            subscriptionStatus: d.subscriptionStatus,
           });
           setReady(true);
+
+          // Record this visit exactly once per mount, after read — never before,
+          // so isFirstSession above reflects state BEFORE this visit.
+          if (touchedUid.current !== u.uid && d.status === "approved") {
+            touchedUid.current = u.uid;
+            updateDoc(ref, {
+              lastSeenAt: serverTimestamp(),
+              ...(isFirstSession ? { firstSeenAt: serverTimestamp() } : {}),
+            }).catch(() => {});
+          }
         },
         () => setReady(true)
       );

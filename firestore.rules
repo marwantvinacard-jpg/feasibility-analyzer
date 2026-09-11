@@ -81,6 +81,12 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // --- payment history (Stripe webhook writes; owner + admin read) ---
+    match /payments/{paymentId} {
+      allow read: if isAdmin() || (signedIn() && resource.data.uid == request.auth.uid);
+      allow write: if false; // server only, via the Stripe webhook
+    }
+
     // --- admin audit log — admin-only read, server-only write ---
     match /auditLog/{entry} {
       allow read: if isAdmin();

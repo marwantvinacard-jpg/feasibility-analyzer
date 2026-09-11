@@ -1,0 +1,12 @@
+import { readFileSync } from "node:fs";
+import { initializeApp, cert } from "firebase-admin/app";
+import { getFirestore, FieldValue } from "firebase-admin/firestore";
+const sa = JSON.parse(readFileSync(new URL("../serviceAccountKey.json", import.meta.url), "utf8"));
+initializeApp({ credential: cert(sa) });
+const db = getFirestore();
+const uname = process.argv[2];
+const unameDoc = await db.collection("usernames").doc(uname).get();
+const { uid } = unameDoc.data();
+await db.collection("users").doc(uid).update({ lastSeenAt: FieldValue.delete(), firstSeenAt: FieldValue.delete() });
+console.log(`reset ${uname} (${uid}) to never-seen`);
+process.exit(0);

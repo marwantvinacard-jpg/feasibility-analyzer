@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button, Badge } from "@/components/kit";
 import { Icon } from "@/components/icons";
 import { StageProgress } from "@/components/StageProgress";
+import { Paywall } from "@/components/Paywall";
 import { VERTICALS } from "@/lib/engine/verticals";
 import { useSession } from "@/lib/session";
 import { getIdToken } from "@/lib/analyses";
@@ -160,6 +161,10 @@ export default function NewAnalysis() {
 
   if (!user) return null;
 
+  if (user.credits < 1) {
+    return <Paywall credits={user.credits} />;
+  }
+
   if (phase === "running") {
     return (
       <div className="py-6">
@@ -171,7 +176,7 @@ export default function NewAnalysis() {
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <div>
-        <h1 className="font-display text-3xl font-semibold tracking-tight">New feasibility analysis</h1>
+        <h1 className="font-display text-3xl font-semibold tracking-tight">Let's size up your idea, {user.name.split(" ")[0]}</h1>
         <p className="mt-1.5 text-sm text-muted">Fill the 10 fields below — or describe your idea and let AI pre-fill them.</p>
       </div>
 

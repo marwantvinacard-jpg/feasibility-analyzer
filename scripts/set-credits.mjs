@@ -1,0 +1,12 @@
+import { readFileSync } from "node:fs";
+import { initializeApp, cert } from "firebase-admin/app";
+import { getFirestore } from "firebase-admin/firestore";
+const sa = JSON.parse(readFileSync(new URL("../serviceAccountKey.json", import.meta.url), "utf8"));
+initializeApp({ credential: cert(sa) });
+const [uname, credits] = process.argv.slice(2);
+const db = getFirestore();
+const unameDoc = await db.collection("usernames").doc(uname).get();
+const { uid } = unameDoc.data();
+await db.collection("users").doc(uid).update({ credits: Number(credits) });
+console.log(`${uname} credits set to ${credits}`);
+process.exit(0);

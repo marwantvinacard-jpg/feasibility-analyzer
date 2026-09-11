@@ -8,6 +8,7 @@ import { useSession } from "@/lib/session";
 import { subscribeAnalyses, deleteAnalysis } from "@/lib/analyses";
 import type { AnalysisDoc } from "@/lib/analysisTypes";
 import { scoreTone, toneText, verdictTone, cn, type Tone } from "@/lib/ui";
+import { dashboardGreeting } from "@/lib/greeting";
 
 const TONE_CHIP: Record<Tone, string> = {
   go: "bg-go/12 text-go",
@@ -27,12 +28,14 @@ export default function Dashboard() {
 
   if (!user) return null;
 
+  const greeting = dashboardGreeting(user.name.split(" ")[0], user.isFirstSession, items.length > 0);
+
   return (
     <div className="mx-auto max-w-5xl space-y-8">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="font-display text-3xl font-semibold tracking-tight">Welcome back, {user.name.split(" ")[0]}</h1>
-          <p className="mt-1.5 text-sm text-muted">Run a new feasibility analysis or revisit a past report.</p>
+          <h1 className="font-display text-3xl font-semibold tracking-tight">{greeting.headline}</h1>
+          <p className="mt-1.5 text-sm text-muted">{greeting.subtitle}</p>
         </div>
         <Button href="/app/new"><Icon name="plus" size={18} /> New analysis</Button>
       </div>
