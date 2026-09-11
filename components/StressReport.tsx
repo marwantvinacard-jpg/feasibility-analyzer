@@ -1,10 +1,11 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Badge } from "@/components/kit";
 import { Icon } from "@/components/icons";
 import { ScoreGauge, ScoreBar } from "@/components/ScoreGauge";
 import { applyStress, recommend, baselineKnobs, type StressKnobs, type StressOutput } from "@/lib/stress";
+import { runMonteCarlo, type MonteCarloResult } from "@/lib/engine/montecarlo";
 import type { FullResult } from "@/lib/engine/runFeasibility";
 import { DIMENSION_META, money, verdictTone, toneText, cn } from "@/lib/ui";
 
@@ -192,6 +193,9 @@ export function StressReport({
         </section>
       )}
 
+      {/* ---- Probability simulation ---- */}
+      {result.study?.model && <MonteCarloPanel model={result.study.model} knobs={knobs} cur={cur} />}
+
       {/* ---- Risk assessment ---- */}
       <section className="card p-5">
         <div className="mb-3 flex items-center justify-between">
@@ -320,6 +324,118 @@ export function StressReport({
         )}
       </section>
     </div>
+  );
+}
+
+function MonteCarloPanel({
+  model,
+  knobs,
+  cur,
+}: {
+  model: NonNullable<import("@/lib/engine/runFeasibility").FullResult["study"]>["model"];
+  knobs: StressKnobs;
+  cur: string;
+}) {
+  const [result, setResult] = useState<MonteCarloResult | null>(null);
+  const [running, setRunning] = useState(false);
+
+  function run() {
+    setRunning(true);
+    // yield to paint the "Running…" state before the (synchronous) simulation
+    setTimeout(() => {
+      const flexed = structuredClone(model);
+      flexed.revenue_streams = flexed.revenue_streams.map((s) => ({
+        ...s,
+        price_per_unit: s.price_per_unit * (knobs.pricePct / 100),
+        units_per_month: s.units_per_month * (knobs.volumePct / 100),
+      }));
+      flexed.opex = flexed.opex.map((o) => ({ ...o, monthly_amount: o.monthly_amount * (knobs.opexPct / 100) }));
+      flexed.assumptions = {
+        ...flexed.assumptions,
+        discount_rate_percent: knobs.discountRatePct,
+        revenue_growth_percent_by_year: flexed.assumptions.revenue_growth_percent_by_year.map(() => knobs.growthPct),
+      };
+      setResult(runMonteCarlo(flexed, { monthlyCost: knobs.monthlyCost, monthlyRevenue: knobs.monthlyRevenue }));
+      setRunning(false);
+    }, 10);
+  }
+
+  return (
+    <section className="card p-5">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <div className="label">Probability simulation</div>
+          <p className="mt-1 text-xs text-muted">
+            300 randomized draws around your current assumptions (price, volume, cost, growth) — a
+            distribution of outcomes instead of one point estimate.
+          </p>
+        </div>
+        <button onClick={run} disabled={running} className="btn btn-ghost shrink-0 text-sm">
+          {running ? "Simulating…" : result ? "Re-run" : "Run simulation"}
+        </button>
+      </div>
+
+      {result && (
+        <>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <ProbStat label="P(NPV > 0)" value={`${Math.round(result.probabilityPositiveNpv * 100)}%`} good={result.probabilityPositiveNpv >= 0.6} />
+            <ProbStat label="P(break-even ≤ 24 mo)" value={`${Math.round(result.probabilityBreakEvenWithin24Months * 100)}%`} good={result.probabilityBreakEvenWithin24Months >= 0.6} />
+            <ProbStat label="P(IRR ≥ 15%)" value={`${Math.round(result.probabilityIrrAboveHurdle(15) * 100)}%`} good={result.probabilityIrrAboveHurdle(15) >= 0.6} />
+            <ProbStat label="Simulations" value={String(result.iterations)} />
+          </div>
+
+          <div className="mt-4 grid gap-4 sm:grid-cols-3">
+            <RangeCard label="NPV" p={result.npv} fmt={(v) => money(v, cur)} />
+            <RangeCard label="IRR" p={result.irr} fmt={(v) => `${v.toFixed(1)}%`} />
+            <RangeCard label="Payback" p={result.paybackMonths} fmt={(v) => `${Math.round(v)} mo`} />
+          </div>
+
+          <div className="mt-4">
+            <div className="mb-1 text-xs text-faint">NPV distribution (each dot one simulated outcome)</div>
+            <ScatterStrip samples={result.samples} />
+          </div>
+        </>
+      )}
+    </section>
+  );
+}
+
+function ProbStat({ label, value, good }: { label: string; value: string; good?: boolean }) {
+  return (
+    <div className="rounded-xl bg-surface-2 p-3">
+      <div className="text-[0.68rem] text-faint">{label}</div>
+      <div className={cn("num mt-0.5 text-lg font-semibold", good === undefined ? "" : good ? "text-go" : "text-warn")}>{value}</div>
+    </div>
+  );
+}
+
+function RangeCard({ label, p, fmt }: { label: string; p: { p10: number; p50: number; p90: number }; fmt: (v: number) => string }) {
+  return (
+    <div className="rounded-xl bg-surface-2 p-3">
+      <div className="text-[0.68rem] text-faint">{label} — P10 / P50 / P90</div>
+      <div className="num mt-1 flex items-baseline gap-2">
+        <span className="text-xs text-muted">{fmt(p.p10)}</span>
+        <span className="text-base font-semibold">{fmt(p.p50)}</span>
+        <span className="text-xs text-muted">{fmt(p.p90)}</span>
+      </div>
+    </div>
+  );
+}
+
+function ScatterStrip({ samples }: { samples: { npv: number; irr: number | null }[] }) {
+  if (!samples.length) return null;
+  const vals = samples.map((s) => s.npv);
+  const min = Math.min(...vals, 0), max = Math.max(...vals, 0);
+  const W = 640, H = 46;
+  const x = (v: number) => ((v - min) / (max - min || 1)) * W;
+  const zeroX = x(0);
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className="h-12 w-full min-w-[420px]">
+      <line x1={zeroX} x2={zeroX} y1={0} y2={H} stroke="rgb(var(--stop))" strokeWidth={1} strokeDasharray="3 3" opacity={0.5} />
+      {samples.map((s, i) => (
+        <circle key={i} cx={x(s.npv)} cy={H / 2 + (((i * 37) % 20) - 10)} r={2.2} fill={s.npv >= 0 ? "rgb(var(--go))" : "rgb(var(--stop))"} opacity={0.55} />
+      ))}
+    </svg>
   );
 }
 

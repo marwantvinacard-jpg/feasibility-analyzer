@@ -5,10 +5,10 @@ import { useRouter } from "next/navigation";
 import { Button, Badge } from "@/components/kit";
 import { Icon } from "@/components/icons";
 import { StageProgress } from "@/components/StageProgress";
+import { VERTICALS } from "@/lib/engine/verticals";
 import { useSession } from "@/lib/session";
+import { getIdToken } from "@/lib/analyses";
 import { streamAnalyze } from "@/lib/sse";
-import { saveAnalysis } from "@/lib/store";
-import type { FullResult } from "@/lib/engine/runFeasibility";
 import { SIX_STAGES, type BusinessInput, type StageName, type StageStatus } from "@/lib/engine/types";
 import { cn } from "@/lib/ui";
 
@@ -71,9 +71,10 @@ export default function NewAnalysis() {
     setIngestNote("");
     for (const file of Array.from(list)) {
       try {
+        const token = await getIdToken();
         const fd = new FormData();
         fd.append("file", file);
-        const res = await fetch("/api/ingest", { method: "POST", body: fd });
+        const res = await fetch("/api/ingest", { method: "POST", headers: { Authorization: `Bearer ${token}` }, body: fd });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error ?? "Could not read file");
         setDocs((p) => [...p.filter((d) => d.name !== data.name), data as Doc]);
@@ -99,9 +100,10 @@ export default function NewAnalysis() {
     setPrefilling(true);
     setPrefillNote("");
     try {
+      const token = await getIdToken();
       const res = await fetch("/api/extract", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ text: describe, previous: input }),
       });
       const data = await res.json();
@@ -123,35 +125,33 @@ export default function NewAnalysis() {
       setError(`Please fill all 10 fields for an accurate report. Missing ${missing.length}.`);
       return;
     }
+    if (user!.credits < 1) {
+      setError("You're out of credits. Ask an admin to add more, or contact support.");
+      return;
+    }
     setPhase("running");
     setStageStatus(initialStages());
-    const payload = {
-      ...input,
-      monthly_cost: Number(input.monthly_cost),
-      monthly_revenue: Number(input.monthly_revenue),
-      // Blank optionals would otherwise reach the model as a stated budget
-      // of zero or an empty funding preference.
-      capex_budget: Number(input.capex_budget) > 0 ? Number(input.capex_budget) : undefined,
-      funding_preference: input.funding_preference?.trim() || undefined,
-      knowledge_base: knowledgeBase || undefined,
-    };
     try {
-      await streamAnalyze(payload, {
-        onProgress: ({ stage, status }) =>
-          setStageStatus((prev) => ({ ...prev, [stage as StageName]: status as StageStatus })),
-        onDone: async ({ analysisId, result }) => {
-          await saveAnalysis({
-            id: analysisId,
-            createdAt: Date.now(),
-            status: "complete",
-            input: payload,
-            stageStatus: (result as FullResult).stageStatus,
-            result: result as FullResult,
-          });
-          router.push(`/app/analysis/${analysisId}`);
+      const token = await getIdToken();
+      await streamAnalyze(
+        {
+          ...input,
+          monthly_cost: Number(input.monthly_cost),
+          monthly_revenue: Number(input.monthly_revenue),
+          // Blank optionals would otherwise reach the model as a stated budget
+          // of zero or an empty funding preference.
+          capex_budget: Number(input.capex_budget) > 0 ? Number(input.capex_budget) : undefined,
+          funding_preference: input.funding_preference?.trim() || undefined,
+          knowledge_base: knowledgeBase || undefined,
         },
-        onError: (message) => { setError(message); setPhase("form"); },
-      });
+        token,
+        {
+          onProgress: ({ stage, status }) =>
+            setStageStatus((prev) => ({ ...prev, [stage as StageName]: status as StageStatus })),
+          onDone: ({ analysisId }) => router.push(`/app/analysis/${analysisId}`),
+          onError: (message) => { setError(message); setPhase("form"); },
+        }
+      );
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not start analysis.");
       setPhase("form");
@@ -289,6 +289,16 @@ export default function NewAnalysis() {
         </summary>
         <div className="mt-4 grid gap-5 sm:grid-cols-2">
           <div>
+            <label className="mb-1.5 block text-sm font-medium">Industry</label>
+            <select className="input" value={input.business_type ?? ""} onChange={(e) => set("business_type", e.target.value as never)}>
+              <option value="">General / not listed</option>
+              {VERTICALS.map((v) => (
+                <option key={v.key} value={v.key}>{v.label}</option>
+              ))}
+            </select>
+            <p className="mt-1 text-xs text-faint">Steers CapEx/OpEx categories and revenue units toward what's realistic for this industry.</p>
+          </div>
+          <div>
             <label className="mb-1.5 block text-sm font-medium">Currency</label>
             <select
               className="input"
@@ -333,7 +343,7 @@ export default function NewAnalysis() {
       {error && <p className="text-sm text-stop">{error}</p>}
 
       <div className="flex items-center justify-between">
-        <p className="text-xs text-faint">Free · no sign-in, no credits</p>
+        <p className="text-xs text-faint">Costs 1 credit · <span className="num">{user.credits}</span> remaining</p>
         <Button onClick={run} disabled={completeness < 100}>Run analysis <Icon name="arrow" size={18} /></Button>
       </div>
     </div>

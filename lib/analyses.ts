@@ -1,31 +1,77 @@
 "use client";
 
-// Client reads of saved analyses. No backend — these read the local IndexedDB
-// store. "subscribe" keeps its old meaning: call the callback now and again
-// whenever the store changes (and on a slow poll, so a run finishing in this
-// same tab is picked up).
+// Client reads of the analyses collection (writes are server-only per the
+// security rules). Live via onSnapshot so the dashboard + report update in
+// real time — including a run in progress watched from another device.
 
-import { getAnalysis, listAnalyses, onAnalysesChanged, removeAnalysis } from "@/lib/store";
-import type { AnalysisDoc } from "@/lib/analysisTypes";
+import { collection, doc, onSnapshot, query, where } from "firebase/firestore";
+import { getFirebase } from "@/lib/firebase/client";
+import type { AnalysisDoc, ScenarioDoc } from "@/lib/analysisTypes";
 
-export function subscribeAnalyses(_uid: string, cb: (items: AnalysisDoc[]) => void): () => void {
-  let alive = true;
-  const pull = () => listAnalyses().then((i) => alive && cb(i));
-  pull();
-  const off = onAnalysesChanged(pull);
-  const h = setInterval(pull, 2000);
-  return () => { alive = false; off(); clearInterval(h); };
+/** Subscribe to all of a user's analyses (sorted newest-first client-side to avoid a composite index). */
+export function subscribeAnalyses(uid: string, cb: (items: AnalysisDoc[]) => void): () => void {
+  const fb = getFirebase();
+  if (!fb) return () => {};
+  const q = query(collection(fb.db, "analyses"), where("uid", "==", uid));
+  return onSnapshot(
+    q,
+    (snap) => {
+      const items = snap.docs.map((d) => d.data() as AnalysisDoc).sort((a, b) => b.createdAt - a.createdAt);
+      cb(items);
+    },
+    () => cb([])
+  );
 }
 
+/** Subscribe to a single analysis (live progress while running, then the result). */
 export function subscribeAnalysis(id: string, cb: (item: AnalysisDoc | null) => void): () => void {
-  let alive = true;
-  const pull = () => getAnalysis(id).then((i) => alive && cb(i));
-  pull();
-  const off = onAnalysesChanged(pull);
-  const h = setInterval(pull, 2000);
-  return () => { alive = false; off(); clearInterval(h); };
+  const fb = getFirebase();
+  if (!fb) return () => {};
+  return onSnapshot(
+    doc(fb.db, "analyses", id),
+    (snap) => cb(snap.exists() ? (snap.data() as AnalysisDoc) : null),
+    () => cb(null)
+  );
+}
+
+/** Subscribe to an analysis's saved stress-test scenarios. */
+export function subscribeScenarios(analysisId: string, cb: (items: ScenarioDoc[]) => void): () => void {
+  const fb = getFirebase();
+  if (!fb) return () => {};
+  return onSnapshot(
+    collection(fb.db, "analyses", analysisId, "scenarios"),
+    (snap) => cb(snap.docs.map((d) => d.data() as ScenarioDoc).sort((a, b) => b.createdAt - a.createdAt)),
+    () => cb([])
+  );
+}
+
+/** Convenience: get the current user's ID token for authorized API calls. */
+export async function getIdToken(): Promise<string> {
+  const fb = getFirebase();
+  if (!fb?.auth.currentUser) throw new Error("Not signed in.");
+  return fb.auth.currentUser.getIdToken();
+}
+
+async function authedFetch(url: string, init: RequestInit = {}) {
+  const token = await getIdToken();
+  return fetch(url, {
+    ...init,
+    headers: { ...(init.headers ?? {}), "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+  });
 }
 
 export async function deleteAnalysis(id: string): Promise<void> {
-  await removeAnalysis(id);
+  await authedFetch("/api/analysis/delete", { method: "POST", body: JSON.stringify({ id }) });
+}
+
+export async function reviewAnalysis(id: string, notes: string): Promise<void> {
+  await authedFetch("/api/analysis/review", { method: "POST", body: JSON.stringify({ id, notes }) });
+}
+
+export async function saveScenario(analysisId: string, name: string, knobs: Record<string, number>): Promise<void> {
+  await authedFetch("/api/scenarios", { method: "POST", body: JSON.stringify({ analysisId, name, knobs }) });
+}
+
+export async function deleteScenario(analysisId: string, scenarioId: string): Promise<void> {
+  await authedFetch(`/api/scenarios?analysisId=${analysisId}&scenarioId=${scenarioId}`, { method: "DELETE" });
 }

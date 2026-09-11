@@ -30,6 +30,9 @@ export interface BusinessInput {
 
   /** Free-text extracted from documents the applicant uploaded (optional extra context). */
   knowledge_base?: string;
+
+  /** Industry vertical key (see lib/engine/verticals.ts) — steers CapEx/OpEx/revenue-unit guidance. */
+  business_type?: string;
 }
 
 export const REQUIRED_TEXT_FIELDS = [

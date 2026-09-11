@@ -27,6 +27,16 @@ export function ReportView({ result, print = false }: { result: FullResult; prin
 
   return (
     <div className={cn("space-y-6", print && "mx-auto max-w-3xl")}>
+      {result.usage.mock && (
+        <div className="no-print flex items-center gap-2.5 rounded-xl border border-warn/40 bg-warn/10 px-4 py-3 text-sm text-warn">
+          <Icon name="risk" size={16} strokeWidth={2} className="shrink-0" />
+          <span>
+            <strong>Demo data.</strong> No AI provider is configured, so this report was generated with mock
+            data for illustration — none of these figures reflect a real analysis. Set an AI key
+            (see .env.example) to run a live study.
+          </span>
+        </div>
+      )}
       {/* Verdict hero */}
       <div className="card overflow-hidden p-0">
         <div className="bg-paper-glow flex flex-col items-center gap-6 p-6 sm:flex-row sm:p-8">

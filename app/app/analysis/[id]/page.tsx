@@ -2,13 +2,14 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { Button } from "@/components/kit";
+import { Button, Badge } from "@/components/kit";
 import { Icon } from "@/components/icons";
 import { StageProgress } from "@/components/StageProgress";
 import { ReportView } from "@/components/ReportView";
 import { Mark } from "@/components/Brand";
 import { downloadElementPdf, slugify } from "@/lib/pdf";
-import { subscribeAnalysis } from "@/lib/analyses";
+import { subscribeAnalysis, reviewAnalysis } from "@/lib/analyses";
+import { useSession } from "@/lib/session";
 import type { AnalysisDoc } from "@/lib/analysisTypes";
 import { SIX_STAGES, type StageName, type StageStatus } from "@/lib/engine/types";
 
@@ -21,6 +22,18 @@ export default function AnalysisPage() {
   const id = String(params.id);
   const exportRef = useRef<HTMLDivElement>(null);
   const [dl, setDl] = useState(false);
+  const { user } = useSession();
+  const [reviewing, setReviewing] = useState(false);
+
+  async function markReviewed() {
+    const notes = window.prompt("Review notes (optional) — shown in the audit log:") ?? "";
+    setReviewing(true);
+    try {
+      await reviewAnalysis(id, notes);
+    } finally {
+      setReviewing(false);
+    }
+  }
 
   async function downloadPdf(idea: string) {
     if (!exportRef.current) return;
@@ -77,7 +90,17 @@ export default function AnalysisPage() {
           <button onClick={() => router.push("/app")} className="inline-flex items-center gap-1.5 text-sm text-muted hover:text-ink">
             <Icon name="arrow" size={16} className="rotate-180" /> Dashboard
           </button>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {rec.reviewStatus === "reviewed" ? (
+              <Badge tone="go"><Icon name="check" size={13} strokeWidth={2.5} /> Reviewed by {rec.reviewedBy}</Badge>
+            ) : (
+              <Badge tone="warn">Unreviewed — AI-only</Badge>
+            )}
+            {user?.role === "admin" && rec.reviewStatus !== "reviewed" && (
+              <button onClick={markReviewed} disabled={reviewing} className="btn btn-ghost text-sm">
+                {reviewing ? "Saving…" : "Mark reviewed"}
+              </button>
+            )}
             <Button href={`/app/analysis/${id}/stress`} variant="ghost" className="text-sm"><Icon name="sliders" size={17} /> Stress test</Button>
             <button onClick={() => downloadPdf(rec.result!.input.business_idea)} disabled={dl} className="btn btn-ghost text-sm">
               <Icon name="download" size={17} /> {dl ? "Preparing…" : "Download PDF"}
@@ -85,6 +108,11 @@ export default function AnalysisPage() {
             <Button href="/app/new" className="text-sm"><Icon name="plus" size={17} /> New analysis</Button>
           </div>
         </div>
+        {rec.reviewStatus === "reviewed" && rec.reviewNotes && (
+          <div className="no-print rounded-xl border border-go/30 bg-go/8 p-3 text-sm">
+            <span className="font-medium text-go">Reviewer notes:</span> <span className="text-muted">{rec.reviewNotes}</span>
+          </div>
+        )}
         <ReportView result={rec.result} />
 
         {/* Off-screen export copy for the PDF (light palette, fixed width) */}

@@ -38,6 +38,7 @@ import type {
   FinancialCalculations,
   Source,
 } from "./types";
+import { verticalHint } from "./verticals";
 
 export interface StageOutput<T> {
   stage: ResearchStage;
@@ -50,8 +51,8 @@ export interface StageOutput<T> {
 }
 
 const businessBlock = (input: BusinessInput) => {
-  const { knowledge_base, ...core } = input;
-  return `Business data (JSON):\n${JSON.stringify(core, null, 2)}`;
+  const { knowledge_base, business_type, ...core } = input;
+  return `Business data (JSON):\n${JSON.stringify(core, null, 2)}${verticalHint(business_type)}`;
 };
 
 /** Applicant-uploaded reference material, appended verbatim (capped upstream). */

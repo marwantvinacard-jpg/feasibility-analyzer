@@ -13,6 +13,8 @@
     "pdf": "tsx scripts/build-pdf.ts"
   },
   "dependencies": {
+    "firebase": "^12.19.0",
+    "firebase-admin": "^12.7.0",
     "html2pdf.js": "^0.14.0",
     "mammoth": "^1.12.2",
     "next": "^15.5.23",
@@ -30,6 +32,7 @@
     "@types/react": "^19.0.7",
     "@types/react-dom": "^19.0.3",
     "autoprefixer": "^10.4.20",
+    "firebase-tools": "^15.30.0",
     "postcss": "^8.5.1",
     "tailwindcss": "^3.4.17",
     "tsx": "^4.19.2",

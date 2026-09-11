@@ -6,11 +6,12 @@ import { Button } from "@/components/kit";
 import { Icon } from "@/components/icons";
 import { Mark } from "@/components/Brand";
 import { StressReport } from "@/components/StressReport";
-import { subscribeAnalysis } from "@/lib/analyses";
-import type { AnalysisDoc } from "@/lib/analysisTypes";
+import { subscribeAnalysis, subscribeScenarios, saveScenario, deleteScenario } from "@/lib/analyses";
+import type { AnalysisDoc, ScenarioDoc } from "@/lib/analysisTypes";
 import { baselineKnobs, stressFields, type StressKnobs } from "@/lib/stress";
 import type { FullResult } from "@/lib/engine/runFeasibility";
 import { money } from "@/lib/ui";
+import { useSession } from "@/lib/session";
 import { downloadElementPdf, slugify } from "@/lib/pdf";
 
 export default function StressPage() {
@@ -34,10 +35,10 @@ export default function StressPage() {
       </div>
     );
 
-  return <Board result={rec.result} createdAt={rec.createdAt} onBack={() => router.push(`/app/analysis/${id}`)} />;
+  return <Board id={String(id)} result={rec.result} createdAt={rec.createdAt} onBack={() => router.push(`/app/analysis/${id}`)} />;
 }
 
-function Board({ result, createdAt, onBack }: { result: FullResult; createdAt: number; onBack: () => void }) {
+function Board({ id, result, createdAt, onBack }: { id: string; result: FullResult; createdAt: number; onBack: () => void }) {
   const cur = result.input.currency ?? "USD";
   const fields = useMemo(() => stressFields(result), [result]);
   const base = useMemo(() => baselineKnobs(result), [result]);
@@ -47,6 +48,31 @@ function Board({ result, createdAt, onBack }: { result: FullResult; createdAt: n
 
   const dirty = JSON.stringify(knobs) !== JSON.stringify(base);
   const set = (k: keyof StressKnobs, v: number) => setKnobs((p) => ({ ...p, [k]: v }));
+
+  const { user } = useSession();
+  const [scenarios, setScenarios] = useState<ScenarioDoc[]>([]);
+  const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    const unsub = subscribeScenarios(id, setScenarios);
+    return () => unsub();
+  }, []);
+
+  async function saveCurrent() {
+    const name = window.prompt("Name this scenario (e.g. \"Bank case\", \"Optimistic\"):");
+    if (!name?.trim()) return;
+    setSaving(true);
+    try {
+      await saveScenario(id, name.trim(), knobs as unknown as Record<string, number>);
+    } finally {
+      setSaving(false);
+    }
+  }
+  function loadScenario(s: ScenarioDoc) {
+    setKnobs({ ...base, ...(s.knobs as unknown as StressKnobs) });
+  }
+  async function removeScenario(scenarioId: string) {
+    await deleteScenario(id, scenarioId);
+  }
 
   const grouped = useMemo(() => {
     const g: Record<string, typeof fields> = {};
@@ -79,6 +105,9 @@ function Board({ result, createdAt, onBack }: { result: FullResult; createdAt: n
               <Icon name="arrow" size={14} className="-scale-x-100" /> Reset
             </button>
           )}
+          <button onClick={saveCurrent} disabled={saving || !user} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm text-muted hover:text-ink">
+            <Icon name="doc" size={14} /> {saving ? "Saving…" : "Save scenario"}
+          </button>
           <button onClick={download} disabled={downloading} className="btn btn-primary text-sm">
             <Icon name="download" size={16} /> {downloading ? "Preparing…" : "Download PDF"}
           </button>
@@ -96,6 +125,24 @@ function Board({ result, createdAt, onBack }: { result: FullResult; createdAt: n
       <div className="grid gap-5 lg:grid-cols-[300px_1fr]">
         {/* Knobs */}
         <div className="space-y-4 lg:sticky lg:top-5 lg:self-start">
+          {scenarios.length > 0 && (
+            <div className="card p-4">
+              <div className="label mb-3">Saved scenarios</div>
+              <div className="space-y-1.5">
+                {scenarios.map((s) => (
+                  <div key={s.id} className="flex items-center justify-between gap-2 rounded-lg bg-surface-2 px-2.5 py-2 text-sm">
+                    <button onClick={() => loadScenario(s)} className="min-w-0 flex-1 truncate text-left hover:text-brand">
+                      {s.name}
+                      <span className="ml-1.5 text-xs text-faint">{s.createdBy}</span>
+                    </button>
+                    <button onClick={() => removeScenario(s.id)} className="shrink-0 text-faint hover:text-stop" aria-label={`Delete ${s.name}`}>
+                      <Icon name="x" size={13} strokeWidth={2} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
           {Object.entries(grouped).map(([group, gfields]) => (
             <div key={group} className="card p-4">
               <div className="label mb-3">{group}</div>

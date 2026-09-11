@@ -1,22 +1,24 @@
 "use client";
 
-// SSE-over-POST reader for /api/analyze. No auth, no server DB — the full
-// result arrives in the `done` event and the caller persists it locally.
+// SSE-over-POST reader for /api/analyze. Sends the Firebase ID token, surfaces
+// server gate errors (out of credits / not approved) via onError, and reports
+// the server-generated analysisId so the caller can navigate to the record.
 
 export interface AnalyzeHandlers {
   onStart?: (data: { stages: string[]; analysisId: string }) => void;
   onProgress?: (data: { stage: string; status: string }) => void;
-  onDone?: (data: { analysisId: string; result: unknown }) => void;
+  onDone?: (data: { analysisId: string }) => void;
   onError?: (message: string) => void;
 }
 
 export async function streamAnalyze(
   input: unknown,
+  token: string,
   handlers: AnalyzeHandlers
 ): Promise<void> {
   const res = await fetch("/api/analyze", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
     body: JSON.stringify({ input }),
   });
 

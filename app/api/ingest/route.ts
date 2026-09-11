@@ -4,6 +4,7 @@
 // the browser, which keeps it with the analysis input.
 
 import { NextResponse } from "next/server";
+import { requireUser, HttpError } from "@/lib/firebase/verify";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -12,6 +13,13 @@ const MAX_BYTES = 15 * 1024 * 1024; // 15 MB upload cap
 const MAX_CHARS = 20_000; // keep prompt cost sane
 
 export async function POST(req: Request) {
+  try {
+    await requireUser(req); // signed-in only — parsing documents isn't free
+  } catch (err) {
+    const e = err as HttpError;
+    return NextResponse.json({ error: e.message ?? "Unauthorized" }, { status: e.status ?? 401 });
+  }
+
   const form = await req.formData().catch(() => null);
   const file = form?.get("file");
   if (!(file instanceof File)) return NextResponse.json({ error: "No file provided." }, { status: 400 });
