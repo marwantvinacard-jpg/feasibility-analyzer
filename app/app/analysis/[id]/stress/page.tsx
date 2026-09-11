@@ -13,10 +13,12 @@ import type { FullResult } from "@/lib/engine/runFeasibility";
 import { money } from "@/lib/ui";
 import { useSession } from "@/lib/session";
 import { downloadElementPdf, slugify } from "@/lib/pdf";
+import { useT } from "@/lib/i18n/LanguageContext";
 
 export default function StressPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
+  const t = useT();
   const [rec, setRec] = useState<AnalysisDoc | null>(null);
   const [loaded, setLoaded] = useState(false);
 
@@ -25,13 +27,13 @@ export default function StressPage() {
     return () => unsub();
   }, [id]);
 
-  if (!loaded) return <div className="py-20 text-center text-sm text-muted">Loading…</div>;
+  if (!loaded) return <div className="py-20 text-center text-sm text-muted">{t("common.loading")}</div>;
   if (!rec || rec.status !== "complete" || !rec.result)
     return (
       <div className="mx-auto max-w-md py-20 text-center">
-        <h2 className="font-display text-lg font-semibold">Nothing to stress-test yet</h2>
-        <p className="mt-1 text-sm text-muted">Run an analysis to completion first.</p>
-        <Button href="/app" variant="ghost" className="mt-5">Dashboard</Button>
+        <h2 className="font-display text-lg font-semibold">{t("stress.nothingToTest")}</h2>
+        <p className="mt-1 text-sm text-muted">{t("stress.runFirst")}</p>
+        <Button href="/app" variant="ghost" className="mt-5">{t("nav.dashboard")}</Button>
       </div>
     );
 
@@ -39,8 +41,9 @@ export default function StressPage() {
 }
 
 function Board({ id, result, createdAt, onBack }: { id: string; result: FullResult; createdAt: number; onBack: () => void }) {
+  const t = useT();
   const cur = result.input.currency ?? "USD";
-  const fields = useMemo(() => stressFields(result), [result]);
+  const fields = useMemo(() => stressFields(result, t), [result, t]);
   const base = useMemo(() => baselineKnobs(result), [result]);
   const [knobs, setKnobs] = useState<StressKnobs>(base);
   const [downloading, setDownloading] = useState(false);
@@ -58,7 +61,7 @@ function Board({ id, result, createdAt, onBack }: { id: string; result: FullResu
   }, []);
 
   async function saveCurrent() {
-    const name = window.prompt("Name this scenario (e.g. \"Bank case\", \"Optimistic\"):");
+    const name = window.prompt(t("stress.scenarioNamePrompt"));
     if (!name?.trim()) return;
     setSaving(true);
     try {
@@ -97,28 +100,28 @@ function Board({ id, result, createdAt, onBack }: { id: string; result: FullResu
     <div className="mx-auto max-w-6xl space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <button onClick={onBack} className="inline-flex items-center gap-1.5 text-sm text-muted hover:text-ink">
-          <Icon name="arrow" size={16} className="rotate-180" /> Back to report
+          <Icon name="arrow" size={16} className="rotate-180" /> {t("stress.backToReport")}
         </button>
         <div className="flex flex-wrap items-center gap-2">
           {dirty && (
             <button onClick={() => setKnobs(base)} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm text-muted hover:text-ink">
-              <Icon name="arrow" size={14} className="-scale-x-100" /> Reset
+              <Icon name="arrow" size={14} className="-scale-x-100" /> {t("stress.reset")}
             </button>
           )}
           <button onClick={saveCurrent} disabled={saving || !user} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm text-muted hover:text-ink">
-            <Icon name="doc" size={14} /> {saving ? "Saving…" : "Save scenario"}
+            <Icon name="doc" size={14} /> {saving ? t("stress.savingScenario") : t("stress.saveScenario")}
           </button>
           <button onClick={download} disabled={downloading} className="btn btn-primary text-sm">
-            <Icon name="download" size={16} /> {downloading ? "Preparing…" : "Download PDF"}
+            <Icon name="download" size={16} /> {downloading ? t("stress.preparingPdf") : t("stress.downloadPdf")}
           </button>
         </div>
       </div>
 
       <div>
-        <h1 className="font-display text-2xl font-semibold tracking-tight">Stress test</h1>
+        <h1 className="font-display text-2xl font-semibold tracking-tight">{t("stress.pageTitle")}</h1>
         <p className="mt-1 text-sm text-muted">
-          Drag any assumption — scores, financials, predictions, risk and recommendations recompute instantly.
-          {dirty ? " Showing adjusted figures." : " Currently at baseline."}
+          {t("stress.pageHint")}
+          {dirty ? t("stress.showingAdjusted") : t("stress.atBaseline")}
         </p>
       </div>
 
@@ -127,7 +130,7 @@ function Board({ id, result, createdAt, onBack }: { id: string; result: FullResu
         <div className="space-y-4 lg:sticky lg:top-5 lg:self-start">
           {scenarios.length > 0 && (
             <div className="card p-4">
-              <div className="label mb-3">Saved scenarios</div>
+              <div className="label mb-3">{t("stress.savedScenarios")}</div>
               <div className="space-y-1.5">
                 {scenarios.map((s) => (
                   <div key={s.id} className="flex items-center justify-between gap-2 rounded-lg bg-surface-2 px-2.5 py-2 text-sm">
@@ -168,7 +171,7 @@ function Board({ id, result, createdAt, onBack }: { id: string; result: FullResu
                         onChange={(e) => set(f.key, Number(e.target.value))}
                         className="mt-1.5 w-full accent-brand"
                       />
-                      {moved && <div className="mt-0.5 text-right text-[0.68rem] text-faint">baseline {show(bval)}</div>}
+                      {moved && <div className="mt-0.5 text-right text-[0.68rem] text-faint">{t("stress.baselineValue", { v: show(bval) })}</div>}
                     </div>
                   );
                 })}
@@ -186,10 +189,10 @@ function Board({ id, result, createdAt, onBack }: { id: string; result: FullResu
         <div ref={exportRef} className="pdf-export">
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid rgb(var(--border))", paddingBottom: 12, marginBottom: 18 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 600 }}>
-              <Mark className="h-6 w-6" /> FeasibilityAI
+              <Mark className="h-6 w-6" /> {t("common.appName")}
             </div>
             <div style={{ textAlign: "right", fontSize: 11, color: "rgb(var(--faint))" }}>
-              Stress-Test Report{dirty ? " · adjusted assumptions" : ""}<br />
+              {t("stress.stressReportTitle")}{dirty ? t("stress.adjustedAssumptions") : ""}<br />
               {new Date(createdAt).toLocaleDateString()}
             </div>
           </div>

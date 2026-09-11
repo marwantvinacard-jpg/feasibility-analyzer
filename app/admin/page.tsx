@@ -8,6 +8,7 @@ import { Icon } from "@/components/icons";
 import { useSession } from "@/lib/session";
 import { getFirebase } from "@/lib/firebase/client";
 import { cn } from "@/lib/ui";
+import { useT } from "@/lib/i18n/LanguageContext";
 
 interface UserRow {
   uid: string;
@@ -28,6 +29,7 @@ interface AuditRow {
 
 export default function AdminPage() {
   const { ready, user, getIdToken } = useSession();
+  const t = useT();
   const router = useRouter();
   const [users, setUsers] = useState<UserRow[]>([]);
   const [audit, setAudit] = useState<AuditRow[]>([]);
@@ -66,7 +68,7 @@ export default function AdminPage() {
     }
   }
 
-  if (!ready || !user || user.role !== "admin") return <div className="py-20 text-center text-sm text-muted">Loading…</div>;
+  if (!ready || !user || user.role !== "admin") return <div className="py-20 text-center text-sm text-muted">{t("common.loading")}</div>;
 
   const pending = users.filter((u) => u.status === "pending");
   const others = users.filter((u) => u.status !== "pending");
@@ -74,13 +76,13 @@ export default function AdminPage() {
   return (
     <div className="mx-auto max-w-4xl space-y-8">
       <div>
-        <h1 className="font-display text-3xl font-semibold tracking-tight">Admin</h1>
-        <p className="mt-1.5 text-sm text-muted">Approve accounts, grant credits, and review activity.</p>
+        <h1 className="font-display text-3xl font-semibold tracking-tight">{t("admin.title")}</h1>
+        <p className="mt-1.5 text-sm text-muted">{t("admin.subtitle")}</p>
       </div>
 
       {pending.length > 0 && (
         <section>
-          <h2 className="label mb-3">Pending approval ({pending.length})</h2>
+          <h2 className="label mb-3">{t("admin.pendingCount", { n: pending.length })}</h2>
           <div className="space-y-2">
             {pending.map((u) => (
               <div key={u.uid} className="card flex items-center justify-between p-4">
@@ -89,8 +91,8 @@ export default function AdminPage() {
                   <div className="truncate text-xs text-faint">{u.email}</div>
                 </div>
                 <div className="flex shrink-0 gap-2">
-                  <Button variant="ghost" className="text-sm" disabled={busy === u.uid + "reject"} onClick={() => act(u.uid, "reject")}>Reject</Button>
-                  <Button className="text-sm" disabled={busy === u.uid + "approve"} onClick={() => act(u.uid, "approve")}>Approve</Button>
+                  <Button variant="ghost" className="text-sm" disabled={busy === u.uid + "reject"} onClick={() => act(u.uid, "reject")}>{t("admin.reject")}</Button>
+                  <Button className="text-sm" disabled={busy === u.uid + "approve"} onClick={() => act(u.uid, "approve")}>{t("admin.approve")}</Button>
                 </div>
               </div>
             ))}
@@ -99,28 +101,28 @@ export default function AdminPage() {
       )}
 
       <section>
-        <h2 className="label mb-3">All accounts ({others.length})</h2>
+        <h2 className="label mb-3">{t("admin.allCount", { n: others.length })}</h2>
         <div className="space-y-2">
           {others.map((u) => (
             <div key={u.uid} className="card flex items-center justify-between p-4">
               <div className="min-w-0">
                 <div className="flex items-center gap-2 truncate font-medium">
                   {u.name}
-                  {u.role === "admin" && <Badge tone="go">admin</Badge>}
+                  {u.role === "admin" && <Badge tone="go">{t("admin.adminBadge")}</Badge>}
                   <Badge tone={u.status === "approved" ? "go" : "stop"}>{u.status}</Badge>
                 </div>
-                <div className="truncate text-xs text-faint">{u.email} · <span className="num">{u.credits}</span> credits</div>
+                <div className="truncate text-xs text-faint">{u.email} · <span className="num">{u.credits}</span> {t("admin.creditsSuffix")}</div>
               </div>
-              <Button variant="ghost" className="shrink-0 text-sm" disabled={busy === u.uid + "grant"} onClick={() => act(u.uid, "grant", 5)}>+5 credits</Button>
+              <Button variant="ghost" className="shrink-0 text-sm" disabled={busy === u.uid + "grant"} onClick={() => act(u.uid, "grant", 5)}>{t("admin.addCredits")}</Button>
             </div>
           ))}
         </div>
       </section>
 
       <section>
-        <h2 className="label mb-3">Audit log (latest 50)</h2>
+        <h2 className="label mb-3">{t("admin.auditCount")}</h2>
         <div className="card divide-y divide-border/60 p-0">
-          {audit.length === 0 && <p className="p-4 text-sm text-muted">Nothing logged yet.</p>}
+          {audit.length === 0 && <p className="p-4 text-sm text-muted">{t("admin.nothingLogged")}</p>}
           {audit.map((a) => (
             <div key={a.id} className="flex items-center justify-between px-4 py-2.5 text-sm">
               <span>

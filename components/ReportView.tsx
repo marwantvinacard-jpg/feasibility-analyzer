@@ -5,14 +5,16 @@ import { Badge } from "@/components/kit";
 import { ScoreGauge, ScoreBar } from "@/components/ScoreGauge";
 import { Icon } from "@/components/icons";
 import { FinancialStudyView } from "@/components/FinancialStudy";
-import { DIMENSION_META, money, scoreTone, toneText, verdictTone, cn, type Tone } from "@/lib/ui";
+import { money, scoreTone, toneText, verdictTone, cn, type Tone } from "@/lib/ui";
 import type { FullResult } from "@/lib/engine/runFeasibility";
 import type { StageName } from "@/lib/engine/types";
+import { useT } from "@/lib/i18n/LanguageContext";
 
 const ORDER: StageName[] = ["market", "financial", "technical", "competitive", "location", "operational", "legal", "risk"];
 const VERDICT_ICON = { go: "check", warn: "clock", stop: "x" } as const;
 
 export function ReportView({ result, print = false }: { result: FullResult; print?: boolean }) {
+  const t = useT();
   const { input, overall, categoryScores: cs, financials: f, riskScoring, report } = result;
   const cur = input.currency ?? "USD";
   const vtone = verdictTone(overall.recommendation);
@@ -31,9 +33,7 @@ export function ReportView({ result, print = false }: { result: FullResult; prin
         <div className="no-print flex items-center gap-2.5 rounded-xl border border-warn/40 bg-warn/10 px-4 py-3 text-sm text-warn">
           <Icon name="risk" size={16} strokeWidth={2} className="shrink-0" />
           <span>
-            <strong>Demo data.</strong> No AI provider is configured, so this report was generated with mock
-            data for illustration — none of these figures reflect a real analysis. Set an AI key
-            (see .env.example) to run a live study.
+            <strong>{t("report.mockBannerTitle")}</strong> {t("report.mockBannerBody")}
           </span>
         </div>
       )}
@@ -50,10 +50,10 @@ export function ReportView({ result, print = false }: { result: FullResult; prin
             </h1>
             <p className="mt-1.5 text-sm text-muted">{input.target_customer} · {input.location}</p>
             <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <Metric label="Monthly profit" value={money(f.monthly_profit, cur)} tone={f.monthly_profit >= 0 ? "go" : "stop"} />
-              <Metric label="Margin" value={`${f.profit_margin_percent}%`} />
-              <Metric label="Break-even" value={f.break_even_months === null ? "—" : `${f.break_even_months} mo`} />
-              <Metric label="Startup capital" value={money(f.startup_capital_needed, cur)} />
+              <Metric label={t("report.monthlyProfit")} value={money(f.monthly_profit, cur)} tone={f.monthly_profit >= 0 ? "go" : "stop"} />
+              <Metric label={t("report.margin")} value={`${f.profit_margin_percent}%`} />
+              <Metric label={t("report.breakEven")} value={f.break_even_months === null ? "—" : `${f.break_even_months} mo`} />
+              <Metric label={t("report.startupCapital")} value={money(f.startup_capital_needed, cur)} />
             </div>
           </div>
         </div>
@@ -62,10 +62,10 @@ export function ReportView({ result, print = false }: { result: FullResult; prin
       {!print && study && (
         <div className="no-print flex gap-1 rounded-xl border border-border bg-surface-2 p-1">
           <TabButton active={tab === "feasibility"} onClick={() => setTab("feasibility")} icon="spark">
-            Feasibility analysis
+            {t("report.tabFeasibility")}
           </TabButton>
           <TabButton active={tab === "study"} onClick={() => setTab("study")} icon="financial">
-            Financial study
+            {t("report.tabStudy")}
           </TabButton>
         </div>
       )}
@@ -73,14 +73,14 @@ export function ReportView({ result, print = false }: { result: FullResult; prin
       {showFeasibility && (
         <>
       {/* Dimension scores */}
-      <Section title="Scorecard" subtitle="Weighted across eight dimensions of feasibility">
+      <Section title={t("report.scorecard")} subtitle={t("report.scorecardSubtitle")}>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {ORDER.map((s) => (
             <div key={s} className="rounded-xl border border-border bg-surface-2 p-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 text-muted">
-                  <Icon name={DIMENSION_META[s].icon} size={18} className="text-ink/70" />
-                  <span className="text-sm font-medium text-ink">{DIMENSION_META[s].label}</span>
+                  <Icon name={dimIcon(s)} size={18} className="text-ink/70" />
+                  <span className="text-sm font-medium text-ink">{t(`dim.${s}`)}</span>
                 </div>
                 <span className={cn("num text-lg font-semibold", toneText[scoreTone(cs[s])])}>{cs[s]}</span>
               </div>
@@ -93,41 +93,41 @@ export function ReportView({ result, print = false }: { result: FullResult; prin
       </Section>
 
       {/* Executive summary */}
-      <Section title="Executive summary">
+      <Section title={t("report.execSummary")}>
         <p className="whitespace-pre-line text-[0.95rem] leading-relaxed text-muted">{report.executive_summary}</p>
         <div className="mt-5 grid gap-4 sm:grid-cols-2">
-          <ListCard title="Key findings" items={report.key_findings} tone="brand" icon="spark" />
-          <ListCard title="Critical success factors" items={report.critical_success_factors} tone="go" icon="check" />
+          <ListCard title={t("report.keyFindings")} items={report.key_findings} tone="brand" icon="spark" />
+          <ListCard title={t("report.criticalSuccessFactors")} items={report.critical_success_factors} tone="go" icon="check" />
         </div>
       </Section>
 
       {/* Financials */}
-      <Section title="Financial analysis" subtitle="Computed deterministically from your numbers">
+      <Section title={t("report.financialAnalysis")} subtitle={t("report.financialAnalysisSubtitle")}>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <tbody className="divide-y divide-border">
-              <Row k="Monthly revenue" v={money(f.monthly_revenue, cur)} />
-              <Row k="Monthly cost" v={money(f.monthly_cost, cur)} />
-              <Row k="Monthly profit" v={money(f.monthly_profit, cur)} tone={f.monthly_profit >= 0 ? "go" : "stop"} />
-              <Row k="Profit margin" v={`${f.profit_margin_percent}%`} />
-              <Row k="Revenue / cost ratio" v={String(f.revenue_to_cost_ratio)} />
-              <Row k="Break-even" v={f.break_even_months === null ? "Never (non-positive profit)" : `${f.break_even_months} months`} />
-              <Row k="Startup capital needed" v={money(f.startup_capital_needed, cur)} />
-              <Row k="Working capital needed" v={money(f.working_capital_needed, cur)} />
-              <Row k="Cash flow" v={f.cash_flow_status} tone={f.cash_flow_status === "Positive" ? "go" : f.cash_flow_status === "Negative" ? "stop" : "warn"} />
+              <Row k={t("report.monthlyRevenue")} v={money(f.monthly_revenue, cur)} />
+              <Row k={t("report.monthlyCost")} v={money(f.monthly_cost, cur)} />
+              <Row k={t("report.monthlyProfit")} v={money(f.monthly_profit, cur)} tone={f.monthly_profit >= 0 ? "go" : "stop"} />
+              <Row k={t("report.profitMargin")} v={`${f.profit_margin_percent}%`} />
+              <Row k={t("report.revenueCostRatio")} v={String(f.revenue_to_cost_ratio)} />
+              <Row k={t("report.breakEven")} v={f.break_even_months === null ? t("report.neverBreakEven") : t("report.months", { n: f.break_even_months })} />
+              <Row k={t("report.startupCapitalNeeded")} v={money(f.startup_capital_needed, cur)} />
+              <Row k={t("report.workingCapitalNeeded")} v={money(f.working_capital_needed, cur)} />
+              <Row k={t("report.cashFlow")} v={f.cash_flow_status} tone={f.cash_flow_status === "Positive" ? "go" : f.cash_flow_status === "Negative" ? "stop" : "warn"} />
             </tbody>
           </table>
         </div>
         {result.stages.financial && (
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
-            <ListCard title="Strengths" items={result.stages.financial.strengths} tone="go" icon="check" />
-            <ListCard title="Concerns" items={result.stages.financial.concerns} tone="stop" icon="x" />
+            <ListCard title={t("report.strengths")} items={result.stages.financial.strengths} tone="go" icon="check" />
+            <ListCard title={t("report.concerns")} items={result.stages.financial.concerns} tone="stop" icon="x" />
           </div>
         )}
       </Section>
 
       {/* Risk register */}
-      <Section title="Risk register" subtitle={`Overall risk ${riskScoring.overallRiskScore}/100 · ${riskScoring.riskLevel}`}>
+      <Section title={t("report.riskRegister")} subtitle={t("report.riskRegisterSubtitle", { score: riskScoring.overallRiskScore, level: riskScoring.riskLevel })}>
         <div className="space-y-2">
           {riskScoring.rankedRisks.slice(0, 8).map((r, i) => (
             <div key={i} className="rounded-xl border border-border bg-surface-2 p-3.5">
@@ -138,15 +138,15 @@ export function ReportView({ result, print = false }: { result: FullResult; prin
                 </div>
                 <div className="text-right">
                   <div className={cn("num text-base font-semibold", toneText[scoreTone(100 - (r.priority ?? 0))])}>{r.priority}</div>
-                  <div className="label">priority</div>
+                  <div className="label">{t("report.priority")}</div>
                 </div>
               </div>
               <div className="mt-2 grid gap-2 text-xs text-muted sm:grid-cols-2">
                 <div>
-                  <span className="text-faint">Impact</span> <span className="num">{r.impact}%</span> ·{" "}
-                  <span className="text-faint">Likelihood</span> <span className="num">{r.probability}%</span>
+                  <span className="text-faint">{t("report.impact")}</span> <span className="num">{r.impact}%</span> ·{" "}
+                  <span className="text-faint">{t("report.likelihood")}</span> <span className="num">{r.probability}%</span>
                 </div>
-                <div><span className="text-faint">Mitigation:</span> {r.mitigation}</div>
+                <div><span className="text-faint">{t("report.mitigation")}</span> {r.mitigation}</div>
               </div>
             </div>
           ))}
@@ -155,7 +155,7 @@ export function ReportView({ result, print = false }: { result: FullResult; prin
 
       {/* Competitors */}
       {result.stages.competitive && result.stages.competitive.competitive_research.length > 0 && (
-        <Section title="Competitive landscape" subtitle={result.stages.competitive.positioning_recommendation.strategic_approach}>
+        <Section title={t("report.competitiveLandscape")} subtitle={result.stages.competitive.positioning_recommendation.strategic_approach}>
           <div className="grid gap-3 sm:grid-cols-2">
             {result.stages.competitive.competitive_research.map((c, i) => (
               <div key={i} className="rounded-xl border border-border bg-surface-2 p-4">
@@ -171,13 +171,13 @@ export function ReportView({ result, print = false }: { result: FullResult; prin
       )}
 
       {/* Dimension narratives */}
-      <Section title="Detailed analysis">
+      <Section title={t("report.detailedAnalysis")}>
         <div className="space-y-3">
           {ORDER.map((s) => (
             <details key={s} className="group rounded-xl border border-border bg-surface-2 p-4" open={print}>
               <summary className="flex cursor-pointer list-none items-center justify-between">
                 <span className="flex items-center gap-2.5 font-medium">
-                  <Icon name={DIMENSION_META[s].icon} size={18} className="text-muted" /> {DIMENSION_META[s].label}
+                  <Icon name={dimIcon(s)} size={18} className="text-muted" /> {t(`dim.${s}`)}
                 </span>
                 <span className="flex items-center gap-2">
                   <span className={cn("num text-sm font-semibold", toneText[scoreTone(cs[s])])}>{cs[s]}/100</span>
@@ -192,25 +192,25 @@ export function ReportView({ result, print = false }: { result: FullResult; prin
 
       {/* Stakeholders */}
       {result.stages.stakeholders && (
-        <Section title="Stakeholder analysis" subtitle={result.stages.stakeholders.summary}>
+        <Section title={t("report.stakeholderAnalysis")} subtitle={result.stages.stakeholders.summary}>
           <div className="grid gap-3 sm:grid-cols-2">
             {result.stages.stakeholders.stakeholders.map((sh, i) => (
               <div key={i} className="rounded-xl border border-border bg-surface-2 p-4">
                 <div className="flex items-center justify-between">
                   <div className="font-semibold">{sh.group}</div>
                   <div className="flex gap-1.5">
-                    <Badge tone={sh.influence === "High" ? "warn" : "go"}>Influence: {sh.influence}</Badge>
-                    <Badge tone={sh.impact === "High" ? "warn" : "go"}>Impact: {sh.impact}</Badge>
+                    <Badge tone={sh.influence === "High" ? "warn" : "go"}>{t("report.influence")}: {sh.influence}</Badge>
+                    <Badge tone={sh.impact === "High" ? "warn" : "go"}>{t("report.impactLabel")}: {sh.impact}</Badge>
                   </div>
                 </div>
                 <p className="mt-1.5 text-xs text-muted">{sh.interest}</p>
-                <p className="mt-1.5 text-xs"><span className="text-faint">Engagement:</span> {sh.engagement_strategy}</p>
+                <p className="mt-1.5 text-xs"><span className="text-faint">{t("report.engagement")}</span> {sh.engagement_strategy}</p>
               </div>
             ))}
           </div>
           {result.stages.stakeholders.key_concerns.length > 0 && (
             <div className="mt-4">
-              <div className="text-xs text-faint">Key concerns to address early</div>
+              <div className="text-xs text-faint">{t("report.keyConcerns")}</div>
               <ul className="mt-1.5 space-y-1 text-sm text-muted">
                 {result.stages.stakeholders.key_concerns.map((c, i) => (
                   <li key={i} className="flex gap-2"><span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-warn" />{c}</li>
@@ -222,21 +222,21 @@ export function ReportView({ result, print = false }: { result: FullResult; prin
       )}
 
       {/* Recommendation */}
-      <Section title="Recommendation & next steps">
+      <Section title={t("report.recommendation")}>
         <p className="whitespace-pre-line text-[0.95rem] leading-relaxed text-muted">{report.conclusion}</p>
         {result.conditions.length > 0 && (
           <div className="mt-4">
-            <ListCard title="Conditions to address first" items={result.conditions} tone="warn" icon="clock" />
+            <ListCard title={t("report.conditionsToAddress")} items={result.conditions} tone="warn" icon="clock" />
           </div>
         )}
         <div className="mt-4">
-          <ListCard title="Next steps" items={result.nextSteps} tone="brand" icon="arrow" numbered />
+          <ListCard title={t("report.nextSteps")} items={result.nextSteps} tone="brand" icon="arrow" numbered />
         </div>
       </Section>
 
       {/* Sources */}
       {result.sources.length > 0 && (
-        <Section title="Sources">
+        <Section title={t("report.sources")}>
           <ul className="space-y-1.5 text-sm">
             {result.sources.slice(0, 12).map((s, i) => (
               <li key={i} className="flex items-center gap-2 truncate">
@@ -256,10 +256,9 @@ export function ReportView({ result, print = false }: { result: FullResult; prin
         <>
           {print && (
             <div className="pt-2">
-              <h2 className="font-display text-2xl font-semibold tracking-tight">Financial Feasibility Study</h2>
+              <h2 className="font-display text-2xl font-semibold tracking-tight">{t("report.financialStudyTitle")}</h2>
               <p className="mt-0.5 text-sm text-muted">
-                Fifteen-section analysis · {study!.projections.projectionYears}-year projection in{" "}
-                {study!.projections.currency}
+                {t("report.fifteenSection", { years: study!.projections.projectionYears, currency: study!.projections.currency })}
               </p>
             </div>
           )}
@@ -268,10 +267,18 @@ export function ReportView({ result, print = false }: { result: FullResult; prin
       )}
 
       <p className="pt-2 text-center text-xs text-faint">
-        Generated by FeasibilityAI{result.usage.mock ? " · demo data" : ""} · Decision aid, not a guarantee.
+        {t("report.footer", { app: t("common.appName"), mock: result.usage.mock ? t("report.demoDataSuffix") : "" })}
       </p>
     </div>
   );
+}
+
+function dimIcon(s: StageName) {
+  const map: Record<StageName, React.ComponentProps<typeof Icon>["name"]> = {
+    market: "market", financial: "financial", technical: "technical", competitive: "competitive",
+    location: "location", operational: "operational", legal: "legal", risk: "risk",
+  };
+  return map[s];
 }
 
 function TabButton({

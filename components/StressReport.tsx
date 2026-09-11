@@ -8,6 +8,7 @@ import { applyStress, recommend, baselineKnobs, type StressKnobs, type StressOut
 import { runMonteCarlo, type MonteCarloResult } from "@/lib/engine/montecarlo";
 import type { FullResult } from "@/lib/engine/runFeasibility";
 import { DIMENSION_META, money, verdictTone, toneText, cn } from "@/lib/ui";
+import { useT } from "@/lib/i18n/LanguageContext";
 
 const DIMS = ["market", "financial", "technical", "competitive", "location", "operational", "legal", "risk"] as const;
 
@@ -20,6 +21,7 @@ export function StressReport({
   knobs: StressKnobs;
   print?: boolean;
 }) {
+  const t = useT();
   const cur = result.input.currency ?? "USD";
   const live = useMemo(() => applyStress(result, knobs), [result, knobs]);
   const recs = useMemo(() => recommend(result, knobs, live, cur), [result, knobs, live, cur]);
@@ -52,20 +54,20 @@ export function StressReport({
       <section className="card flex flex-wrap items-center gap-6 p-6">
         <ScoreGauge score={live.overall.overall_score} sublabel={live.overall.rating} />
         <div className="min-w-[12rem] flex-1">
-          <div className="label">Recommendation{dirty ? " (adjusted)" : ""}</div>
+          <div className="label">{t("stress.recommendation")}{dirty ? t("stress.adjusted") : ""}</div>
           <div className={cn("mt-1 font-display text-xl font-semibold", toneText[vtone])}>
             {live.overall.recommendation}
           </div>
           <div className="mt-3 text-sm">
             <Delta cur={live.overall.overall_score} base={baseline.overall.overall_score} goodWhenUp suffix=" pts" />
-            <span className="ml-1.5 text-xs text-faint">vs baseline {baseline.overall.overall_score}</span>
+            <span className="ml-1.5 text-xs text-faint">{t("stress.vsBaseline", { score: baseline.overall.overall_score })}</span>
           </div>
         </div>
       </section>
 
       {/* ---- Scorecard ---- */}
       <section className="card p-5">
-        <div className="label mb-3">Eight-dimension scorecard</div>
+        <div className="label mb-3">{t("stress.scorecard")}</div>
         <div className="space-y-3">
           {DIMS.map((d) => {
             const c = live.categoryScores[d];
@@ -74,7 +76,7 @@ export function StressReport({
               <div key={d}>
                 <div className="mb-1 flex items-center justify-between text-xs">
                   <span className="flex items-center gap-1.5 text-muted">
-                    <Icon name={DIMENSION_META[d].icon} size={13} /> {DIMENSION_META[d].label}
+                    <Icon name={DIMENSION_META[d].icon} size={13} /> {t(`dim.${d}`)}
                   </span>
                   <span className="flex items-center gap-2">
                     <Delta cur={c} base={b} goodWhenUp small />
@@ -90,46 +92,46 @@ export function StressReport({
 
       {/* ---- Financials ---- */}
       <section className="card p-5">
-        <div className="label mb-3">Financials — from stated revenue &amp; cost</div>
+        <div className="label mb-3">{t("stress.financialsTitle")}</div>
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-          <Metric label="Monthly profit" cur={live.financials.monthly_profit} base={baseline.financials.monthly_profit} kind="money" cur3={cur} goodWhenUp />
-          <Metric label="Profit margin" cur={live.financials.profit_margin_percent} base={baseline.financials.profit_margin_percent} kind="pct" goodWhenUp />
-          <Metric label="Break-even" cur={live.financials.break_even_months ?? Infinity} base={baseline.financials.break_even_months ?? Infinity} kind="months" goodWhenUp={false} />
-          <Metric label="Rev / cost ratio" cur={live.financials.revenue_to_cost_ratio} base={baseline.financials.revenue_to_cost_ratio} kind="ratio" goodWhenUp />
-          <Metric label="Annual profit" cur={live.financials.annual_profit} base={baseline.financials.annual_profit} kind="money" cur3={cur} goodWhenUp />
-          <Metric label="Startup capital" cur={live.financials.startup_capital_needed} base={baseline.financials.startup_capital_needed} kind="money" cur3={cur} goodWhenUp={false} />
+          <Metric label={t("stress.monthlyProfit")} cur={live.financials.monthly_profit} base={baseline.financials.monthly_profit} kind="money" cur3={cur} goodWhenUp />
+          <Metric label={t("stress.profitMargin")} cur={live.financials.profit_margin_percent} base={baseline.financials.profit_margin_percent} kind="pct" goodWhenUp />
+          <Metric label={t("stress.breakEven")} cur={live.financials.break_even_months ?? Infinity} base={baseline.financials.break_even_months ?? Infinity} kind="months" goodWhenUp={false} />
+          <Metric label={t("stress.revCostRatio")} cur={live.financials.revenue_to_cost_ratio} base={baseline.financials.revenue_to_cost_ratio} kind="ratio" goodWhenUp />
+          <Metric label={t("stress.annualProfit")} cur={live.financials.annual_profit} base={baseline.financials.annual_profit} kind="money" cur3={cur} goodWhenUp />
+          <Metric label={t("stress.startupCapital")} cur={live.financials.startup_capital_needed} base={baseline.financials.startup_capital_needed} kind="money" cur3={cur} goodWhenUp={false} />
         </div>
       </section>
 
       {/* ---- Predictions (financial study) ---- */}
       {P && BP && (
         <section className="card p-5">
-          <div className="label mb-3">Predictions — {P.projectionYears}-year financial projection</div>
+          <div className="label mb-3">{t("stress.predictionsTitle", { years: P.projectionYears })}</div>
 
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-            <Metric label="NPV" cur={P.returns.npv} base={BP.returns.npv} kind="money" cur3={cur} goodWhenUp />
-            <Metric label="IRR" cur={P.returns.irrPercent ?? 0} base={BP.returns.irrPercent ?? 0} kind="pct" goodWhenUp />
-            <Metric label="ROI" cur={P.returns.roiPercent} base={BP.returns.roiPercent} kind="pct" goodWhenUp />
-            <Metric label="Payback" cur={P.returns.paybackMonths ?? Infinity} base={BP.returns.paybackMonths ?? Infinity} kind="months" goodWhenUp={false} />
-            <Metric label="Funding need" cur={P.funding.total} base={BP.funding.total} kind="money" cur3={cur} goodWhenUp={false} />
-            <Metric label="Min cash balance" cur={P.funding.minimumCashBalance} base={BP.funding.minimumCashBalance} kind="money" cur3={cur} goodWhenUp />
+            <Metric label={t("stress.npv")} cur={P.returns.npv} base={BP.returns.npv} kind="money" cur3={cur} goodWhenUp />
+            <Metric label={t("stress.irr")} cur={P.returns.irrPercent ?? 0} base={BP.returns.irrPercent ?? 0} kind="pct" goodWhenUp />
+            <Metric label={t("stress.roi")} cur={P.returns.roiPercent} base={BP.returns.roiPercent} kind="pct" goodWhenUp />
+            <Metric label={t("stress.payback")} cur={P.returns.paybackMonths ?? Infinity} base={BP.returns.paybackMonths ?? Infinity} kind="months" goodWhenUp={false} />
+            <Metric label={t("stress.fundingNeed")} cur={P.funding.total} base={BP.funding.total} kind="money" cur3={cur} goodWhenUp={false} />
+            <Metric label={t("stress.minCashBalance")} cur={P.funding.minimumCashBalance} base={BP.funding.minimumCashBalance} kind="money" cur3={cur} goodWhenUp />
           </div>
 
           <div className="mt-5">
-            <div className="mb-1 text-xs text-faint">Cash balance across the horizon</div>
+            <div className="mb-1 text-xs text-faint">{t("stress.cashBalanceHorizon")}</div>
             <CashCurve live={P.monthly.map((m) => m.cashBalance)} base={BP.monthly.map((m) => m.cashBalance)} cur={cur} />
           </div>
 
           <div className="mt-5 overflow-x-auto">
-            <div className="mb-2 text-xs text-faint">Annual P&amp;L</div>
+            <div className="mb-2 text-xs text-faint">{t("stress.annualPl")}</div>
             <table className="w-full min-w-[440px] text-sm">
               <thead>
                 <tr className="text-left text-xs text-faint">
-                  <th className="pb-2 font-medium">Year</th>
-                  <th className="pb-2 font-medium">Revenue</th>
-                  <th className="pb-2 font-medium">EBITDA</th>
-                  <th className="pb-2 font-medium">Net profit</th>
-                  <th className="pb-2 font-medium">Net margin</th>
+                  <th className="pb-2 font-medium">{t("stress.year")}</th>
+                  <th className="pb-2 font-medium">{t("stress.revenue")}</th>
+                  <th className="pb-2 font-medium">{t("stress.ebitda")}</th>
+                  <th className="pb-2 font-medium">{t("stress.netProfit")}</th>
+                  <th className="pb-2 font-medium">{t("stress.netMargin")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -148,12 +150,12 @@ export function StressReport({
 
           <div className="mt-5 grid gap-5 md:grid-cols-2">
             <div className="overflow-x-auto">
-              <div className="mb-2 text-xs text-faint">Scenarios</div>
+              <div className="mb-2 text-xs text-faint">{t("stress.scenarios")}</div>
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-left text-xs text-faint">
-                    <th className="pb-2 font-medium">Case</th><th className="pb-2 font-medium">Y1 EBITDA</th>
-                    <th className="pb-2 font-medium">Payback</th><th className="pb-2 font-medium">NPV</th>
+                    <th className="pb-2 font-medium">{t("stress.case")}</th><th className="pb-2 font-medium">{t("stress.y1Ebitda")}</th>
+                    <th className="pb-2 font-medium">{t("stress.payback")}</th><th className="pb-2 font-medium">{t("stress.npv")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -161,7 +163,7 @@ export function StressReport({
                     <tr key={s.name} className="border-t border-border/60">
                       <td className="py-2 font-medium">{s.name}</td>
                       <td className="num py-2">{money(s.year1Ebitda, cur)}</td>
-                      <td className="num py-2">{s.paybackMonth ? `${s.paybackMonth} mo` : "—"}</td>
+                      <td className="num py-2">{s.paybackMonth ? t("study.monthsShort", { n: s.paybackMonth }) : "—"}</td>
                       <td className="num py-2">{money(s.npv, cur)}</td>
                     </tr>
                   ))}
@@ -169,12 +171,12 @@ export function StressReport({
               </table>
             </div>
             <div className="overflow-x-auto">
-              <div className="mb-2 text-xs text-faint">One-way sensitivity</div>
+              <div className="mb-2 text-xs text-faint">{t("stress.oneWaySensitivity")}</div>
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-left text-xs text-faint">
-                    <th className="pb-2 font-medium">Variable</th><th className="pb-2 font-medium">Change</th>
-                    <th className="pb-2 font-medium">Y1 EBITDA</th><th className="pb-2 font-medium">NPV</th>
+                    <th className="pb-2 font-medium">{t("stress.variable")}</th><th className="pb-2 font-medium">{t("stress.change")}</th>
+                    <th className="pb-2 font-medium">{t("stress.y1Ebitda")}</th><th className="pb-2 font-medium">{t("stress.npv")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -199,18 +201,18 @@ export function StressReport({
       {/* ---- Risk assessment ---- */}
       <section className="card p-5">
         <div className="mb-3 flex items-center justify-between">
-          <span className="label">Risk assessment</span>
+          <span className="label">{t("stress.riskAssessment")}</span>
           <Badge tone={result.riskScoring.riskLevel === "Low" ? "go" : result.riskScoring.riskLevel === "Medium" ? "warn" : "stop"}>
-            {result.riskScoring.riskLevel} risk · {result.riskScoring.overallRiskScore}/100
+            {t("stress.riskLevel", { level: result.riskScoring.riskLevel, score: result.riskScoring.overallRiskScore })}
           </Badge>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[560px] text-sm">
             <thead>
               <tr className="text-left text-xs text-faint">
-                <th className="pb-2 font-medium">Risk</th><th className="pb-2 font-medium">Impact</th>
-                <th className="pb-2 font-medium">Prob.</th><th className="pb-2 font-medium">Priority</th>
-                <th className="pb-2 font-medium">Mitigation</th>
+                <th className="pb-2 font-medium">{t("stress.risk")}</th><th className="pb-2 font-medium">{t("stress.impact")}</th>
+                <th className="pb-2 font-medium">{t("stress.prob")}</th><th className="pb-2 font-medium">{t("stress.priority")}</th>
+                <th className="pb-2 font-medium">{t("stress.mitigation")}</th>
               </tr>
             </thead>
             <tbody>
@@ -228,11 +230,11 @@ export function StressReport({
         </div>
         {result.study?.narrative.financial_risks?.length ? (
           <div className="mt-4 space-y-2 border-t border-border/60 pt-4">
-            <div className="text-xs text-faint">Financial risks</div>
+            <div className="text-xs text-faint">{t("stress.financialRisks")}</div>
             {result.study.narrative.financial_risks.map((fr, i) => (
               <div key={i} className="text-sm">
                 <span className="font-medium">{fr.category}:</span> <span className="text-muted">{fr.risk}</span>
-                <span className="text-faint"> — mitigation: {fr.mitigation}</span>
+                <span className="text-faint">{t("stress.mitigationInline", { m: fr.mitigation })}</span>
               </div>
             ))}
           </div>
@@ -241,14 +243,12 @@ export function StressReport({
 
       {/* ---- Efficient recommendations ---- */}
       <section className="card p-5">
-        <div className="label mb-3">Efficient recommendations &amp; suggestions</div>
+        <div className="label mb-3">{t("stress.efficientRecs")}</div>
 
         {recs.targetScore ? (
           <div className="rounded-xl bg-surface-2 p-4">
             <div className="text-sm">
-              At <span className="num font-semibold">{recs.currentScore}</span> you are{" "}
-              <span className="font-semibold">{recs.gap} pts</span> below{" "}
-              <span className="font-semibold">{recs.targetVerdict}</span>. Cheapest paths:
+              {t("stress.atScoreBelow", { score: recs.currentScore, gap: recs.gap, verdict: recs.targetVerdict ?? "" })}
             </div>
             {recs.levers.length ? (
               <ul className="mt-3 space-y-2">
@@ -260,18 +260,18 @@ export function StressReport({
                 ))}
               </ul>
             ) : (
-              <p className="mt-2 text-sm text-muted">No single lever closes the gap — combine revenue, cost and dimension improvements.</p>
+              <p className="mt-2 text-sm text-muted">{t("stress.noSingleLever")}</p>
             )}
           </div>
         ) : (
           <div className="rounded-xl bg-go/10 p-4 text-sm text-go">
-            Already at the top verdict band. Focus on protecting the assumptions that get you here.
+            {t("stress.alreadyTop")}
           </div>
         )}
 
         {recs.conditions.length > 0 && (
           <div className="mt-4">
-            <div className="text-xs text-faint">Conditions for a confident GO</div>
+            <div className="text-xs text-faint">{t("stress.conditionsForGo")}</div>
             <ul className="mt-1.5 space-y-1.5 text-sm text-muted">
               {recs.conditions.map((c, i) => (
                 <li key={i} className="flex gap-2"><span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-warn" />{c}</li>
@@ -282,7 +282,7 @@ export function StressReport({
 
         {recs.nextSteps.length > 0 && (
           <div className="mt-4">
-            <div className="text-xs text-faint">Recommended next steps</div>
+            <div className="text-xs text-faint">{t("stress.recommendedNextSteps")}</div>
             <ol className="mt-1.5 list-decimal space-y-1 pl-5 text-sm text-muted">
               {recs.nextSteps.map((s, i) => <li key={i}>{s}</li>)}
             </ol>
@@ -292,12 +292,12 @@ export function StressReport({
 
       {/* ---- AI analysis (static context) ---- */}
       <section className="card p-5">
-        <div className="label mb-3">AI analysis</div>
+        <div className="label mb-3">{t("stress.aiAnalysis")}</div>
         <p className="whitespace-pre-line text-sm leading-relaxed text-muted">{result.report.executive_summary}</p>
 
         {result.report.key_findings?.length > 0 && (
           <div className="mt-4">
-            <div className="text-xs text-faint">Key findings</div>
+            <div className="text-xs text-faint">{t("stress.keyFindings")}</div>
             <ul className="mt-1.5 space-y-1.5 text-sm text-muted">
               {result.report.key_findings.map((f, i) => (
                 <li key={i} className="flex gap-2"><span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-brand" />{f}</li>
@@ -310,7 +310,7 @@ export function StressReport({
           {DIMS.map((d) => (
             <div key={d} className="rounded-xl bg-surface-2 p-3">
               <div className="flex items-center gap-1.5 text-xs font-medium">
-                <Icon name={DIMENSION_META[d].icon} size={13} /> {DIMENSION_META[d].label}
+                <Icon name={DIMENSION_META[d].icon} size={13} /> {t(`dim.${d}`)}
               </div>
               <p className="mt-1 text-xs leading-relaxed text-muted">{result.report.dimension_narratives[d]}</p>
             </div>
@@ -336,6 +336,7 @@ function MonteCarloPanel({
   knobs: StressKnobs;
   cur: string;
 }) {
+  const t = useT();
   const [result, setResult] = useState<MonteCarloResult | null>(null);
   const [running, setRunning] = useState(false);
 
@@ -364,34 +365,31 @@ function MonteCarloPanel({
     <section className="card p-5">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <div>
-          <div className="label">Probability simulation</div>
-          <p className="mt-1 text-xs text-muted">
-            300 randomized draws around your current assumptions (price, volume, cost, growth) — a
-            distribution of outcomes instead of one point estimate.
-          </p>
+          <div className="label">{t("stress.probSimTitle")}</div>
+          <p className="mt-1 text-xs text-muted">{t("stress.probSimBody")}</p>
         </div>
         <button onClick={run} disabled={running} className="btn btn-ghost shrink-0 text-sm">
-          {running ? "Simulating…" : result ? "Re-run" : "Run simulation"}
+          {running ? t("stress.simulating") : result ? t("stress.rerun") : t("stress.runSimulation")}
         </button>
       </div>
 
       {result && (
         <>
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-            <ProbStat label="P(NPV > 0)" value={`${Math.round(result.probabilityPositiveNpv * 100)}%`} good={result.probabilityPositiveNpv >= 0.6} />
-            <ProbStat label="P(break-even ≤ 24 mo)" value={`${Math.round(result.probabilityBreakEvenWithin24Months * 100)}%`} good={result.probabilityBreakEvenWithin24Months >= 0.6} />
-            <ProbStat label="P(IRR ≥ 15%)" value={`${Math.round(result.probabilityIrrAboveHurdle(15) * 100)}%`} good={result.probabilityIrrAboveHurdle(15) >= 0.6} />
-            <ProbStat label="Simulations" value={String(result.iterations)} />
+            <ProbStat label={t("stress.pNpvPositive")} value={`${Math.round(result.probabilityPositiveNpv * 100)}%`} good={result.probabilityPositiveNpv >= 0.6} />
+            <ProbStat label={t("stress.pBreakEven24")} value={`${Math.round(result.probabilityBreakEvenWithin24Months * 100)}%`} good={result.probabilityBreakEvenWithin24Months >= 0.6} />
+            <ProbStat label={t("stress.pIrr15")} value={`${Math.round(result.probabilityIrrAboveHurdle(15) * 100)}%`} good={result.probabilityIrrAboveHurdle(15) >= 0.6} />
+            <ProbStat label={t("stress.simulations")} value={String(result.iterations)} />
           </div>
 
           <div className="mt-4 grid gap-4 sm:grid-cols-3">
-            <RangeCard label="NPV" p={result.npv} fmt={(v) => money(v, cur)} />
-            <RangeCard label="IRR" p={result.irr} fmt={(v) => `${v.toFixed(1)}%`} />
-            <RangeCard label="Payback" p={result.paybackMonths} fmt={(v) => `${Math.round(v)} mo`} />
+            <RangeCard label={t("stress.npv")} p={result.npv} fmt={(v) => money(v, cur)} />
+            <RangeCard label={t("stress.irr")} p={result.irr} fmt={(v) => `${v.toFixed(1)}%`} />
+            <RangeCard label={t("stress.payback")} p={result.paybackMonths} fmt={(v) => t("study.monthsShort", { n: Math.round(v) })} />
           </div>
 
           <div className="mt-4">
-            <div className="mb-1 text-xs text-faint">NPV distribution (each dot one simulated outcome)</div>
+            <div className="mb-1 text-xs text-faint">{t("stress.npvDistribution")}</div>
             <ScatterStrip samples={result.samples} />
           </div>
         </>
@@ -410,9 +408,10 @@ function ProbStat({ label, value, good }: { label: string; value: string; good?:
 }
 
 function RangeCard({ label, p, fmt }: { label: string; p: { p10: number; p50: number; p90: number }; fmt: (v: number) => string }) {
+  const t = useT();
   return (
     <div className="rounded-xl bg-surface-2 p-3">
-      <div className="text-[0.68rem] text-faint">{label} — P10 / P50 / P90</div>
+      <div className="text-[0.68rem] text-faint">{t("stress.p10p50p90", { label })}</div>
       <div className="num mt-1 flex items-baseline gap-2">
         <span className="text-xs text-muted">{fmt(p.p10)}</span>
         <span className="text-base font-semibold">{fmt(p.p50)}</span>
@@ -478,6 +477,7 @@ function Metric({ label, cur, base, kind, cur3 = "USD", goodWhenUp }: {
 }
 
 function CashCurve({ live, base, cur }: { live: number[]; base: number[]; cur: string }) {
+  const t = useT();
   const all = [...live, ...base, 0];
   const min = Math.min(...all), max = Math.max(...all);
   const W = 640, H = 130, n = Math.max(live.length, base.length, 2);
@@ -494,9 +494,9 @@ function CashCurve({ live, base, cur }: { live: number[]; base: number[]; cur: s
         <path d={path(live)} fill="none" stroke="rgb(var(--brand))" strokeWidth={2.5} strokeLinecap="round" />
       </svg>
       <div className="mt-1 flex gap-4 text-[0.7rem] text-faint">
-        <span className="flex items-center gap-1"><span className="h-0.5 w-4 bg-brand" /> adjusted</span>
-        <span className="flex items-center gap-1"><span className="h-0.5 w-4 bg-border" /> baseline</span>
-        <span className="ml-auto">low point {money(Math.min(...live), cur)}</span>
+        <span className="flex items-center gap-1"><span className="h-0.5 w-4 bg-brand" /> {t("stress.adjustedLegend")}</span>
+        <span className="flex items-center gap-1"><span className="h-0.5 w-4 bg-border" /> {t("stress.baselineLegend")}</span>
+        <span className="ml-auto">{t("stress.lowPoint", { v: money(Math.min(...live), cur) })}</span>
       </div>
     </div>
   );

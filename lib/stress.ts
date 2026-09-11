@@ -41,7 +41,8 @@ export interface StressField {
   step: number;
   /** Formatting hint for the readout. */
   unit: "money" | "pct" | "score";
-  group: "Revenue & cost" | "Dimension what-ifs" | "Financial model";
+  /** Display group name — already translated, so just a string, not a fixed enum. */
+  group: string;
 }
 
 export function baselineKnobs(r: FullResult): StressKnobs {
@@ -64,8 +65,12 @@ export function baselineKnobs(r: FullResult): StressKnobs {
   };
 }
 
-/** Slider definitions, ranged around the baseline. Study fields are dropped when absent. */
-export function stressFields(r: FullResult): StressField[] {
+type Translate = (key: string, vars?: Record<string, string | number>) => string;
+const identity: Translate = (key) => key;
+
+/** Slider definitions, ranged around the baseline. Study fields are dropped when absent.
+ *  `t` is optional so non-UI callers (scripts, tests) can omit it and get the English keys. */
+export function stressFields(r: FullResult, t: Translate = identity): StressField[] {
   const base = baselineKnobs(r);
   const span = (v: number, lo = 0.3, hi = 2.5) => ({
     min: Math.max(0, Math.round((v * lo) / 100) * 100),
@@ -74,24 +79,28 @@ export function stressFields(r: FullResult): StressField[] {
   const rev = span(base.monthlyRevenue);
   const cost = span(base.monthlyCost);
 
+  const gRevCost = t("stress.group.revenueCost");
+  const gDim = t("stress.group.dimensionWhatIfs");
+  const gModel = t("stress.group.financialModel");
+
   const fields: StressField[] = [
-    { key: "monthlyRevenue", label: "Monthly revenue", ...rev, step: 500, unit: "money", group: "Revenue & cost" },
-    { key: "monthlyCost", label: "Monthly cost", ...cost, step: 500, unit: "money", group: "Revenue & cost" },
-    { key: "market", label: "Market score", min: 0, max: 100, step: 1, unit: "score", group: "Dimension what-ifs" },
-    { key: "technical", label: "Technical score", min: 0, max: 100, step: 1, unit: "score", group: "Dimension what-ifs" },
-    { key: "competitive", label: "Competitive score", min: 0, max: 100, step: 1, unit: "score", group: "Dimension what-ifs" },
-    { key: "location", label: "Location score", min: 0, max: 100, step: 1, unit: "score", group: "Dimension what-ifs" },
-    { key: "operational", label: "Operational score", min: 0, max: 100, step: 1, unit: "score", group: "Dimension what-ifs" },
-    { key: "legal", label: "Legal score", min: 0, max: 100, step: 1, unit: "score", group: "Dimension what-ifs" },
+    { key: "monthlyRevenue", label: t("stress.knob.monthlyRevenue"), ...rev, step: 500, unit: "money", group: gRevCost },
+    { key: "monthlyCost", label: t("stress.knob.monthlyCost"), ...cost, step: 500, unit: "money", group: gRevCost },
+    { key: "market", label: t("stress.knob.marketScore"), min: 0, max: 100, step: 1, unit: "score", group: gDim },
+    { key: "technical", label: t("stress.knob.technicalScore"), min: 0, max: 100, step: 1, unit: "score", group: gDim },
+    { key: "competitive", label: t("stress.knob.competitiveScore"), min: 0, max: 100, step: 1, unit: "score", group: gDim },
+    { key: "location", label: t("stress.knob.locationScore"), min: 0, max: 100, step: 1, unit: "score", group: gDim },
+    { key: "operational", label: t("stress.knob.operationalScore"), min: 0, max: 100, step: 1, unit: "score", group: gDim },
+    { key: "legal", label: t("stress.knob.legalScore"), min: 0, max: 100, step: 1, unit: "score", group: gDim },
   ];
 
   if (r.study) {
     fields.push(
-      { key: "pricePct", label: "Price", min: 50, max: 150, step: 1, unit: "pct", group: "Financial model" },
-      { key: "volumePct", label: "Volume", min: 30, max: 200, step: 1, unit: "pct", group: "Financial model" },
-      { key: "opexPct", label: "Operating cost", min: 50, max: 180, step: 1, unit: "pct", group: "Financial model" },
-      { key: "discountRatePct", label: "Discount rate", min: 0, max: 40, step: 0.5, unit: "pct", group: "Financial model" },
-      { key: "growthPct", label: "Revenue growth / yr", min: -20, max: 60, step: 1, unit: "pct", group: "Financial model" },
+      { key: "pricePct", label: t("stress.knob.price"), min: 50, max: 150, step: 1, unit: "pct", group: gModel },
+      { key: "volumePct", label: t("stress.knob.volume"), min: 30, max: 200, step: 1, unit: "pct", group: gModel },
+      { key: "opexPct", label: t("stress.knob.operatingCost"), min: 50, max: 180, step: 1, unit: "pct", group: gModel },
+      { key: "discountRatePct", label: t("stress.knob.discountRate"), min: 0, max: 40, step: 0.5, unit: "pct", group: gModel },
+      { key: "growthPct", label: t("stress.knob.revenueGrowth"), min: -20, max: 60, step: 1, unit: "pct", group: gModel },
     );
   }
   return fields;
