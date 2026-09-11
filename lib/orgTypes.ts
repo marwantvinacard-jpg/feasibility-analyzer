@@ -4,16 +4,25 @@
 // other's analyses, one owner controls branding + API keys + billing seat.
 
 export type OrgRole = "owner" | "analyst" | "viewer";
+export type OrgStatus = "pending" | "approved" | "rejected";
+export type OrgPlanKey = "starter" | "growth" | "enterprise";
 
 export interface Organization {
   id: string;
   name: string;
   ownerUid: string;
+  ownerEmail: string;
   branding: {
     logoUrl?: string;
     primaryColor?: string; // hex, e.g. "#6366f1"
   };
-  plan: "free" | "team";
+  /** New orgs start pending — an admin (Marwan) must approve before the org
+   *  can issue API keys or call the public API. Team creation/browsing the
+   *  workspace UI is allowed while pending; using paid API access is not. */
+  status: OrgStatus;
+  /** Subscription tier, if any (see lib/pricing.ts ORG_PLANS). Undefined = no active plan. */
+  plan?: OrgPlanKey;
+  subscriptionStatus?: string; // mirrors Stripe subscription.status
   createdAt: number;
 }
 

@@ -18,7 +18,7 @@ function hashKey(key: string): string {
   return createHash("sha256").update(key).digest("hex");
 }
 
-async function requireOwnedOrg(caller: { uid: string }) {
+async function requireOwnedOrg(caller: { uid: string }, requireApproved = false) {
   const db = adminDb();
   const userSnap = await db.collection("users").doc(caller.uid).get();
   const orgId = userSnap.data()?.orgId as string | undefined;
@@ -27,6 +27,9 @@ async function requireOwnedOrg(caller: { uid: string }) {
   const orgSnap = await orgRef.get();
   if (!orgSnap.exists) throw new HttpError(404, "No organization found.");
   if (orgSnap.data()?.ownerUid !== caller.uid) throw new HttpError(403, "Only the owner can manage API keys.");
+  if (requireApproved && orgSnap.data()?.status !== "approved") {
+    throw new HttpError(403, "Your organization is awaiting admin approval before API access can be used.");
+  }
   return { db, orgId, orgRef };
 }
 
@@ -35,7 +38,7 @@ export async function POST(req: Request) {
     const caller = await requireUser(req);
     const { label } = (await req.json()) as { label?: string };
 
-    const { orgRef } = await requireOwnedOrg(caller);
+    const { orgRef } = await requireOwnedOrg(caller, true);
 
     const raw = `fsa_live_${randomBytes(24).toString("hex")}`;
     const keyRef = orgRef.collection("apiKeys").doc();

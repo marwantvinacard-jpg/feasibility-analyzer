@@ -3,10 +3,11 @@
 // Pro subscription. Returns the Checkout URL; the client redirects to it.
 
 import { NextResponse } from "next/server";
-import { stripe, WALLET_TIERS, creditsForTopup, type WalletTier } from "@/lib/stripe";
+import { stripe, WALLET_TIERS, creditsForTopup, ORG_PLANS, type WalletTier } from "@/lib/stripe";
 import { adminDb } from "@/lib/firebase/admin";
 import { requireUser, HttpError } from "@/lib/firebase/verify";
 import { logAudit } from "@/lib/firebase/audit";
+import type { OrgPlanKey } from "@/lib/orgTypes";
 
 export const runtime = "nodejs";
 
@@ -24,7 +25,11 @@ async function getOrCreateCustomer(uid: string, email?: string): Promise<string>
 export async function POST(req: Request) {
   try {
     const caller = await requireUser(req);
-    const { kind, amount } = (await req.json()) as { kind: "wallet" | "subscription"; amount?: WalletTier };
+    const { kind, amount, planKey } = (await req.json()) as {
+      kind: "wallet" | "subscription" | "org_plan";
+      amount?: WalletTier;
+      planKey?: OrgPlanKey;
+    };
 
     const origin = req.headers.get("origin") ?? new URL(req.url).origin;
     const customerId = await getOrCreateCustomer(caller.uid, caller.email);
@@ -65,6 +70,42 @@ export async function POST(req: Request) {
         cancel_url: `${origin}/app/new?subscribed=cancelled`,
       });
       await logAudit({ uid: caller.uid, email: caller.email, action: "billing.checkout_started", meta: { kind } });
+      return NextResponse.json({ url: session.url });
+    }
+
+    if (kind === "org_plan") {
+      const plan = ORG_PLANS.find((p) => p.key === planKey);
+      if (!plan) throw new HttpError(400, "Unknown plan.");
+
+      const db = adminDb();
+      const userSnap = await db.collection("users").doc(caller.uid).get();
+      const orgId = userSnap.data()?.orgId as string | undefined;
+      if (!orgId) throw new HttpError(404, "No organization found.");
+      const orgSnap = await db.collection("organizations").doc(orgId).get();
+      if (!orgSnap.exists) throw new HttpError(404, "No organization found.");
+      if (orgSnap.data()?.ownerUid !== caller.uid) throw new HttpError(403, "Only the owner can change the plan.");
+      if (orgSnap.data()?.status !== "approved") {
+        throw new HttpError(403, "Your organization must be approved before subscribing to a plan.");
+      }
+
+      const priceEnvKey = `STRIPE_ORG_${plan.key.toUpperCase()}_PRICE_ID`;
+      const priceId = process.env[priceEnvKey];
+      if (!priceId) throw new HttpError(500, `The ${plan.name} plan is not configured yet (${priceEnvKey}).`);
+
+      const session = await stripe().checkout.sessions.create({
+        mode: "subscription",
+        customer: customerId,
+        line_items: [{ price: priceId, quantity: 1 }],
+        metadata: { uid: caller.uid, kind: "org_plan", orgId, planKey: plan.key },
+        // Checkout session metadata isn't reliably copied onto the resulting
+        // Subscription object — set it explicitly so the webhook can find
+        // orgId/planKey from subscription and invoice events, not just this
+        // one checkout.session.completed event.
+        subscription_data: { metadata: { uid: caller.uid, kind: "org_plan", orgId, planKey: plan.key } },
+        success_url: `${origin}/app/org?subscribed=success`,
+        cancel_url: `${origin}/app/org?subscribed=cancelled`,
+      });
+      await logAudit({ uid: caller.uid, email: caller.email, action: "billing.checkout_started", meta: { kind, planKey, orgId } });
       return NextResponse.json({ url: session.url });
     }
 

@@ -71,6 +71,22 @@ export default function ApiAccessPage() {
     );
   }
 
+  if (org.status !== "approved") {
+    return (
+      <div className="mx-auto max-w-md py-20 text-center">
+        <span className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-warn/12 text-warn"><Icon name="clock" size={26} /></span>
+        <h2 className="font-display mt-4 text-lg font-semibold">
+          {org.status === "rejected" ? "Access request declined" : "Awaiting admin approval"}
+        </h2>
+        <p className="mt-1 text-sm text-muted">
+          {org.status === "rejected"
+            ? "Contact support if you think this is a mistake."
+            : "An admin needs to approve your organization before API keys can be issued."}
+        </p>
+      </div>
+    );
+  }
+
   const isOwner = org.ownerUid === user.uid;
   const activeKeys = keys.filter((k) => !k.revoked);
 

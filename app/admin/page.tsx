@@ -26,6 +26,12 @@ interface AuditRow {
   target?: string;
   createdAt: number;
 }
+interface OrgRow {
+  id: string;
+  name: string;
+  ownerEmail: string;
+  status: "pending" | "approved" | "rejected";
+}
 
 export default function AdminPage() {
   const { ready, user, getIdToken } = useSession();
@@ -33,6 +39,7 @@ export default function AdminPage() {
   const router = useRouter();
   const [users, setUsers] = useState<UserRow[]>([]);
   const [audit, setAudit] = useState<AuditRow[]>([]);
+  const [orgs, setOrgs] = useState<OrgRow[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
 
   useEffect(() => {
@@ -51,7 +58,10 @@ export default function AdminPage() {
     const u2 = onSnapshot(query(collection(fb.db, "auditLog"), orderBy("createdAt", "desc"), limit(50)), (snap) => {
       setAudit(snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })));
     });
-    return () => { u1(); u2(); };
+    const u3 = onSnapshot(collection(fb.db, "organizations"), (snap) => {
+      setOrgs(snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })));
+    });
+    return () => { u1(); u2(); u3(); };
   }, [user]);
 
   async function act(uid: string, action: "approve" | "reject" | "grant", amount?: number) {
@@ -68,10 +78,25 @@ export default function AdminPage() {
     }
   }
 
+  async function actOrg(orgId: string, action: "approve" | "reject") {
+    setBusy(orgId + action);
+    try {
+      const token = await getIdToken();
+      await fetch("/api/admin/org", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ orgId, action }),
+      });
+    } finally {
+      setBusy(null);
+    }
+  }
+
   if (!ready || !user || user.role !== "admin") return <div className="py-20 text-center text-sm text-muted">{t("common.loading")}</div>;
 
   const pending = users.filter((u) => u.status === "pending");
   const others = users.filter((u) => u.status !== "pending");
+  const pendingOrgs = orgs.filter((o) => o.status === "pending");
 
   return (
     <div className="mx-auto max-w-4xl space-y-8">
@@ -93,6 +118,26 @@ export default function AdminPage() {
                 <div className="flex shrink-0 gap-2">
                   <Button variant="ghost" className="text-sm" disabled={busy === u.uid + "reject"} onClick={() => act(u.uid, "reject")}>{t("admin.reject")}</Button>
                   <Button className="text-sm" disabled={busy === u.uid + "approve"} onClick={() => act(u.uid, "approve")}>{t("admin.approve")}</Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {pendingOrgs.length > 0 && (
+        <section>
+          <h2 className="label mb-3">{t("admin.pendingOrgsCount", { n: pendingOrgs.length })}</h2>
+          <div className="space-y-2">
+            {pendingOrgs.map((o) => (
+              <div key={o.id} className="card flex items-center justify-between p-4">
+                <div className="min-w-0">
+                  <div className="truncate font-medium">{o.name}</div>
+                  <div className="truncate text-xs text-faint">{o.ownerEmail}</div>
+                </div>
+                <div className="flex shrink-0 gap-2">
+                  <Button variant="ghost" className="text-sm" disabled={busy === o.id + "reject"} onClick={() => actOrg(o.id, "reject")}>{t("admin.reject")}</Button>
+                  <Button className="text-sm" disabled={busy === o.id + "approve"} onClick={() => actOrg(o.id, "approve")}>{t("admin.approve")}</Button>
                 </div>
               </div>
             ))}

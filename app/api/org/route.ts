@@ -47,8 +47,9 @@ export async function POST(req: Request) {
       id: orgRef.id,
       name: name.trim(),
       ownerUid: caller.uid,
+      ownerEmail: caller.email ?? "",
       branding: {},
-      plan: "free",
+      status: "pending", // an admin must approve before API access / paid plans work
       createdAt: Date.now(),
     };
     const member: OrgMember = {

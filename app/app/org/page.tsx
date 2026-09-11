@@ -6,6 +6,7 @@ import { Icon } from "@/components/icons";
 import { useSession } from "@/lib/session";
 import { fetchMyOrg, createOrg, updateOrgBranding } from "@/lib/org";
 import type { Organization } from "@/lib/orgTypes";
+import { OrgPlans, PLAN_LABEL } from "@/components/OrgPlans";
 
 export default function OrgPage() {
   const { user } = useSession();
@@ -112,8 +113,26 @@ export default function OrgPage() {
               </div>
               <Badge tone={isOwner ? "go" : undefined}>{isOwner ? "You're the owner" : "Member"}</Badge>
             </div>
-            <div className="mt-1 text-xs text-faint">Plan: {org.plan === "team" ? "Team" : "Free"}</div>
+            <div className="mt-1 text-xs text-faint">Plan: {org.plan ? PLAN_LABEL[org.plan] : "No active plan"}</div>
           </div>
+
+          {org.status === "pending" && (
+            <div className="flex items-start gap-2.5 rounded-xl border border-warn/40 bg-warn/10 px-4 py-3 text-sm text-warn">
+              <Icon name="clock" size={16} className="mt-0.5 shrink-0" />
+              <span>
+                <strong>Awaiting approval.</strong> An admin needs to approve {org.name} before you can issue API
+                keys or subscribe to a plan. Team management still works in the meantime.
+              </span>
+            </div>
+          )}
+          {org.status === "rejected" && (
+            <div className="flex items-start gap-2.5 rounded-xl border border-stop/40 bg-stop/10 px-4 py-3 text-sm text-stop">
+              <Icon name="x" size={16} className="mt-0.5 shrink-0" />
+              <span>This organization's access request was declined. Contact support if you think this is a mistake.</span>
+            </div>
+          )}
+
+          {isOwner && org.status === "approved" && <OrgPlans currentPlan={org.plan} />}
 
           {isOwner && (
             <div className="card space-y-4 p-6">

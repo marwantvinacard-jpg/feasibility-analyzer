@@ -30,6 +30,9 @@ export async function requireApiKey(req: Request): Promise<ApiCaller> {
   if (!orgRef) throw new HttpError(500, "Malformed API key record.");
   const orgSnap = await orgRef.get();
   if (!orgSnap.exists) throw new HttpError(401, "The organization for this key no longer exists.");
+  if (orgSnap.data()?.status !== "approved") {
+    throw new HttpError(403, "This organization is not approved for API access.");
+  }
 
   keyDoc.ref.update({ lastUsedAt: Date.now() }).catch(() => {});
 
