@@ -202,3 +202,24 @@ body {
     color: black;
   }
 }
+
+/* PDF export (html2pdf) — force the light palette + white ground regardless of
+   the viewer's theme, and keep cards from splitting across pages. */
+.pdf-export {
+  --paper: 255 255 255;
+  --surface: 255 255 255;
+  --surface-2: 244 242 236;
+  --border: 224 219 208;
+  --ink: 24 22 18;
+  --muted: 82 76 64;
+  --faint: 130 123 110;
+  background: #fff;
+  color: rgb(var(--ink));
+  padding: 28px 32px;
+  width: 780px;
+}
+.pdf-export .card,
+.pdf-export section,
+.pdf-export table {
+  break-inside: avoid;
+}

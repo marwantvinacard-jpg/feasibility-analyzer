@@ -1,15 +1,17 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Button } from "@/components/kit";
 import { Icon } from "@/components/icons";
+import { Mark } from "@/components/Brand";
 import { StressReport } from "@/components/StressReport";
 import { subscribeAnalysis } from "@/lib/analyses";
 import type { AnalysisDoc } from "@/lib/analysisTypes";
-import { baselineKnobs, stressFields, encodeKnobs, type StressKnobs } from "@/lib/stress";
+import { baselineKnobs, stressFields, type StressKnobs } from "@/lib/stress";
 import type { FullResult } from "@/lib/engine/runFeasibility";
 import { money } from "@/lib/ui";
+import { downloadElementPdf, slugify } from "@/lib/pdf";
 
 export default function StressPage() {
   const { id } = useParams<{ id: string }>();
@@ -32,14 +34,16 @@ export default function StressPage() {
       </div>
     );
 
-  return <Board result={rec.result} id={String(id)} onBack={() => router.push(`/app/analysis/${id}`)} />;
+  return <Board result={rec.result} createdAt={rec.createdAt} onBack={() => router.push(`/app/analysis/${id}`)} />;
 }
 
-function Board({ result, id, onBack }: { result: FullResult; id: string; onBack: () => void }) {
+function Board({ result, createdAt, onBack }: { result: FullResult; createdAt: number; onBack: () => void }) {
   const cur = result.input.currency ?? "USD";
   const fields = useMemo(() => stressFields(result), [result]);
   const base = useMemo(() => baselineKnobs(result), [result]);
   const [knobs, setKnobs] = useState<StressKnobs>(base);
+  const [downloading, setDownloading] = useState(false);
+  const exportRef = useRef<HTMLDivElement>(null);
 
   const dirty = JSON.stringify(knobs) !== JSON.stringify(base);
   const set = (k: keyof StressKnobs, v: number) => setKnobs((p) => ({ ...p, [k]: v }));
@@ -50,8 +54,18 @@ function Board({ result, id, onBack }: { result: FullResult; id: string; onBack:
     return g;
   }, [fields]);
 
-  const exportPdf = () =>
-    window.open(`/app/analysis/${id}/stress/print?k=${encodeURIComponent(encodeKnobs(knobs))}`, "_blank");
+  async function download() {
+    if (!exportRef.current) return;
+    setDownloading(true);
+    try {
+      await downloadElementPdf(
+        exportRef.current,
+        `stress-test-${slugify(result.input.business_idea)}${dirty ? "-adjusted" : ""}.pdf`
+      );
+    } finally {
+      setDownloading(false);
+    }
+  }
 
   return (
     <div className="mx-auto max-w-6xl space-y-5">
@@ -65,8 +79,8 @@ function Board({ result, id, onBack }: { result: FullResult; id: string; onBack:
               <Icon name="arrow" size={14} className="-scale-x-100" /> Reset
             </button>
           )}
-          <button onClick={exportPdf} className="btn btn-primary text-sm">
-            <Icon name="download" size={16} /> Export full PDF
+          <button onClick={download} disabled={downloading} className="btn btn-primary text-sm">
+            <Icon name="download" size={16} /> {downloading ? "Preparing…" : "Download PDF"}
           </button>
         </div>
       </div>
@@ -118,6 +132,24 @@ function Board({ result, id, onBack }: { result: FullResult; id: string; onBack:
 
         {/* Live report */}
         <StressReport result={result} knobs={knobs} />
+      </div>
+
+      {/* Off-screen export copy — light palette, full width, for the PDF */}
+      <div style={{ position: "fixed", left: "-10000px", top: 0 }} aria-hidden>
+        <div ref={exportRef} className="pdf-export">
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid rgb(var(--border))", paddingBottom: 12, marginBottom: 18 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 600 }}>
+              <Mark className="h-6 w-6" /> FeasibilityAI
+            </div>
+            <div style={{ textAlign: "right", fontSize: 11, color: "rgb(var(--faint))" }}>
+              Stress-Test Report{dirty ? " · adjusted assumptions" : ""}<br />
+              {new Date(createdAt).toLocaleDateString()}
+            </div>
+          </div>
+          <h1 className="font-display" style={{ fontSize: 18, fontWeight: 600, marginBottom: 2 }}>{result.input.business_idea}</h1>
+          <p style={{ fontSize: 13, color: "rgb(var(--muted))", marginBottom: 18 }}>{result.input.location}</p>
+          <StressReport result={result} knobs={knobs} print />
+        </div>
       </div>
     </div>
   );

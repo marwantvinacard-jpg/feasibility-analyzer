@@ -1,11 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Button } from "@/components/kit";
 import { Icon } from "@/components/icons";
 import { StageProgress } from "@/components/StageProgress";
 import { ReportView } from "@/components/ReportView";
+import { Mark } from "@/components/Brand";
+import { downloadElementPdf, slugify } from "@/lib/pdf";
 import { subscribeAnalysis } from "@/lib/analyses";
 import type { AnalysisDoc } from "@/lib/analysisTypes";
 import { SIX_STAGES, type StageName, type StageStatus } from "@/lib/engine/types";
@@ -17,6 +19,18 @@ export default function AnalysisPage() {
   const params = useParams();
   const router = useRouter();
   const id = String(params.id);
+  const exportRef = useRef<HTMLDivElement>(null);
+  const [dl, setDl] = useState(false);
+
+  async function downloadPdf(idea: string) {
+    if (!exportRef.current) return;
+    setDl(true);
+    try {
+      await downloadElementPdf(exportRef.current, `feasibility-${slugify(idea)}.pdf`);
+    } finally {
+      setDl(false);
+    }
+  }
 
   const [rec, setRec] = useState<AnalysisDoc | null>(null);
   const [loaded, setLoaded] = useState(false);
@@ -65,11 +79,26 @@ export default function AnalysisPage() {
           </button>
           <div className="flex flex-wrap gap-2">
             <Button href={`/app/analysis/${id}/stress`} variant="ghost" className="text-sm"><Icon name="sliders" size={17} /> Stress test</Button>
-            <a href={`/app/analysis/${id}/print`} target="_blank" rel="noreferrer" className="btn btn-ghost text-sm"><Icon name="download" size={17} /> Download PDF</a>
+            <button onClick={() => downloadPdf(rec.result!.input.business_idea)} disabled={dl} className="btn btn-ghost text-sm">
+              <Icon name="download" size={17} /> {dl ? "Preparing…" : "Download PDF"}
+            </button>
             <Button href="/app/new" className="text-sm"><Icon name="plus" size={17} /> New analysis</Button>
           </div>
         </div>
         <ReportView result={rec.result} />
+
+        {/* Off-screen export copy for the PDF (light palette, fixed width) */}
+        <div style={{ position: "fixed", left: "-10000px", top: 0 }} aria-hidden>
+          <div ref={exportRef} className="pdf-export">
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid rgb(var(--border))", paddingBottom: 12, marginBottom: 18 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 600 }}><Mark className="h-6 w-6" /> FeasibilityAI</div>
+              <div style={{ textAlign: "right", fontSize: 11, color: "rgb(var(--faint))" }}>
+                Feasibility Report<br />{new Date(rec.createdAt).toLocaleDateString()}
+              </div>
+            </div>
+            <ReportView result={rec.result} print />
+          </div>
+        </div>
       </div>
     );
 
