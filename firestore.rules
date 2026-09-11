@@ -123,5 +123,10 @@ service cloud.firestore {
       allow read: if isAdmin();
       allow write: if false; // server only, via lib/engine/trainingLog.ts
     }
+
+    // --- Stripe webhook idempotency ledger — no client access at all, not even admin. ---
+    match /processedStripeEvents/{eventId} {
+      allow read, write: if false; // server only, via app/api/stripe/webhook
+    }
   }
 }

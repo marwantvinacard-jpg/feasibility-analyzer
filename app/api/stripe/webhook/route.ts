@@ -35,6 +35,16 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: `Signature verification failed: ${(err as Error).message}` }, { status: 400 });
   }
 
+  // Idempotency: Stripe redelivers on any non-2xx response (and can occasionally
+  // redeliver even after a 2xx), and a captured signed payload could be replayed
+  // within its timestamp tolerance. Without this guard a retry after a partial
+  // failure — or a replay — would grant credits twice for the same event.
+  const eventRef = adminDb().collection("processedStripeEvents").doc(event.id);
+  const alreadyProcessed = await eventRef.get().then((s) => s.exists);
+  if (alreadyProcessed) {
+    return NextResponse.json({ received: true, deduped: true });
+  }
+
   try {
     switch (event.type) {
       case "checkout.session.completed": {
@@ -172,11 +182,15 @@ export async function POST(req: Request) {
         break; // ignore anything we don't handle
     }
   } catch (err) {
-    // Stripe retries on non-2xx — log but still ack if we've already
-    // recorded the payment, to avoid duplicate credit grants on retry storms.
+    // Stripe retries on non-2xx, which is exactly what we want on a genuine
+    // failure — don't mark the event processed, so the retry can complete it.
     console.error("stripe webhook handler error:", err);
     return NextResponse.json({ error: "Handler error" }, { status: 500 });
   }
+
+  // Only mark processed after the handler above completed without throwing —
+  // this is what makes the dedupe check at the top safe.
+  await eventRef.set({ type: event.type, processedAt: Date.now() });
 
   return NextResponse.json({ received: true });
 }
