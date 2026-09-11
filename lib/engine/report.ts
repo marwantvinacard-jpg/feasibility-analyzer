@@ -7,6 +7,7 @@
 
 import { z } from "zod";
 import type { LlmProvider } from "./provider";
+import { languageBlock } from "./specialists";
 import type {
   BusinessInput,
   CategoryScores,
@@ -72,7 +73,8 @@ export async function generateReport(
       ctx.riskScoring.rankedRisks.slice(0, 3)
     )}\n` +
     `INPUT: ${JSON.stringify(ctx.input)}\n` +
-    `STAGE FINDINGS: ${JSON.stringify(ctx.stages)}`;
+    `STAGE FINDINGS: ${JSON.stringify(ctx.stages)}` +
+    languageBlock(ctx.input);
 
   const { data, tokensIn, tokensOut } = await llm.structured<ReportContent>({
     system: REPORT_PROMPT,

@@ -33,6 +33,8 @@ export interface Account {
   /** True the very first time this account is ever seen signed in (no prior lastSeenAt). */
   isFirstSession: boolean;
   subscriptionStatus?: string;
+  /** UI language preference, synced across devices once signed in. */
+  language?: "en" | "ar" | "fr";
 }
 
 interface SessionCtx {
@@ -43,6 +45,7 @@ interface SessionCtx {
   signInGoogle: () => Promise<void>;
   logout: () => Promise<void>;
   setKeyMode: (mode: Account["keyMode"]) => Promise<void>;
+  setLanguage: (lang: NonNullable<Account["language"]>) => Promise<void>;
   getIdToken: () => Promise<string>;
   refreshClaims: () => Promise<void>;
 }
@@ -116,6 +119,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
             keyMode: d.keyMode ?? "platform",
             isFirstSession,
             subscriptionStatus: d.subscriptionStatus,
+            language: d.language,
           });
           setReady(true);
 
@@ -170,6 +174,11 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         const fb = getFirebase();
         if (!fb || !fbUser) return;
         await updateDoc(doc(fb.db, "users", fbUser.uid), { keyMode: mode });
+      },
+      async setLanguage(lang) {
+        const fb = getFirebase();
+        if (!fb || !fbUser) return;
+        await updateDoc(doc(fb.db, "users", fbUser.uid), { language: lang });
       },
       async getIdToken() {
         if (!fbUser) throw new Error("Not signed in.");

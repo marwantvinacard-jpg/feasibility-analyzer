@@ -1,9 +1,13 @@
+"use client";
+
 import Link from "next/link";
 import { Container, Button, Eyebrow, Badge } from "@/components/kit";
 import { Logo, Mark } from "@/components/Brand";
 import { ScoreGauge, ScoreBar } from "@/components/ScoreGauge";
 import { Icon } from "@/components/icons";
 import { DIMENSION_META } from "@/lib/ui";
+import { useT } from "@/lib/i18n/LanguageContext";
+import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 
 export default function Landing() {
   return (
@@ -22,19 +26,21 @@ export default function Landing() {
 }
 
 function SiteNav() {
+  const t = useT();
   return (
     <header className="sticky top-0 z-40 border-b border-border/70 bg-paper/85 backdrop-blur">
       <Container className="flex h-16 items-center justify-between">
         <Logo />
         <nav className="hidden items-center gap-8 text-sm text-muted md:flex">
-          <a href="#how" className="transition-colors hover:text-ink">How it works</a>
-          <a href="#dimensions" className="transition-colors hover:text-ink">What we analyze</a>
-          <a href="#pricing" className="transition-colors hover:text-ink">Pricing</a>
-          <a href="#faq" className="transition-colors hover:text-ink">FAQ</a>
+          <a href="#how" className="transition-colors hover:text-ink">{t("nav.howItWorks")}</a>
+          <a href="#dimensions" className="transition-colors hover:text-ink">{t("nav.whatWeAnalyze")}</a>
+          <a href="#pricing" className="transition-colors hover:text-ink">{t("nav.pricing")}</a>
+          <a href="#faq" className="transition-colors hover:text-ink">{t("nav.faq")}</a>
         </nav>
         <div className="flex items-center gap-2">
-          <Button href="/login" variant="ghost" className="hidden sm:inline-flex">Log in</Button>
-          <Button href="/signup">Get started</Button>
+          <LanguageSwitcher className="hidden sm:block" />
+          <Button href="/login" variant="ghost" className="hidden sm:inline-flex">{t("nav.logIn")}</Button>
+          <Button href="/signup">{t("nav.getStarted")}</Button>
         </div>
       </Container>
     </header>
@@ -42,32 +48,28 @@ function SiteNav() {
 }
 
 function Hero() {
+  const t = useT();
   return (
     <section className="bg-paper-glow relative overflow-hidden border-b border-border/60">
       <Container className="grid gap-14 py-16 sm:py-24 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
         <div className="animate-fade-up">
           <Badge className="mb-6">
-            <span className="h-1.5 w-1.5 rounded-full bg-go" /> Eight-dimension analysis · GO / NO-GO in minutes
+            <span className="h-1.5 w-1.5 rounded-full bg-go" /> {t("landing.badge")}
           </Badge>
           <h1 className="font-display text-[2.75rem] font-semibold leading-[1.02] tracking-tightest sm:text-6xl">
-            Know if your idea<br />
-            will actually <span className="italic text-brand">work</span>.
+            {t("landing.heroTitle1")}<br />
+            {t("landing.heroTitle2")} <span className="italic text-brand">{t("landing.heroTitle2Emph")}</span>.
           </h1>
-          <p className="mt-6 max-w-xl text-lg leading-relaxed text-muted">
-            FeasibilityAI turns a business idea into a rigorous, investor-grade feasibility
-            report — market, financial, technical, competitive, location and risk — with a clear
-            score and recommendation you can act on.
-          </p>
+          <p className="mt-6 max-w-xl text-lg leading-relaxed text-muted">{t("landing.heroBody")}</p>
           <div className="mt-8 flex flex-wrap items-center gap-3">
             <Button href="/signup" className="px-5 text-base">
-              Analyze my idea <Icon name="arrow" size={18} />
+              {t("landing.ctaAnalyze")} <Icon name="arrow" size={18} />
             </Button>
-            
           </div>
           <p className="mt-5 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-faint">
-            <Icon name="check" size={15} className="text-go" /> Free credits on approval
-            <span className="text-border">·</span> No credit card
-            <span className="text-border">·</span> Your own AI key optional
+            <Icon name="check" size={15} className="text-go" /> {t("landing.microFreeCredits")}
+            <span className="text-border">·</span> {t("landing.microNoCard")}
+            <span className="text-border">·</span> {t("landing.microOwnKey")}
           </p>
         </div>
         <div className="animate-fade-up [animation-delay:120ms]">
@@ -80,6 +82,7 @@ function Hero() {
 
 /** A polished "sample verdict" card that sells the output at a glance. */
 function VerdictPreview() {
+  const t = useT();
   const scores = [
     ["market", 74],
     ["financial", 95],
@@ -92,10 +95,10 @@ function VerdictPreview() {
     <div className="card p-6 shadow-lift">
       <div className="flex items-center justify-between">
         <div>
-          <div className="label">Feasibility verdict</div>
-          <div className="mt-1 font-display text-lg font-semibold">Meal-prep subscription · Austin</div>
+          <div className="label">{t("landing.previewLabel")}</div>
+          <div className="mt-1 font-display text-lg font-semibold">{t("landing.previewTitle")}</div>
         </div>
-        <Badge tone="warn">GO with conditions</Badge>
+        <Badge tone="warn">{t("landing.previewVerdict")}</Badge>
       </div>
       <div className="mt-5 flex items-center gap-6">
         <ScoreGauge score={79} size={150} sublabel="Feasible" />
@@ -104,7 +107,7 @@ function VerdictPreview() {
             <div key={key}>
               <div className="mb-1 flex items-center justify-between text-xs">
                 <span className="flex items-center gap-1.5 text-muted">
-                  <Icon name={DIMENSION_META[key].icon} size={14} /> {DIMENSION_META[key].label}
+                  <Icon name={DIMENSION_META[key].icon} size={14} /> {t(`dim.${key}`)}
                 </span>
                 <span className="num font-semibold">{val}</span>
               </div>
@@ -114,9 +117,9 @@ function VerdictPreview() {
         </div>
       </div>
       <div className="mt-6 grid grid-cols-3 gap-3 border-t border-border pt-5 text-center">
-        <Stat label="Monthly profit" value="$26k" />
-        <Stat label="Break-even" value="5 mo" />
-        <Stat label="Margin" value="38%" />
+        <Stat label={t("landing.statMonthlyProfit")} value="$26k" />
+        <Stat label={t("landing.statBreakEven")} value="5 mo" />
+        <Stat label={t("landing.statMargin")} value="38%" />
       </div>
     </div>
   );
@@ -132,29 +135,27 @@ function Stat({ label, value }: { label: string; value: string }) {
 }
 
 function LogoStrip() {
+  const t = useT();
   return (
     <Container className="py-9">
-      <p className="text-center text-xs uppercase tracking-[0.2em] text-faint">
-        Built for founders, consultants, accelerators &amp; lenders evaluating new ventures
-      </p>
+      <p className="text-center text-xs uppercase tracking-[0.2em] text-faint">{t("landing.logoStrip")}</p>
     </Container>
   );
 }
 
 function HowItWorks() {
+  const t = useT();
   const steps = [
-    { n: "01", t: "Describe your idea", d: "Answer 10 quick questions — or paste a paragraph and let AI pre-fill them for you." },
-    { n: "02", t: "Six experts analyze it", d: "Specialist agents research market, financials, tech, competition, location and risk in parallel." },
-    { n: "03", t: "Get your verdict", d: "A weighted score, a GO / NO-GO call, the numbers behind it, and a downloadable report." },
+    { n: "01", t: t("landing.how1Title"), d: t("landing.how1Body") },
+    { n: "02", t: t("landing.how2Title"), d: t("landing.how2Body") },
+    { n: "03", t: t("landing.how3Title"), d: t("landing.how3Body") },
   ];
   return (
     <section id="how" className="py-16 sm:py-24">
       <Container>
         <div className="mx-auto max-w-2xl text-center">
-          <div className="flex justify-center"><Eyebrow>How it works</Eyebrow></div>
-          <h2 className="font-display mt-4 text-3xl font-semibold tracking-tight sm:text-4xl">
-            From rough idea to real decision in three steps
-          </h2>
+          <div className="flex justify-center"><Eyebrow>{t("landing.howEyebrow")}</Eyebrow></div>
+          <h2 className="font-display mt-4 text-3xl font-semibold tracking-tight sm:text-4xl">{t("landing.howTitle")}</h2>
         </div>
         <div className="mt-12 grid gap-5 md:grid-cols-3">
           {steps.map((s) => (
@@ -171,18 +172,14 @@ function HowItWorks() {
 }
 
 function Dimensions() {
+  const t = useT();
   return (
     <section id="dimensions" className="border-y border-border/60 bg-surface-2/40 py-16 sm:py-24">
       <Container>
         <div className="mx-auto max-w-2xl text-center">
-          <div className="flex justify-center"><Eyebrow>What we analyze</Eyebrow></div>
-          <h2 className="font-display mt-4 text-3xl font-semibold tracking-tight sm:text-4xl">
-            Eight dimensions. One clear score.
-          </h2>
-          <p className="mt-4 leading-relaxed text-muted">
-            Every idea is scored across the six things that decide whether a business survives —
-            weighted and combined into a single feasibility number.
-          </p>
+          <div className="flex justify-center"><Eyebrow>{t("landing.dimEyebrow")}</Eyebrow></div>
+          <h2 className="font-display mt-4 text-3xl font-semibold tracking-tight sm:text-4xl">{t("landing.dimTitle")}</h2>
+          <p className="mt-4 leading-relaxed text-muted">{t("landing.dimBody")}</p>
         </div>
         <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {Object.entries(DIMENSION_META).map(([key, d]) => (
@@ -190,8 +187,8 @@ function Dimensions() {
               <span className="grid h-11 w-11 place-items-center rounded-xl bg-brand/10 text-brand">
                 <Icon name={d.icon} size={22} />
               </span>
-              <h3 className="mt-4 text-lg font-semibold">{d.label}</h3>
-              <p className="mt-1 text-sm text-muted">{d.blurb}</p>
+              <h3 className="mt-4 text-lg font-semibold">{t(`dim.${key}`)}</h3>
+              <p className="mt-1 text-sm text-muted">{t(`dim.${key}.blurb`)}</p>
             </div>
           ))}
         </div>
@@ -201,23 +198,29 @@ function Dimensions() {
 }
 
 function SampleReport() {
+  const t = useT();
+  const features = [
+    t("landing.reportFeature1"),
+    t("landing.reportFeature2"),
+    t("landing.reportFeature3"),
+    t("landing.reportFeature4"),
+    t("landing.reportFeature5"),
+    t("landing.reportFeature6"),
+  ];
+  const stats: [string, string][] = [
+    [t("landing.sampleTopStrength"), t("landing.sampleTopStrengthVal")],
+    [t("landing.sampleWatchOut"), t("landing.sampleWatchOutVal")],
+    [t("landing.sampleTiming"), t("landing.sampleTimingVal")],
+    [t("landing.sampleCapital"), "$252,000"],
+  ];
   return (
     <section className="py-16 sm:py-24">
       <Container className="grid items-center gap-12 lg:grid-cols-2">
         <div>
-          <Eyebrow>The report</Eyebrow>
-          <h2 className="font-display mt-4 text-3xl font-semibold tracking-tight sm:text-4xl">
-            An analyst-grade report, not a chatbot reply
-          </h2>
+          <Eyebrow>{t("landing.reportEyebrow")}</Eyebrow>
+          <h2 className="font-display mt-4 text-3xl font-semibold tracking-tight sm:text-4xl">{t("landing.reportTitle")}</h2>
           <ul className="mt-6 space-y-3">
-            {[
-              "Executive summary with a clear recommendation",
-              "Exact financials — profit, margin, break-even, capital needed",
-              "A ranked risk register with mitigation & contingency",
-              "Competitor breakdown and positioning strategy",
-              "Cited sources for every research claim",
-              "Download as a polished PDF",
-            ].map((f) => (
+            {features.map((f) => (
               <li key={f} className="flex items-start gap-3 text-sm">
                 <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full bg-go/15 text-go">
                   <Icon name="check" size={13} strokeWidth={2.5} />
@@ -227,29 +230,23 @@ function SampleReport() {
             ))}
           </ul>
           <div className="mt-8">
-            <Button href="/signup">Create your first report</Button>
+            <Button href="/signup">{t("landing.reportCta")}</Button>
           </div>
         </div>
         <div className="card p-6 shadow-lift">
           <div className="flex items-center justify-between border-b border-border pb-4">
-            <div className="font-display font-semibold">Executive Summary</div>
+            <div className="font-display font-semibold">{t("landing.sampleExecSummary")}</div>
             <Badge tone="warn"><span className="num">79</span> / 100</Badge>
           </div>
           <p className="mt-4 text-sm leading-relaxed text-muted">
-            A subscription meal-prep service targeting time-poor Austin professionals scores{" "}
-            <strong className="text-ink">79/100 — Feasible</strong>. Strong unit economics
-            (38% margin, 5-month break-even) and a growing market offset moderate competitive
-            intensity. Recommendation:{" "}
-            <strong className="text-warn">GO, with conditions</strong> — validate demand with a
-            design-partner cohort before scaling spend.
+            {t("landing.sampleBody1")}{" "}
+            <strong className="text-ink">{t("landing.sampleBody2")}</strong>
+            {t("landing.sampleBody3")}{" "}
+            <strong className="text-warn">{t("landing.sampleBody4")}</strong>{" "}
+            {t("landing.sampleBody5")}
           </p>
           <div className="mt-5 grid grid-cols-2 gap-3">
-            {[
-              ["Top strength", "Solid financial projections"],
-              ["Watch-out", "Incumbent price response"],
-              ["Market timing", "Growing"],
-              ["Startup capital", "$252,000"],
-            ].map(([k, v]) => (
+            {stats.map(([k, v]) => (
               <div key={k} className="rounded-xl bg-surface-2 p-3">
                 <div className="text-[0.7rem] text-faint">{k}</div>
                 <div className="text-sm font-semibold">{v}</div>
@@ -263,21 +260,19 @@ function SampleReport() {
 }
 
 function Pricing() {
+  const t = useT();
   return (
     <section id="pricing" className="border-y border-border/60 bg-surface-2/40 py-16 sm:py-24">
       <Container>
         <div className="mx-auto max-w-2xl text-center">
-          <div className="flex justify-center"><Eyebrow>Pricing</Eyebrow></div>
-          <h2 className="font-display mt-4 text-3xl font-semibold tracking-tight sm:text-4xl">Start free. Scale on credits.</h2>
-          <p className="mt-4 leading-relaxed text-muted">
-            Every analysis costs one credit. New accounts get free credits on approval. Power users
-            can plug in their own AI key and run at cost.
-          </p>
+          <div className="flex justify-center"><Eyebrow>{t("landing.pricingEyebrow")}</Eyebrow></div>
+          <h2 className="font-display mt-4 text-3xl font-semibold tracking-tight sm:text-4xl">{t("landing.pricingTitle")}</h2>
+          <p className="mt-4 leading-relaxed text-muted">{t("landing.pricingBody")}</p>
         </div>
         <div className="mx-auto mt-12 grid max-w-4xl gap-5 md:grid-cols-3">
-          <PlanCard name="Starter" price="Free" note="On approval" features={["3 free reports", "Full 8-dimension analysis", "PDF download"]} />
-          <PlanCard name="Credits" price="Pay as you go" note="Top up anytime" highlight features={["Buy report packs", "Priority processing", "Shareable report links"]} />
-          <PlanCard name="Bring your own key" price="At cost" note="Power users" features={["Use your own AI key", "No per-report credit", "Higher rate limits"]} />
+          <PlanCard name={t("landing.planStarter")} price={t("landing.planStarterPrice")} note={t("landing.planStarterNote")} features={[t("landing.f.freeReports"), t("landing.f.fullAnalysis"), t("landing.f.pdfDownload")]} />
+          <PlanCard name={t("landing.planCredits")} price={t("landing.planCreditsPrice")} note={t("landing.planCreditsNote")} highlight features={[t("landing.f.buyPacks"), t("landing.f.priority"), t("landing.f.shareLinks")]} />
+          <PlanCard name={t("landing.planByok")} price={t("landing.planByokPrice")} note={t("landing.planByokNote")} features={[t("landing.f.ownKey"), t("landing.f.noCredit"), t("landing.f.higherLimits")]} />
         </div>
       </Container>
     </section>
@@ -297,9 +292,10 @@ function PlanCard({
   features: string[];
   highlight?: boolean;
 }) {
+  const t = useT();
   return (
     <div className={`card p-6 ${highlight ? "ring-2 ring-brand shadow-lift" : ""}`}>
-      {highlight && <Badge tone="go" className="mb-3">Most popular</Badge>}
+      {highlight && <Badge tone="go" className="mb-3">{t("landing.mostPopular")}</Badge>}
       <div className="text-sm text-muted">{name}</div>
       <div className="font-display mt-1 text-2xl font-semibold">{price}</div>
       <div className="text-xs text-faint">{note}</div>
@@ -311,25 +307,26 @@ function PlanCard({
         ))}
       </ul>
       <div className="mt-6">
-        <Button href="/signup" variant={highlight ? "primary" : "ghost"} className="w-full">Get started</Button>
+        <Button href="/signup" variant={highlight ? "primary" : "ghost"} className="w-full">{t("nav.getStarted")}</Button>
       </div>
     </div>
   );
 }
 
 function FAQ() {
-  const faqs = [
-    ["How accurate is the analysis?", "Financials are computed deterministically from your inputs; the qualitative analysis is researched by specialist AI agents and every claim is cited. It's a decision aid, not a guarantee."],
-    ["Do I need my own AI key?", "No. Accounts run on our platform key with free credits. If you're a heavy user, you can add your own key in settings and run at cost with higher limits."],
-    ["Why do I need to be approved?", "To keep quality high and prevent abuse, new accounts are reviewed by an admin before they can run analyses. You'll be notified the moment you're approved."],
-    ["What do I get at the end?", "An interactive scorecard plus a downloadable, professionally formatted PDF report you can share with partners, investors or lenders."],
+  const t = useT();
+  const faqs: [string, string][] = [
+    [t("landing.faqQ1"), t("landing.faqA1")],
+    [t("landing.faqQ2"), t("landing.faqA2")],
+    [t("landing.faqQ3"), t("landing.faqA3")],
+    [t("landing.faqQ4"), t("landing.faqA4")],
   ];
   return (
     <section id="faq" className="py-16 sm:py-24">
       <Container className="max-w-3xl">
         <div className="text-center">
-          <div className="flex justify-center"><Eyebrow>FAQ</Eyebrow></div>
-          <h2 className="font-display mt-4 text-3xl font-semibold tracking-tight sm:text-4xl">Questions, answered</h2>
+          <div className="flex justify-center"><Eyebrow>{t("landing.faqEyebrow")}</Eyebrow></div>
+          <h2 className="font-display mt-4 text-3xl font-semibold tracking-tight sm:text-4xl">{t("landing.faqTitle")}</h2>
         </div>
         <div className="mt-10 divide-y divide-border">
           {faqs.map(([q, a]) => (
@@ -348,16 +345,17 @@ function FAQ() {
 }
 
 function Footer() {
+  const t = useT();
   return (
     <footer className="border-t border-border py-10">
       <Container className="flex flex-col items-center justify-between gap-4 sm:flex-row">
         <div className="flex items-center gap-2 text-sm text-muted">
-          <Mark className="h-6 w-6" /> FeasibilityAI
+          <Mark className="h-6 w-6" /> {t("common.appName")}
         </div>
-        <p className="text-xs text-faint">© {new Date().getFullYear()} FeasibilityAI · Concept build</p>
+        <p className="text-xs text-faint">© {new Date().getFullYear()} {t("common.appName")} · {t("landing.footerNote")}</p>
         <div className="flex gap-5 text-sm text-muted">
-          <Link href="/login" className="hover:text-ink">Log in</Link>
-          <Link href="/signup" className="hover:text-ink">Get started</Link>
+          <Link href="/login" className="hover:text-ink">{t("nav.logIn")}</Link>
+          <Link href="/signup" className="hover:text-ink">{t("nav.getStarted")}</Link>
         </div>
       </Container>
     </footer>

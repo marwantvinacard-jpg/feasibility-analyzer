@@ -89,6 +89,20 @@ body {
   letter-spacing: -0.01em;
 }
 
+/* Arabic UI: neither Inter nor Fraunces (the display serif) cover Arabic
+   script, so both fall back to the Arabic-native font when the page is RTL.
+   Numbers/currency stay LTR inside RTL text via .num (see kit usage). */
+[dir="rtl"] body,
+[dir="rtl"] .font-display {
+  font-family: var(--font-sans-ar), var(--font-sans), system-ui, sans-serif;
+  letter-spacing: 0;
+}
+[dir="rtl"] .num {
+  direction: ltr;
+  unicode-bidi: isolate;
+  display: inline-block;
+}
+
 /* Editorial paper backdrop: warm wash + faint ruling, theme-aware. */
 .bg-paper-glow {
   background-image:

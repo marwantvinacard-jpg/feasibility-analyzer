@@ -12,8 +12,9 @@ import { runFeasibility } from "@/lib/engine/runFeasibility";
 import { createLlm } from "@/lib/engine/factory";
 import { SerpApiProvider } from "@/lib/engine/search";
 import { adminDb } from "@/lib/firebase/admin";
-import { requireUser, HttpError } from "@/lib/firebase/verify";
+import { requireUser, HttpError, type Caller } from "@/lib/firebase/verify";
 import { logAudit } from "@/lib/firebase/audit";
+import { withTrainingLog, type TrainingEntry } from "@/lib/engine/trainingLog";
 import { SIX_STAGES, type BusinessInput, type StageName, type StageStatus } from "@/lib/engine/types";
 
 export const runtime = "nodejs";
@@ -23,7 +24,7 @@ const initialStages = () =>
   Object.fromEntries(SIX_STAGES.map((s) => [s, "pending"])) as Record<StageName, StageStatus>;
 
 export async function POST(req: Request) {
-  let caller;
+  let caller: Caller;
   try {
     caller = await requireUser(req);
   } catch (err) {
@@ -70,9 +71,28 @@ export async function POST(req: Request) {
   });
   await logAudit({ uid: caller.uid, email: caller.email, action: "analysis.run", target: id, meta: { business_idea: input.business_idea } });
 
-  const llm = createLlm();
+  const baseLlm = createLlm();
+  const trainingEntries: TrainingEntry[] = [];
+  // Every raw prompt->completion pair the model produces for this run, captured
+  // so a later fine-tune (e.g. onto a small local model) has real input/output
+  // pairs to train on — not just the final structured result.
+  const llm = withTrainingLog(baseLlm, (e) => trainingEntries.push(e));
   const search = new SerpApiProvider({ mock: llm.mock || !process.env.SERPAPI_API_KEY });
   const encoder = new TextEncoder();
+
+  async function saveTrainingData() {
+    if (trainingEntries.length === 0) return;
+    try {
+      const batch = db.batch();
+      for (const entry of trainingEntries) {
+        const doc = db.collection("trainingData").doc();
+        batch.set(doc, { analysisId: id, uid: caller.uid, ...entry });
+      }
+      await batch.commit();
+    } catch {
+      /* training data capture is best-effort — never fails the analysis */
+    }
+  }
 
   const stream = new ReadableStream({
     async start(controller) {
@@ -94,11 +114,13 @@ export async function POST(req: Request) {
         });
         await ref.update({ status: "complete", result, stageStatus });
         send("done", { analysisId: id });
+        await saveTrainingData();
       } catch (err) {
         const message = err instanceof Error ? err.message : "Analysis failed";
         await Promise.allSettled([
           ref.update({ status: "failed", error: message }),
           charged ? userRef.update({ credits: FieldValue.increment(1) }) : Promise.resolve(),
+          saveTrainingData(),
         ]);
         send("error", { message });
       } finally {

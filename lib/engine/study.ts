@@ -12,6 +12,7 @@
 
 import { z } from "zod";
 import type { LlmProvider } from "./provider";
+import { languageBlock } from "./specialists";
 import type { FinancialModel } from "./financialModel";
 import { buildProjections, type Projections } from "./projections";
 import type { BusinessInput, RiskScoring, StageResults } from "./types";
@@ -111,7 +112,8 @@ export async function generateStudy(
     `MARKET FINDINGS: ${JSON.stringify(ctx.stages.market ?? {})}\n` +
     `COMPETITIVE FINDINGS: ${JSON.stringify(ctx.stages.competitive ?? {})}\n` +
     `LOCATION & LEGAL FINDINGS: ${JSON.stringify(ctx.stages.location ?? {})}\n` +
-    `RISK REGISTER: ${JSON.stringify(ctx.riskScoring.rankedRisks.slice(0, 8))}`;
+    `RISK REGISTER: ${JSON.stringify(ctx.riskScoring.rankedRisks.slice(0, 8))}` +
+    languageBlock(ctx.input);
 
   const { data, tokensIn, tokensOut } = await llm.structured<StudyNarrative>({
     system: STUDY_PROMPT,

@@ -81,6 +81,16 @@ const protocolBlock = (input: BusinessInput) =>
     ? `\n\nThe applicant requested this study emphasize or follow: "${input.study_protocol.trim()}". Honor this in your ANALYSIS AND NARRATIVE where it doesn't conflict with the instructions above — never change the required output schema or the scoring rubric to fit it.`
     : "";
 
+const LANGUAGE_NAMES: Record<string, string> = { en: "English", ar: "Arabic", fr: "French" };
+
+/** All free-text fields in the response (reasoning, analysis, recommendations,
+ *  narrative strings) must be written in the applicant's chosen UI language.
+ *  Enum values, keys and numbers are unaffected — only human-readable prose. */
+export const languageBlock = (input: BusinessInput) =>
+  input.report_language && input.report_language !== "en"
+    ? `\n\nWrite every free-text/narrative field in your JSON response in ${LANGUAGE_NAMES[input.report_language]} (not English). Keep enum values, field names and numbers exactly as the schema requires — only human-readable prose changes language.`
+    : "";
+
 /** Generic runner: gather research (if any), call the LLM, validate, capture cost. */
 async function runStage<T>(
   llm: LlmProvider,
@@ -96,7 +106,7 @@ async function runStage<T>(
   try {
     const research =
       stage === "financial" ? { text: "", sources: [] } : await gatherResearch(search, stage, input);
-    const user = `${businessBlock(input)}${knowledgeBlock(input)}${protocolBlock(input)}${extraUser}${research.text}`;
+    const user = `${businessBlock(input)}${knowledgeBlock(input)}${protocolBlock(input)}${languageBlock(input)}${extraUser}${research.text}`;
     const { data, tokensIn, tokensOut } = await llm.structured<T>({
       system,
       user,

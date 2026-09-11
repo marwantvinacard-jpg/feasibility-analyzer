@@ -5,9 +5,11 @@ import { Badge, Button } from "@/components/kit";
 import { Icon } from "@/components/icons";
 import { useSession } from "@/lib/session";
 import { cn } from "@/lib/ui";
+import { useT } from "@/lib/i18n/LanguageContext";
 
 export default function SettingsPage() {
   const { user, setKeyMode } = useSession();
+  const t = useT();
   const [key, setKey] = useState("");
   const [saved, setSaved] = useState(false);
 
@@ -16,71 +18,67 @@ export default function SettingsPage() {
   return (
     <div className="mx-auto max-w-2xl space-y-6">
       <div>
-        <h1 className="font-display text-3xl font-semibold tracking-tight">Settings</h1>
-        <p className="mt-1.5 text-sm text-muted">Manage your profile, AI key, and usage.</p>
+        <h1 className="font-display text-3xl font-semibold tracking-tight">{t("settings.title")}</h1>
+        <p className="mt-1.5 text-sm text-muted">{t("settings.subtitle")}</p>
       </div>
 
       {/* Profile */}
       <section className="card p-5">
-        <h2 className="label">Profile</h2>
+        <h2 className="label">{t("settings.profile")}</h2>
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
-          <Field label="Name" value={user.name} />
-          <Field label="Email" value={user.email} plain />
-          <Field label="Account status" value={user.status} />
-          <Field label="Credits" value={String(user.credits)} />
+          <Field label={t("settings.name")} value={user.name} />
+          <Field label={t("settings.email")} value={user.email} plain />
+          <Field label={t("settings.accountStatus")} value={user.status} />
+          <Field label={t("settings.credits")} value={String(user.credits)} />
         </div>
       </section>
 
       {/* AI key mode */}
       <section className="card p-5">
-        <h2 className="label">AI engine</h2>
-        <p className="mt-1 text-sm text-muted">
-          Run on our platform key (uses credits) or bring your own for higher limits at cost.
-        </p>
+        <h2 className="label">{t("settings.aiEngine")}</h2>
+        <p className="mt-1 text-sm text-muted">{t("settings.aiEngineHint")}</p>
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
           <ModeCard
             active={user.keyMode === "platform"}
-            title="Platform key"
-            desc="Simplest. Each report uses one credit."
+            title={t("settings.platformKeyTitle")}
+            desc={t("settings.platformKeyDesc")}
             onClick={() => setKeyMode("platform")}
           />
           <ModeCard
             active={user.keyMode === "byok"}
-            title="Bring your own key"
-            desc="Use your own AI key. No per-report credit."
+            title={t("settings.byokTitle")}
+            desc={t("settings.byokDesc")}
             onClick={() => setKeyMode("byok")}
           />
         </div>
 
         {user.keyMode === "byok" && (
           <div className="mt-4 rounded-xl border border-border bg-surface-2 p-4">
-            <label className="mb-1.5 block text-sm font-medium">Your API key</label>
+            <label className="mb-1.5 block text-sm font-medium">{t("settings.yourApiKey")}</label>
             <div className="flex gap-2">
               <input
                 className="input font-mono"
                 type="password"
-                placeholder="sk-… or a compatible key"
+                placeholder={t("settings.keyPlaceholder")}
                 value={key}
                 onChange={(e) => { setKey(e.target.value); setSaved(false); }}
               />
-              <Button variant="ghost" onClick={() => setSaved(true)} disabled={key.length < 8}>Save</Button>
+              <Button variant="ghost" onClick={() => setSaved(true)} disabled={key.length < 8}>{t("common.save")}</Button>
             </div>
             <p className="mt-2 text-xs text-faint">
               {saved ? (
                 <span className="inline-flex items-center gap-1 text-go">
-                  <Icon name="check" size={13} strokeWidth={2.5} /> Key saved (concept — encrypted with Cloud KMS in production).
+                  <Icon name="check" size={13} strokeWidth={2.5} /> {t("settings.keySaved")}
                 </span>
               ) : (
-                "Stored encrypted; never shown again. Works with OpenAI, Gemini, Groq, or a local Ollama endpoint."
+                t("settings.keyStoredHint")
               )}
             </p>
           </div>
         )}
       </section>
 
-      <p className="text-center text-xs text-faint">
-        Concept build · authentication & billing are wired at the Firebase step.
-      </p>
+      <p className="text-center text-xs text-faint">{t("settings.footerNote")}</p>
     </div>
   );
 }
@@ -95,6 +93,7 @@ function Field({ label, value, plain }: { label: string; value: string; plain?: 
 }
 
 function ModeCard({ active, title, desc, onClick }: { active: boolean; title: string; desc: string; onClick: () => void }) {
+  const t = useT();
   return (
     <button
       onClick={onClick}
@@ -105,7 +104,7 @@ function ModeCard({ active, title, desc, onClick }: { active: boolean; title: st
     >
       <div className="flex items-center justify-between">
         <span className="font-semibold">{title}</span>
-        {active && <Badge tone="go">Active</Badge>}
+        {active && <Badge tone="go">{t("settings.active")}</Badge>}
       </div>
       <p className="mt-1 text-xs text-muted">{desc}</p>
     </button>

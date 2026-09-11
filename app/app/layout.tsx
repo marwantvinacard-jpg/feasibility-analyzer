@@ -6,19 +6,22 @@ import Link from "next/link";
 import { Logo } from "@/components/Brand";
 import { Badge } from "@/components/kit";
 import { Icon, type IconName } from "@/components/icons";
+import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { useSession } from "@/lib/session";
+import { useT } from "@/lib/i18n/LanguageContext";
 import { cn } from "@/lib/ui";
-
-const NAV: { href: string; label: string; icon: IconName }[] = [
-  { href: "/app", label: "Dashboard", icon: "grid" },
-  { href: "/app/new", label: "New analysis", icon: "plus" },
-  { href: "/app/settings", label: "Settings", icon: "sliders" },
-];
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { ready, user, logout } = useSession();
   const router = useRouter();
   const pathname = usePathname();
+  const t = useT();
+
+  const NAV: { href: string; label: string; icon: IconName }[] = [
+    { href: "/app", label: t("nav.dashboard"), icon: "grid" },
+    { href: "/app/new", label: t("nav.newAnalysis"), icon: "plus" },
+    { href: "/app/settings", label: t("nav.settings"), icon: "sliders" },
+  ];
 
   useEffect(() => {
     if (!ready) return;
@@ -29,7 +32,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   if (!ready || !user || user.status !== "approved") {
     return (
       <div className="grid min-h-dvh place-items-center text-sm text-muted">
-        <div className="animate-pulse">Loading…</div>
+        <div className="animate-pulse">{t("common.loading")}</div>
       </div>
     );
   }
@@ -58,14 +61,15 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           })}
           {user.role === "admin" && (
             <Link href="/admin" className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-muted transition hover:bg-surface-2 hover:text-ink">
-              <Icon name="star" size={18} /> Admin panel
+              <Icon name="star" size={18} /> {t("nav.admin")}
             </Link>
           )}
         </nav>
 
         <div className="mt-auto space-y-3">
+          <LanguageSwitcher className="w-full [&>button]:w-full [&>button]:justify-center" />
           <div className="rounded-xl border border-border bg-surface-2 p-3.5">
-            <div className="label">Credits remaining</div>
+            <div className="label">{t("dashboard.creditsRemaining")}</div>
             <div className="num mt-1 text-2xl font-semibold text-brand">{user.credits}</div>
           </div>
           <div className="flex items-center justify-between gap-2 px-1">
@@ -86,7 +90,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <div className="flex flex-col">
         <header className="flex items-center justify-between border-b border-border px-5 py-3 md:hidden">
           <Logo href="/app" />
-          <Badge tone="go"><span className="num">{user.credits}</span> credits</Badge>
+          <div className="flex items-center gap-2">
+            <LanguageSwitcher />
+            <Badge tone="go"><span className="num">{user.credits}</span> {t("common.credits")}</Badge>
+          </div>
         </header>
         <main className="flex-1 px-5 py-6 sm:px-8 sm:py-9">{children}</main>
       </div>

@@ -14,23 +14,30 @@ export interface GreetingCopy {
   subtitle: string;
 }
 
-export function dashboardGreeting(firstName: string, isFirstSession: boolean, hasAnalyses: boolean): GreetingCopy {
+type Translate = (key: string, vars?: Record<string, string | number>) => string;
+
+export function dashboardGreeting(
+  firstName: string,
+  isFirstSession: boolean,
+  hasAnalyses: boolean,
+  t: Translate
+): GreetingCopy {
   if (isFirstSession) {
     return {
-      headline: `Welcome, ${firstName}`,
-      subtitle: "I'm ready when you are — describe a business idea and I'll run the full feasibility study.",
+      headline: t("greeting.welcome", { name: firstName }),
+      subtitle: t("greeting.firstSession"),
     };
   }
   const tod = timeOfDay();
-  const greet = tod === "morning" ? "Good morning" : tod === "afternoon" ? "Good afternoon" : "Good evening";
+  const greet = t(`greeting.${tod}`);
   if (!hasAnalyses) {
     return {
-      headline: `${greet}, ${firstName}`,
-      subtitle: "Welcome back — how can I help? Run your first analysis whenever you're ready.",
+      headline: t("greeting.returning", { greet, name: firstName }),
+      subtitle: t("greeting.noAnalysesYet"),
     };
   }
   return {
-    headline: `Welcome back, ${firstName}`,
-    subtitle: `${greet}! Start a new analysis, or pick up a report you've already run.`,
+    headline: t("greeting.welcomeBack", { name: firstName }),
+    subtitle: t("greeting.hasAnalyses", { greet }),
   };
 }

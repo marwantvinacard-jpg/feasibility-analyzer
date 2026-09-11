@@ -92,5 +92,12 @@ service cloud.firestore {
       allow read: if isAdmin();
       allow write: if false; // server only, via lib/firebase/audit.ts
     }
+
+    // --- raw LLM prompt/completion pairs, captured for a future fine-tune —
+    // admin-only read (this is training data, not user-facing), server-only write.
+    match /trainingData/{entry} {
+      allow read: if isAdmin();
+      allow write: if false; // server only, via lib/engine/trainingLog.ts
+    }
   }
 }

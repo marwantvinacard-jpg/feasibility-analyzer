@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Inter, Fraunces, JetBrains_Mono } from "next/font/google";
+import { Inter, Fraunces, JetBrains_Mono, Noto_Sans_Arabic } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
 
@@ -11,6 +11,9 @@ const fraunces = Fraunces({
   axes: ["opsz", "SOFT"],
 });
 const jetbrains = JetBrains_Mono({ subsets: ["latin"], variable: "--font-mono", display: "swap" });
+// Arabic script isn't covered by Inter/Fraunces — this covers body + display
+// text when the UI switches to Arabic (see globals.css [dir="rtl"] rules).
+const notoArabic = Noto_Sans_Arabic({ subsets: ["arabic"], variable: "--font-sans-ar", display: "swap" });
 
 export const metadata: Metadata = {
   title: "FeasibilityAI — Know if your business idea will work",
@@ -20,7 +23,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${inter.variable} ${fraunces.variable} ${jetbrains.variable}`}>
+    <html lang="en" className={`${inter.variable} ${fraunces.variable} ${jetbrains.variable} ${notoArabic.variable}`}>
       <body>
         <Providers>{children}</Providers>
       </body>

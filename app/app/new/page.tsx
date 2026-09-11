@@ -12,27 +12,27 @@ import { getIdToken } from "@/lib/analyses";
 import { streamAnalyze } from "@/lib/sse";
 import { SIX_STAGES, type BusinessInput, type StageName, type StageStatus } from "@/lib/engine/types";
 import { cn } from "@/lib/ui";
+import { useT, useLanguage } from "@/lib/i18n/LanguageContext";
+import { CURRENCIES, currencySymbol } from "@/lib/currencies";
 
 type FieldKey = keyof BusinessInput;
 
-const TEXT_FIELDS: { key: FieldKey; label: string; placeholder: string; long?: boolean }[] = [
-  { key: "business_idea", label: "Business idea", placeholder: "What is the business, in one or two sentences?", long: true },
-  { key: "target_customer", label: "Target customer", placeholder: "Who exactly will buy this?" },
-  { key: "location", label: "Location", placeholder: "City, Country" },
-  { key: "problem_solved", label: "Problem solved", placeholder: "What pain point does it address?", long: true },
-  { key: "product_service", label: "Product / service", placeholder: "What exactly are you selling?", long: true },
-  { key: "revenue_model", label: "Revenue model", placeholder: "How do you make money? Pricing?" },
-  { key: "competitors", label: "Main competitors", placeholder: "Name the key competitors" },
-  { key: "unique_advantage", label: "Unique advantage", placeholder: "What makes you different / better?", long: true },
-];
+function useTextFields(t: ReturnType<typeof useT>): { key: FieldKey; label: string; placeholder: string; long?: boolean }[] {
+  return [
+    { key: "business_idea", label: t("newA.businessIdea"), placeholder: t("newA.bizIdeaPh"), long: true },
+    { key: "target_customer", label: t("newA.targetCustomer"), placeholder: t("newA.targetCustomerPh") },
+    { key: "location", label: t("newA.location"), placeholder: t("newA.locationPh") },
+    { key: "problem_solved", label: t("newA.problemSolved"), placeholder: t("newA.problemPh"), long: true },
+    { key: "product_service", label: t("newA.productService"), placeholder: t("newA.productPh"), long: true },
+    { key: "revenue_model", label: t("newA.revenueModel"), placeholder: t("newA.revenuePh") },
+    { key: "competitors", label: t("newA.competitors"), placeholder: t("newA.competitorsPh") },
+    { key: "unique_advantage", label: t("newA.uniqueAdvantage"), placeholder: t("newA.advantagePh"), long: true },
+  ];
+}
 
-const CURRENCIES = [
-  { code: "USD", label: "US Dollar" },
-  { code: "SAR", label: "Saudi Riyal" },
-  { code: "TND", label: "Tunisian Dinar" },
-  { code: "AED", label: "UAE Dirham" },
-  { code: "EUR", label: "Euro" },
-  { code: "GBP", label: "Pound Sterling" },
+const TEXT_FIELDS_KEYS: FieldKey[] = [
+  "business_idea", "target_customer", "location", "problem_solved",
+  "product_service", "revenue_model", "competitors", "unique_advantage",
 ];
 
 const emptyInput: BusinessInput = {
@@ -41,12 +41,15 @@ const emptyInput: BusinessInput = {
 };
 
 const FILLED = (v: unknown) => (typeof v === "number" ? v > 0 : String(v ?? "").trim().length > 2);
-const KEYS: FieldKey[] = [...TEXT_FIELDS.map((f) => f.key), "monthly_cost", "monthly_revenue"];
+const KEYS: FieldKey[] = [...TEXT_FIELDS_KEYS, "monthly_cost", "monthly_revenue"];
 const initialStages = () => Object.fromEntries(SIX_STAGES.map((s) => [s, "pending"])) as Record<StageName, StageStatus>;
 
 export default function NewAnalysis() {
   const { user } = useSession();
   const router = useRouter();
+  const t = useT();
+  const { lang } = useLanguage();
+  const TEXT_FIELDS = useTextFields(t);
 
   const [input, setInput] = useState<BusinessInput>(emptyInput);
   const [describe, setDescribe] = useState("");
@@ -123,11 +126,11 @@ export default function NewAnalysis() {
   async function run() {
     setError("");
     if (completeness < 100) {
-      setError(`Please fill all 10 fields for an accurate report. Missing ${missing.length}.`);
+      setError(t("newA.errMissing", { n: missing.length }));
       return;
     }
     if (user!.credits < 1) {
-      setError("You're out of credits. Ask an admin to add more, or contact support.");
+      setError(t("newA.errNoCredits"));
       return;
     }
     setPhase("running");
@@ -144,6 +147,7 @@ export default function NewAnalysis() {
           capex_budget: Number(input.capex_budget) > 0 ? Number(input.capex_budget) : undefined,
           funding_preference: input.funding_preference?.trim() || undefined,
           knowledge_base: knowledgeBase || undefined,
+          report_language: lang,
         },
         token,
         {
@@ -176,24 +180,24 @@ export default function NewAnalysis() {
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <div>
-        <h1 className="font-display text-3xl font-semibold tracking-tight">Let's size up your idea, {user.name.split(" ")[0]}</h1>
-        <p className="mt-1.5 text-sm text-muted">Fill the 10 fields below — or describe your idea and let AI pre-fill them.</p>
+        <h1 className="font-display text-3xl font-semibold tracking-tight">{t("newA.greeting", { name: user.name.split(" ")[0] })}</h1>
+        <p className="mt-1.5 text-sm text-muted">{t("newA.formHint")}</p>
       </div>
 
       <div className="card p-5">
         <div className="flex items-center gap-2">
-          <Badge tone="go"><Icon name="spark" size={13} /> AI pre-fill</Badge>
-          <span className="text-sm text-muted">Paste a paragraph about your business</span>
+          <Badge tone="go"><Icon name="spark" size={13} /> {t("newA.aiPrefillBadge")}</Badge>
+          <span className="text-sm text-muted">{t("newA.pasteHint")}</span>
         </div>
         <textarea
           className="input mt-3 min-h-[90px] resize-y"
-          placeholder="e.g. We're launching a subscription meal-prep service in Austin for busy professionals. $89/week for 5 dinners. Costs about $42k/month, expecting $68k/month revenue…"
+          placeholder={t("newA.describePlaceholder")}
           value={describe}
           onChange={(e) => setDescribe(e.target.value)}
         />
         <div className="mt-3 flex items-center gap-3">
           <Button variant="ghost" onClick={prefill} disabled={prefilling || describe.trim().length < 8}>
-            {prefilling ? "Reading…" : <>Pre-fill fields <Icon name="arrow" size={16} /></>}
+            {prefilling ? t("newA.reading") : <>{t("newA.prefillBtn")} <Icon name="arrow" size={16} /></>}
           </Button>
           {prefillNote && <span className="text-xs text-muted">{prefillNote}</span>}
         </div>
@@ -201,8 +205,8 @@ export default function NewAnalysis() {
 
       <div className="card p-5">
         <div className="flex items-center gap-2">
-          <Badge tone="go"><Icon name="doc" size={13} /> Knowledge base</Badge>
-          <span className="text-sm text-muted">Optional — attach PDFs, Word, Excel or text for a sharper analysis</span>
+          <Badge tone="go"><Icon name="doc" size={13} /> {t("newA.kbBadge")}</Badge>
+          <span className="text-sm text-muted">{t("newA.kbHint")}</span>
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-3">
           <button
@@ -211,7 +215,7 @@ export default function NewAnalysis() {
             disabled={ingesting}
             className="btn btn-ghost text-sm"
           >
-            <Icon name="plus" size={15} /> {ingesting ? "Reading…" : "Add files"}
+            <Icon name="plus" size={15} /> {ingesting ? t("newA.reading") : t("newA.addFiles")}
           </button>
           <input
             ref={fileRef}
@@ -241,7 +245,7 @@ export default function NewAnalysis() {
         )}
         {docs.length > 0 && (
           <p className="mt-2 text-xs text-faint">
-            {(knowledgeBase.length / 1000).toFixed(1)}k characters will be attached to every specialist prompt.
+            {t("newA.willAttach", { k: (knowledgeBase.length / 1000).toFixed(1) })}
           </p>
         )}
       </div>
@@ -249,14 +253,14 @@ export default function NewAnalysis() {
       <div className="card flex items-center gap-4 p-4">
         <div className="flex-1">
           <div className="mb-1 flex justify-between text-xs">
-            <span className="font-medium">Completeness</span>
+            <span className="font-medium">{t("newA.completenessLabel")}</span>
             <span className="num text-muted">{completeness}%</span>
           </div>
           <div className="h-2 w-full overflow-hidden rounded-full bg-border/60">
             <div className={cn("h-full rounded-full transition-all", completeness === 100 ? "bg-go" : "bg-brand")} style={{ width: `${completeness}%` }} />
           </div>
         </div>
-        <Badge tone={completeness === 100 ? "go" : "warn"}>{filledCount}/10 fields</Badge>
+        <Badge tone={completeness === 100 ? "go" : "warn"}>{t("newA.fieldsCount", { n: filledCount })}</Badge>
       </div>
 
       <div className="card space-y-5 p-5 sm:p-6">
@@ -274,86 +278,80 @@ export default function NewAnalysis() {
               )}
             </div>
           ))}
-          <NumberField label="Monthly operating cost" value={input.monthly_cost} onChange={(n) => set("monthly_cost", n)} currency={input.currency} />
-          <NumberField label="Expected monthly revenue" value={input.monthly_revenue} onChange={(n) => set("monthly_revenue", n)} currency={input.currency} />
+          <NumberField label={t("newA.monthlyCost")} value={input.monthly_cost} onChange={(n) => set("monthly_cost", n)} currency={input.currency} />
+          <NumberField label={t("newA.monthlyRevenue")} value={input.monthly_revenue} onChange={(n) => set("monthly_revenue", n)} currency={input.currency} />
         </div>
-        <p className="text-xs text-faint">
-          Monthly operating cost should be your <em>total</em> monthly cost, including direct/cost-of-sales — the
-          financial study splits it into COGS and operating expenses.
-        </p>
+        <p className="text-xs text-faint">{t("newA.costHint")}</p>
       </div>
 
       <details className="card group p-5">
         <summary className="flex cursor-pointer list-none items-center justify-between">
           <span className="flex items-center gap-2 text-sm font-medium">
             <Icon name="financial" size={16} className="text-brand" />
-            Financial study options
-            <span className="text-xs font-normal text-faint">optional · sensible defaults</span>
+            {t("newA.financialOptions")}
+            <span className="text-xs font-normal text-faint">{t("newA.optionalDefaults")}</span>
           </span>
           <Icon name="chevron" size={16} className="text-faint transition group-open:rotate-180" />
         </summary>
         <div className="mt-4 grid gap-5 sm:grid-cols-2">
           <div>
-            <label className="mb-1.5 block text-sm font-medium">Industry</label>
+            <label className="mb-1.5 block text-sm font-medium">{t("newA.industry")}</label>
             <select className="input" value={input.business_type ?? ""} onChange={(e) => set("business_type", e.target.value as never)}>
-              <option value="">General / not listed</option>
+              <option value="">{t("newA.generalNotListed")}</option>
               {VERTICALS.map((v) => (
                 <option key={v.key} value={v.key}>{v.label}</option>
               ))}
             </select>
-            <p className="mt-1 text-xs text-faint">Steers CapEx/OpEx categories and revenue units toward what's realistic for this industry.</p>
+            <p className="mt-1 text-xs text-faint">{t("newA.industryHint")}</p>
           </div>
           <div>
-            <label className="mb-1.5 block text-sm font-medium">Currency</label>
+            <label className="mb-1.5 block text-sm font-medium">{t("newA.currency")}</label>
             <select
               className="input"
               value={input.currency ?? "USD"}
               onChange={(e) => set("currency", e.target.value)}
             >
               {CURRENCIES.map((c) => (
-                <option key={c.code} value={c.code}>{c.code} — {c.label}</option>
+                <option key={c.code} value={c.code}>{c.code} — {c.name}{c.symbol ? ` (${c.symbol})` : ""}</option>
               ))}
             </select>
           </div>
           <div>
-            <label className="mb-1.5 block text-sm font-medium">Projection horizon</label>
+            <label className="mb-1.5 block text-sm font-medium">{t("newA.projectionYears")}</label>
             <select
               className="input"
               value={input.projection_years ?? 5}
               onChange={(e) => set("projection_years", Number(e.target.value))}
             >
               {[3, 4, 5].map((y) => (
-                <option key={y} value={y}>{y} years</option>
+                <option key={y} value={y}>{t("newA.years", { n: y })}</option>
               ))}
             </select>
           </div>
           <NumberField
-            label="Known setup budget"
+            label={t("newA.capexBudget")}
             value={input.capex_budget ?? 0}
             onChange={(n) => set("capex_budget", n)}
             currency={input.currency}
           />
           <div>
-            <label className="mb-1.5 block text-sm font-medium">Preferred funding mix</label>
+            <label className="mb-1.5 block text-sm font-medium">{t("newA.fundingMixLabel")}</label>
             <input
               className="input"
-              placeholder="e.g. 60% equity, 40% bank loan"
+              placeholder={t("newA.fundingMixPlaceholder")}
               value={input.funding_preference ?? ""}
               onChange={(e) => set("funding_preference", e.target.value)}
             />
           </div>
           <div className="sm:col-span-2">
-            <label className="mb-1.5 block text-sm font-medium">Study protocol / instructions</label>
+            <label className="mb-1.5 block text-sm font-medium">{t("newA.protocolLabel")}</label>
             <textarea
               className="input min-h-[70px] resize-y"
-              placeholder='Optional — e.g. "Follow an SBA-style feasibility study format", "weight legal and regulatory risk heavily", "assume a lean bootstrap approach with no outside funding"'
+              placeholder={t("newA.protocolPlaceholder")}
               value={input.study_protocol ?? ""}
               onChange={(e) => set("study_protocol", e.target.value)}
             />
-            <p className="mt-1 text-xs text-faint">
-              Tell the analysis how you want it approached. It steers the narrative and emphasis — it never
-              changes the scoring rules or how the numbers are computed.
-            </p>
+            <p className="mt-1 text-xs text-faint">{t("newA.protocolHint")}</p>
           </div>
         </div>
       </details>
@@ -361,8 +359,8 @@ export default function NewAnalysis() {
       {error && <p className="text-sm text-stop">{error}</p>}
 
       <div className="flex items-center justify-between">
-        <p className="text-xs text-faint">Costs 1 credit · <span className="num">{user.credits}</span> remaining</p>
-        <Button onClick={run} disabled={completeness < 100}>Run analysis <Icon name="arrow" size={18} /></Button>
+        <p className="text-xs text-faint">{t("newA.costCredits", { n: user.credits })}</p>
+        <Button onClick={run} disabled={completeness < 100}>{t("newA.run")} <Icon name="arrow" size={18} /></Button>
       </div>
     </div>
   );
@@ -376,8 +374,8 @@ function NumberField({ label, value, onChange, currency }: { label: string; valu
         {value > 0 && <Icon name="check" size={14} className="text-go" strokeWidth={2.5} />}
       </label>
       <div className="relative">
-        <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-faint">{currency === "USD" ? "$" : currency}</span>
-        <input className="input pl-7" type="number" min={0} placeholder="0" value={value || ""} onChange={(e) => onChange(Number(e.target.value))} />
+        <span className="pointer-events-none absolute start-3 top-1/2 -translate-y-1/2 text-sm text-faint">{currencySymbol(currency)}</span>
+        <input className="input ps-7" type="number" min={0} placeholder="0" value={value || ""} onChange={(e) => onChange(Number(e.target.value))} />
       </div>
     </div>
   );

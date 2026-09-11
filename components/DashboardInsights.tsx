@@ -9,8 +9,10 @@ import { DIMENSION_META, cn, scoreTone, toneStroke, verdictTone, money, type Ton
 import type { AnalysisDoc } from "@/lib/analysisTypes";
 import type { CategoryScores } from "@/lib/engine/types";
 import { Icon } from "@/components/icons";
+import { useT } from "@/lib/i18n/LanguageContext";
 
 export function DashboardInsights({ items }: { items: AnalysisDoc[] }) {
+  const t = useT();
   const completed = items.filter((a) => a.status === "complete" && a.result);
   if (completed.length === 0) return null;
 
@@ -31,24 +33,24 @@ export function DashboardInsights({ items }: { items: AnalysisDoc[] }) {
     <div className="grid gap-4 lg:grid-cols-5">
       <div className="card p-5 lg:col-span-3">
         <div className="flex items-center justify-between">
-          <h3 className="label">Score trend</h3>
+          <h3 className="label">{t("dashboard.scoreTrend")}</h3>
           <span className="text-xs text-faint">
-            Avg <span className="num font-semibold text-ink">{avgScore}</span>/100 across {completed.length} {completed.length === 1 ? "study" : "studies"}
+            {t("dashboard.avgAcross", { avg: avgScore, count: completed.length })}
           </span>
         </div>
         <ScoreTrend items={trend} />
       </div>
 
       <div className="card p-5 lg:col-span-2">
-        <h3 className="label">Verdict mix</h3>
+        <h3 className="label">{t("dashboard.verdictMix")}</h3>
         <VerdictBar counts={verdictCounts} total={completed.length} />
         {capitalFigures.length > 0 && (
           <div className="mt-4 border-t border-border pt-4">
-            <div className="label">Capital modeled</div>
+            <div className="label">{t("dashboard.capitalModeled")}</div>
             <div className="num mt-1 text-lg font-semibold">
               {money(capitalFigures.reduce((s, v) => s + v, 0))}
             </div>
-            <div className="mt-0.5 text-xs text-faint">across {capitalFigures.length} full financial studies</div>
+            <div className="mt-0.5 text-xs text-faint">{t("dashboard.acrossStudies", { count: capitalFigures.length })}</div>
           </div>
         )}
       </div>
@@ -56,7 +58,7 @@ export function DashboardInsights({ items }: { items: AnalysisDoc[] }) {
       {latest.result && (
         <div className="card p-5 lg:col-span-5">
           <div className="flex items-center justify-between">
-            <h3 className="label">Latest study — dimension breakdown</h3>
+            <h3 className="label">{t("dashboard.latestBreakdown")}</h3>
             <span className="truncate text-xs text-faint">{latest.input.business_idea || "Untitled analysis"}</span>
           </div>
           <DimensionBreakdown scores={latest.result.categoryScores} />
@@ -91,10 +93,11 @@ function ScoreTrend({ items }: { items: AnalysisDoc[] }) {
 }
 
 function VerdictBar({ counts, total }: { counts: Record<Tone, number>; total: number }) {
+  const t = useT();
   const segs: { tone: Tone; label: string }[] = [
-    { tone: "go", label: "Go" },
-    { tone: "warn", label: "Conditional" },
-    { tone: "stop", label: "No-go" },
+    { tone: "go", label: t("dashboard.verdictGo") },
+    { tone: "warn", label: t("dashboard.verdictConditional") },
+    { tone: "stop", label: t("dashboard.verdictNoGo") },
   ];
   return (
     <div className="mt-4">
@@ -118,6 +121,7 @@ function VerdictBar({ counts, total }: { counts: Record<Tone, number>; total: nu
 }
 
 function DimensionBreakdown({ scores }: { scores: CategoryScores }) {
+  const t = useT();
   const keys = Object.keys(DIMENSION_META) as (keyof CategoryScores)[];
   return (
     <div className="mt-4 grid gap-2.5 sm:grid-cols-2">
@@ -132,7 +136,7 @@ function DimensionBreakdown({ scores }: { scores: CategoryScores }) {
             </span>
             <div className="min-w-0 flex-1">
               <div className="flex items-center justify-between text-xs">
-                <span className="truncate font-medium text-ink">{meta.label}</span>
+                <span className="truncate font-medium text-ink">{t(`dim.${k}`)}</span>
                 <span className="num ml-2 font-semibold" style={{ color: toneStroke[tone] }}>{score}</span>
               </div>
               <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-surface-2">

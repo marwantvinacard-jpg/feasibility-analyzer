@@ -36,6 +36,9 @@ export interface BusinessInput {
 
   /** Free-text: how the applicant wants the study run (a methodology, a framework to follow, an emphasis). Optional. */
   study_protocol?: string;
+
+  /** UI language the applicant is using — the narrative (report + financial study prose) is written in this language. Defaults to English. */
+  report_language?: "en" | "ar" | "fr";
 }
 
 export const REQUIRED_TEXT_FIELDS = [
