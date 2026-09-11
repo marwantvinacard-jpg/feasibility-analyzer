@@ -337,6 +337,19 @@ export default function NewAnalysis() {
               onChange={(e) => set("funding_preference", e.target.value)}
             />
           </div>
+          <div className="sm:col-span-2">
+            <label className="mb-1.5 block text-sm font-medium">Study protocol / instructions</label>
+            <textarea
+              className="input min-h-[70px] resize-y"
+              placeholder='Optional — e.g. "Follow an SBA-style feasibility study format", "weight legal and regulatory risk heavily", "assume a lean bootstrap approach with no outside funding"'
+              value={input.study_protocol ?? ""}
+              onChange={(e) => set("study_protocol", e.target.value)}
+            />
+            <p className="mt-1 text-xs text-faint">
+              Tell the analysis how you want it approached. It steers the narrative and emphasis — it never
+              changes the scoring rules or how the numbers are computed.
+            </p>
+          </div>
         </div>
       </details>
 

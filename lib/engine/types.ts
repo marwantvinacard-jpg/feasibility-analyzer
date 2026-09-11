@@ -33,6 +33,9 @@ export interface BusinessInput {
 
   /** Industry vertical key (see lib/engine/verticals.ts) — steers CapEx/OpEx/revenue-unit guidance. */
   business_type?: string;
+
+  /** Free-text: how the applicant wants the study run (a methodology, a framework to follow, an emphasis). Optional. */
+  study_protocol?: string;
 }
 
 export const REQUIRED_TEXT_FIELDS = [
@@ -82,15 +85,19 @@ export interface ExtractionResult {
   isComplete: boolean; // completeness >= COMPLETENESS_THRESHOLD
 }
 
-export const SIX_STAGES = [
+export const ALL_STAGES = [
   "market",
   "financial",
   "technical",
   "competitive",
   "location",
+  "operational",
+  "legal",
   "risk",
 ] as const;
-export type StageName = (typeof SIX_STAGES)[number];
+/** @deprecated kept as an alias — the app now scores 8 dimensions, not 6. */
+export const SIX_STAGES = ALL_STAGES;
+export type StageName = (typeof ALL_STAGES)[number];
 
 export type StageStatus = "pending" | "running" | "done" | "failed";
 
@@ -193,12 +200,6 @@ export interface LocationAnalysis {
     suitability_assessment: string;
     target_market_size: string;
   };
-  legal_regulatory: {
-    complexity: "Low" | "Medium" | "High" | "Very High";
-    required_licenses: string[];
-    estimated_time_to_comply: string;
-    legal_risks: string[];
-  };
   economic_environment: {
     economic_trend: "Growing" | "Stable" | "Declining";
     purchasing_power: string;
@@ -211,6 +212,45 @@ export interface LocationAnalysis {
   location_challenges: string[];
   research_sources: string[];
   recommendations: string[];
+}
+
+export interface OperationalAnalysis {
+  staffing_plan: { assessment: string; headcount_adequacy: "Adequate" | "Tight" | "Insufficient"; key_roles_at_risk: string[] };
+  supply_chain: { dependency_level: "Low" | "Medium" | "High"; key_suppliers_needed: string[]; single_points_of_failure: string[] };
+  process_complexity: { score: number; assessment: string }; // 0-10, lower = simpler
+  capacity_vs_demand: { assessment: string; bottlenecks: string[] };
+  operational_risks: { risk: string; severity: "Low" | "Medium" | "High"; mitigation: string }[];
+  operational_feasibility_score: number; // 0-100
+  operational_strengths: string[];
+  operational_challenges: string[];
+  research_sources: string[];
+  recommendations: string[];
+}
+
+export interface LegalAnalysis {
+  required_licenses_permits: { name: string; issuing_authority: string; estimated_time: string; estimated_cost: string }[];
+  regulatory_compliance: { area: string; requirement: string; complexity: "Low" | "Medium" | "High" | "Very High" }[];
+  contracts_and_ip: { assessment: string; ip_protection_needed: string[]; key_contracts_needed: string[] };
+  liability_exposure: { level: "Low" | "Medium" | "High"; assessment: string; insurance_recommended: string[] };
+  employment_law_considerations: string[];
+  data_privacy_considerations: string[];
+  legal_risks: { risk: string; severity: "Low" | "Medium" | "High"; mitigation: string }[];
+  legal_feasibility_score: number; // 0-100
+  research_sources: string[];
+  recommendations: string[];
+}
+
+/** Not scored — informational. Who is affected and how to manage them. */
+export interface StakeholderAnalysis {
+  stakeholders: {
+    group: string; // e.g. "Employees", "Customers", "Investors", "Regulators", "Suppliers", "Community"
+    interest: string;
+    influence: "Low" | "Medium" | "High";
+    impact: "Low" | "Medium" | "High";
+    engagement_strategy: string;
+  }[];
+  key_concerns: string[];
+  summary: string;
 }
 
 /** One row of the risk register — impact & probability drive scoring in code. */
@@ -259,6 +299,8 @@ export interface CategoryScores {
   technical: number;
   competitive: number;
   location: number;
+  operational: number;
+  legal: number;
   risk: number; // already inverted (higher = safer)
 }
 
@@ -276,7 +318,10 @@ export interface StageResults {
   technical?: TechnicalAnalysis;
   competitive?: CompetitiveAnalysis;
   location?: LocationAnalysis;
+  operational?: OperationalAnalysis;
+  legal?: LegalAnalysis;
   risk?: RiskAnalysis;
+  stakeholders?: StakeholderAnalysis;
 }
 
 export interface FeasibilityResult {

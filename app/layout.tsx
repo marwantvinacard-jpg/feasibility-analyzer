@@ -15,7 +15,7 @@ const jetbrains = JetBrains_Mono({ subsets: ["latin"], variable: "--font-mono", 
 export const metadata: Metadata = {
   title: "FeasibilityAI — Know if your business idea will work",
   description:
-    "Turn a business idea into a professional 6-dimension feasibility report — market, financial, technical, competitive, location and risk — with a clear GO / NO-GO verdict.",
+    "Turn a business idea into a professional 8-dimension feasibility report — market, financial, technical, competitive, location, operational, legal and risk — with a clear GO / NO-GO verdict.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

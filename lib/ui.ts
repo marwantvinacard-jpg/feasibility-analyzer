@@ -64,6 +64,8 @@ export const DIMENSION_META: Record<
   financial: { label: "Financial", blurb: "Profit, margin & break-even", icon: "financial" },
   technical: { label: "Technical", blurb: "Execution & scalability", icon: "technical" },
   competitive: { label: "Competitive", blurb: "Rivals & differentiation", icon: "competitive" },
-  location: { label: "Location & Legal", blurb: "Place, economy & rules", icon: "location" },
+  location: { label: "Location", blurb: "Place, economy & infrastructure", icon: "location" },
+  operational: { label: "Operational", blurb: "Staffing, supply chain & capacity", icon: "operational" },
+  legal: { label: "Legal & Regulatory", blurb: "Licensing, compliance & liability", icon: "legal" },
   risk: { label: "Risk", blurb: "What could go wrong", icon: "risk" },
 };

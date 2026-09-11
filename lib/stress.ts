@@ -22,6 +22,8 @@ export interface StressKnobs {
   technical: number;
   competitive: number;
   location: number;
+  operational: number;
+  legal: number;
   /** Financial-model flex, in percent (100 = unchanged). Study only. */
   pricePct: number;
   volumePct: number;
@@ -52,6 +54,8 @@ export function baselineKnobs(r: FullResult): StressKnobs {
     technical: Math.round(r.categoryScores.technical),
     competitive: Math.round(r.categoryScores.competitive),
     location: Math.round(r.categoryScores.location),
+    operational: Math.round(r.categoryScores.operational),
+    legal: Math.round(r.categoryScores.legal),
     pricePct: 100,
     volumePct: 100,
     opexPct: 100,
@@ -77,6 +81,8 @@ export function stressFields(r: FullResult): StressField[] {
     { key: "technical", label: "Technical score", min: 0, max: 100, step: 1, unit: "score", group: "Dimension what-ifs" },
     { key: "competitive", label: "Competitive score", min: 0, max: 100, step: 1, unit: "score", group: "Dimension what-ifs" },
     { key: "location", label: "Location score", min: 0, max: 100, step: 1, unit: "score", group: "Dimension what-ifs" },
+    { key: "operational", label: "Operational score", min: 0, max: 100, step: 1, unit: "score", group: "Dimension what-ifs" },
+    { key: "legal", label: "Legal score", min: 0, max: 100, step: 1, unit: "score", group: "Dimension what-ifs" },
   ];
 
   if (r.study) {
@@ -109,6 +115,8 @@ export function applyStress(r: FullResult, k: StressKnobs): StressOutput {
     technical: clampScore(k.technical),
     competitive: clampScore(k.competitive),
     location: clampScore(k.location),
+    operational: clampScore(k.operational),
+    legal: clampScore(k.legal),
     risk: r.categoryScores.risk, // risk rows aren't a numeric knob here
   };
   const overall = overallAssessment(categoryScores);
@@ -152,8 +160,8 @@ export const VERDICT_BANDS = [
   { min: 0, label: "NOT FEASIBLE", rec: "NO-GO" },
 ] as const;
 
-const WEIGHTS: Record<"market" | "financial" | "technical" | "competitive" | "location" | "risk", number> = {
-  market: 0.25, financial: 0.3, technical: 0.15, competitive: 0.15, location: 0.1, risk: 0.05,
+const WEIGHTS: Record<keyof CategoryScores, number> = {
+  market: 0.18, financial: 0.25, technical: 0.12, competitive: 0.1, location: 0.08, operational: 0.1, legal: 0.12, risk: 0.05,
 };
 
 export interface Lever {
@@ -213,7 +221,7 @@ export function recommend(
   const levers: Lever[] = [];
   if (target) {
     // Dimension what-if levers (market / technical / competitive / location).
-    (["market", "technical", "competitive", "location"] as const).forEach((d) => {
+    (["market", "technical", "competitive", "location", "operational", "legal"] as const).forEach((d) => {
       const w = WEIGHTS[d];
       const room = 100 - live.categoryScores[d];
       const needPts = Math.ceil(gap / w);

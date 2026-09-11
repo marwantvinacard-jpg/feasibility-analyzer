@@ -9,9 +9,12 @@ import type {
   BusinessInput,
   CompetitiveAnalysis,
   FinancialJudgment,
+  LegalAnalysis,
   LocationAnalysis,
   MarketAnalysis,
+  OperationalAnalysis,
   RiskAnalysis,
+  StakeholderAnalysis,
   TechnicalAnalysis,
 } from "./types";
 
@@ -250,12 +253,6 @@ export function mockLocation(input: BusinessInput): LocationAnalysis {
       suitability_assessment: "Good fit for the target market (mock).",
       target_market_size: "Sizeable local demand (mock).",
     },
-    legal_regulatory: {
-      complexity: "Medium",
-      required_licenses: ["Business registration"],
-      estimated_time_to_comply: "4-8 weeks",
-      legal_risks: ["Standard compliance overhead (mock)."],
-    },
     economic_environment: {
       economic_trend: "Growing",
       purchasing_power: "Adequate for the price point (mock).",
@@ -318,5 +315,69 @@ export function mockRisk(_input: BusinessInput): RiskAnalysis {
       },
     ],
     dealbreaker_risks: [],
+  };
+}
+
+export function mockOperational(input: BusinessInput): OperationalAnalysis {
+  return {
+    staffing_plan: {
+      assessment: "Headcount implied by the stated volume looks broadly adequate (mock).",
+      headcount_adequacy: "Adequate",
+      key_roles_at_risk: ["Shift supervisor"],
+    },
+    supply_chain: {
+      dependency_level: "Medium",
+      key_suppliers_needed: ["Primary supplier (mock)"],
+      single_points_of_failure: [],
+    },
+    process_complexity: { score: 4, assessment: "Moderate — a handful of handoffs, no exotic steps (mock)." },
+    capacity_vs_demand: { assessment: "Planned capacity covers stated demand with modest headroom (mock).", bottlenecks: [] },
+    operational_risks: [
+      { risk: "Peak-demand staffing gap", severity: "Medium", mitigation: "Cross-train + on-call roster (mock)." },
+    ],
+    operational_feasibility_score: 72,
+    operational_strengths: ["Simple core process (mock)."],
+    operational_challenges: ["Peak-hour staffing (mock)."],
+    research_sources: [],
+    recommendations: ["Build a cross-training plan before launch (mock)."],
+  };
+}
+
+export function mockLegal(input: BusinessInput): LegalAnalysis {
+  return {
+    required_licenses_permits: [
+      { name: "Business registration", issuing_authority: "Local commerce authority", estimated_time: "2-4 weeks", estimated_cost: "$200-500 (mock)" },
+    ],
+    regulatory_compliance: [
+      { area: "Health & safety", requirement: "Standard workplace compliance", complexity: "Low" },
+    ],
+    contracts_and_ip: {
+      assessment: "Standard contract set needed before opening (mock).",
+      ip_protection_needed: ["Trademark the brand name"],
+      key_contracts_needed: ["Lease", "Supplier agreement", "Employment contracts"],
+    },
+    liability_exposure: { level: "Medium", assessment: "Typical exposure for this business type (mock).", insurance_recommended: ["General liability"] },
+    employment_law_considerations: ["Standard minimum-wage and classification rules apply (mock)."],
+    data_privacy_considerations: ["Basic customer data handling — no special regime triggered (mock)."],
+    legal_risks: [
+      { risk: "Delayed permit approval", severity: "Medium", mitigation: "Apply early, budget a buffer (mock)." },
+    ],
+    legal_feasibility_score: 74,
+    research_sources: [],
+    recommendations: ["Start the licensing process before committing to a lease date (mock)."],
+  };
+}
+
+export function mockStakeholders(input: BusinessInput): StakeholderAnalysis {
+  return {
+    stakeholders: [
+      { group: "Customers", interest: "Reliable, good-value product/service", influence: "High", impact: "High", engagement_strategy: "Early feedback loop, transparent pricing (mock)." },
+      { group: "Employees", interest: "Stable work, fair pay", influence: "Medium", impact: "High", engagement_strategy: "Clear roles, training, growth path (mock)." },
+      { group: "Investors/Funders", interest: "Return on capital, risk visibility", influence: "High", impact: "Medium", engagement_strategy: "Regular reporting against this study's assumptions (mock)." },
+      { group: "Regulators", interest: "Compliance", influence: "Medium", impact: "Low", engagement_strategy: "Proactive licensing, documented compliance (mock)." },
+      { group: "Suppliers/Partners", interest: "Reliable, on-time payment", influence: "Medium", impact: "Medium", engagement_strategy: "Clear terms, backup suppliers (mock)." },
+    ],
+    key_concerns: ["Funding runway before break-even", "Staffing reliability at peak demand"],
+    summary: "The customer and employee relationships matter most in the first 6 months — get onboarding and staffing right before scaling marketing spend (mock).",
   };
 }

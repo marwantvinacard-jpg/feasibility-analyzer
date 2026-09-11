@@ -53,7 +53,7 @@ export class SerpApiProvider implements SearchProvider {
 }
 
 /** Stages that fetch research. The financial model is not a scoring dimension. */
-export type ResearchStage = StageName | "financial_model";
+export type ResearchStage = StageName | "financial_model" | "stakeholders";
 
 /** Stage-specific queries. Kept few + generic so results cache well. */
 function queriesFor(stage: ResearchStage, input: BusinessInput): string[] {
@@ -77,6 +77,10 @@ function queriesFor(stage: ResearchStage, input: BusinessInput): string[] {
       return [`${input.product_service} how to build cost`];
     case "risk":
       return [`${idea} business risks challenges`];
+    case "operational":
+      return [`${idea} staffing requirements ${loc}`, `${input.product_service} supply chain suppliers ${loc}`];
+    case "legal":
+      return [`business license permits requirements ${loc}`, `${idea} regulatory compliance ${loc}`];
     default:
       return [];
   }

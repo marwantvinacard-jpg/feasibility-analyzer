@@ -6,13 +6,15 @@
 import type { FullResult } from "@/lib/engine/runFeasibility";
 import type { StageName } from "@/lib/engine/types";
 
-const ORDER: StageName[] = ["market", "financial", "technical", "competitive", "location", "risk"];
+const ORDER: StageName[] = ["market", "financial", "technical", "competitive", "location", "operational", "legal", "risk"];
 const DIM_LABEL: Record<StageName, string> = {
   market: "Market",
   financial: "Financial",
   technical: "Technical",
   competitive: "Competitive",
-  location: "Location & Legal",
+  location: "Location",
+  operational: "Operational",
+  legal: "Legal & Regulatory",
   risk: "Risk",
 };
 

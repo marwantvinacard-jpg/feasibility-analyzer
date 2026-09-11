@@ -14,11 +14,13 @@ import type {
 } from "./types";
 
 export const WEIGHTS: Record<keyof CategoryScores, number> = {
-  market: 0.25,
-  financial: 0.3,
-  technical: 0.15,
-  competitive: 0.15,
-  location: 0.1,
+  market: 0.18,
+  financial: 0.25,
+  technical: 0.12,
+  competitive: 0.1,
+  location: 0.08,
+  operational: 0.1,
+  legal: 0.12,
   risk: 0.05,
 };
 
@@ -45,6 +47,8 @@ export function computeCategoryScores(
     technical: pick("technical", stages.technical?.technical_feasibility_score),
     competitive: pick("competitive", stages.competitive?.competitive_feasibility_score),
     location: pick("location", stages.location?.location_feasibility_score),
+    operational: pick("operational", stages.operational?.operational_feasibility_score),
+    legal: pick("legal", stages.legal?.legal_feasibility_score),
     risk: risk.riskFeasibilityScore,
   };
   return { scores, missing };
@@ -57,6 +61,8 @@ export function overallAssessment(scores: CategoryScores): OverallAssessment {
       scores.technical * WEIGHTS.technical +
       scores.competitive * WEIGHTS.competitive +
       scores.location * WEIGHTS.location +
+      scores.operational * WEIGHTS.operational +
+      scores.legal * WEIGHTS.legal +
       scores.risk * WEIGHTS.risk
   );
 
@@ -104,6 +110,16 @@ const LABELS: Record<keyof CategoryScores, { critical: string; strength: string;
     critical: "Location Suitability",
     strength: "Suitable Location",
     condition: "Reconsider location or adapt business model",
+  },
+  operational: {
+    critical: "Operational Feasibility",
+    strength: "Sound Operational Plan",
+    condition: "Strengthen staffing, supply chain or process design",
+  },
+  legal: {
+    critical: "Legal & Regulatory Exposure",
+    strength: "Manageable Legal Position",
+    condition: "Resolve licensing, compliance or liability gaps",
   },
   risk: {
     critical: "Risk Level Too High",

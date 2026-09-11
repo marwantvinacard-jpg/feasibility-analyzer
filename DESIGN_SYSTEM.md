@@ -39,7 +39,7 @@ Semantic score trio is fixed across the app: **go = emerald, warn = amber, stop 
 
 ### Icons (Priority 4 — NO emoji)
 Inline-SVG line icons only (`components/icons.tsx`), 1.75 stroke, `currentColor`.
-The six dimensions each get a real glyph (market, financial, technical, competitive, location, risk).
+The eight dimensions each get a real glyph (market, financial, technical, competitive, location, operational, legal, risk).
 
 ### Motion (Priority 7)
 Purposeful only; 150–500ms; `prefers-reduced-motion` disables transforms. Gauge + score bars ease in.

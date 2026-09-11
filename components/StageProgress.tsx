@@ -4,7 +4,7 @@ import { DIMENSION_META, cn } from "@/lib/ui";
 import { Icon } from "@/components/icons";
 import type { StageName, StageStatus } from "@/lib/engine/types";
 
-const ORDER: StageName[] = ["market", "financial", "technical", "competitive", "location", "risk"];
+const ORDER: StageName[] = ["market", "financial", "technical", "competitive", "location", "operational", "legal", "risk"];
 
 export function StageProgress({ status }: { status: Record<StageName, StageStatus> }) {
   const done = ORDER.filter((s) => status[s] === "done").length;
@@ -18,7 +18,7 @@ export function StageProgress({ status }: { status: Record<StageName, StageStatu
         </span>
         <h2 className="font-display mt-4 text-2xl font-semibold tracking-tight">Analyzing your idea</h2>
         <p className="mt-1.5 text-sm text-muted">
-          Six specialists are researching in parallel — this takes a moment.
+          Eight specialists are researching in parallel — this takes a moment.
         </p>
         <div className="num mt-1 text-xs text-faint">{pct}% complete</div>
       </div>

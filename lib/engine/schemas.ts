@@ -174,14 +174,6 @@ export const LocationSchema = z
         target_market_size: z.string(),
       })
       .strict(),
-    legal_regulatory: z
-      .object({
-        complexity: z.enum(["Low", "Medium", "High", "Very High"]),
-        required_licenses: z.array(z.string()),
-        estimated_time_to_comply: z.string(),
-        legal_risks: z.array(z.string()),
-      })
-      .strict(),
     economic_environment: z
       .object({
         economic_trend: z.enum(["Growing", "Stable", "Declining"]),
@@ -198,6 +190,91 @@ export const LocationSchema = z
     location_challenges: z.array(z.string()),
     research_sources: z.array(z.string()),
     recommendations: z.array(z.string()),
+  })
+  .strict();
+
+export const OperationalSchema = z
+  .object({
+    staffing_plan: z
+      .object({
+        assessment: z.string(),
+        headcount_adequacy: z.enum(["Adequate", "Tight", "Insufficient"]),
+        key_roles_at_risk: z.array(z.string()),
+      })
+      .strict(),
+    supply_chain: z
+      .object({
+        dependency_level: z.enum(["Low", "Medium", "High"]),
+        key_suppliers_needed: z.array(z.string()),
+        single_points_of_failure: z.array(z.string()),
+      })
+      .strict(),
+    process_complexity: z.object({ score: score10, assessment: z.string() }).strict(),
+    capacity_vs_demand: z.object({ assessment: z.string(), bottlenecks: z.array(z.string()) }).strict(),
+    operational_risks: z.array(
+      z.object({ risk: z.string(), severity: z.enum(["Low", "Medium", "High"]), mitigation: z.string() }).strict()
+    ),
+    operational_feasibility_score: score100,
+    operational_strengths: z.array(z.string()),
+    operational_challenges: z.array(z.string()),
+    research_sources: z.array(z.string()),
+    recommendations: z.array(z.string()),
+  })
+  .strict();
+
+export const LegalSchema = z
+  .object({
+    required_licenses_permits: z.array(
+      z
+        .object({
+          name: z.string(),
+          issuing_authority: z.string(),
+          estimated_time: z.string(),
+          estimated_cost: z.string(),
+        })
+        .strict()
+    ),
+    regulatory_compliance: z.array(
+      z
+        .object({ area: z.string(), requirement: z.string(), complexity: z.enum(["Low", "Medium", "High", "Very High"]) })
+        .strict()
+    ),
+    contracts_and_ip: z
+      .object({
+        assessment: z.string(),
+        ip_protection_needed: z.array(z.string()),
+        key_contracts_needed: z.array(z.string()),
+      })
+      .strict(),
+    liability_exposure: z
+      .object({ level: z.enum(["Low", "Medium", "High"]), assessment: z.string(), insurance_recommended: z.array(z.string()) })
+      .strict(),
+    employment_law_considerations: z.array(z.string()),
+    data_privacy_considerations: z.array(z.string()),
+    legal_risks: z.array(
+      z.object({ risk: z.string(), severity: z.enum(["Low", "Medium", "High"]), mitigation: z.string() }).strict()
+    ),
+    legal_feasibility_score: score100,
+    research_sources: z.array(z.string()),
+    recommendations: z.array(z.string()),
+  })
+  .strict();
+
+export const StakeholderSchema = z
+  .object({
+    stakeholders: z.array(
+      z
+        .object({
+          group: z.string(),
+          interest: z.string(),
+          influence: z.enum(["Low", "Medium", "High"]),
+          impact: z.enum(["Low", "Medium", "High"]),
+          engagement_strategy: z.string(),
+        })
+        .strict()
+    ),
+    key_concerns: z.array(z.string()),
+    summary: z.string(),
   })
   .strict();
 

@@ -9,7 +9,7 @@ import { runMonteCarlo, type MonteCarloResult } from "@/lib/engine/montecarlo";
 import type { FullResult } from "@/lib/engine/runFeasibility";
 import { DIMENSION_META, money, verdictTone, toneText, cn } from "@/lib/ui";
 
-const DIMS = ["market", "financial", "technical", "competitive", "location", "risk"] as const;
+const DIMS = ["market", "financial", "technical", "competitive", "location", "operational", "legal", "risk"] as const;
 
 export function StressReport({
   result,
@@ -65,7 +65,7 @@ export function StressReport({
 
       {/* ---- Scorecard ---- */}
       <section className="card p-5">
-        <div className="label mb-3">Six-dimension scorecard</div>
+        <div className="label mb-3">Eight-dimension scorecard</div>
         <div className="space-y-3">
           {DIMS.map((d) => {
             const c = live.categoryScores[d];

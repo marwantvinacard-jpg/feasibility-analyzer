@@ -18,14 +18,17 @@ import {
   runCompetitive,
   runFinancial,
   runFinancialModel,
+  runLegal,
   runLocation,
   runMarket,
+  runOperational,
   runRisk,
+  runStakeholders,
   runTechnical,
   type StageOutput,
 } from "./specialists";
 import {
-  SIX_STAGES,
+  ALL_STAGES,
   type BusinessInput,
   type FeasibilityResult,
   type Source,
@@ -66,7 +69,7 @@ export async function runFeasibility(
   const search = opts.search ?? new SerpApiProvider();
   const onProgress = opts.onProgress ?? (() => {});
 
-  const stageStatus = Object.fromEntries(SIX_STAGES.map((s) => [s, "pending"])) as Record<
+  const stageStatus = Object.fromEntries(ALL_STAGES.map((s) => [s, "pending"])) as Record<
     StageName,
     StageStatus
   >;
@@ -81,16 +84,20 @@ export async function runFeasibility(
     technical: () => runTechnical(llm, search, input),
     competitive: () => runCompetitive(llm, search, input),
     location: () => runLocation(llm, search, input),
+    operational: () => runOperational(llm, search, input),
+    legal: () => runLegal(llm, search, input),
     risk: () => runRisk(llm, search, input),
   };
 
-  // The financial model rides along with the six scoring stages. It is not a
-  // dimension and carries no score, so its failure degrades to "no study"
-  // rather than affecting the verdict.
+  // The financial model and the stakeholder analysis ride along with the
+  // scored stages. Neither is a scoring dimension, so their failure degrades
+  // gracefully (no study / no stakeholder section) rather than affecting the
+  // verdict.
   const modelPromise = runFinancialModel(llm, search, input);
+  const stakeholdersPromise = runStakeholders(llm, search, input);
 
   const outputs = await Promise.all(
-    SIX_STAGES.map(async (stage) => {
+    ALL_STAGES.map(async (stage) => {
       stageStatus[stage] = "running";
       onProgress(stage, "running");
       const out = await runners[stage]();
@@ -99,13 +106,13 @@ export async function runFeasibility(
       return out;
     })
   );
-  const modelOut = await modelPromise;
+  const [modelOut, stakeholdersOut] = await Promise.all([modelPromise, stakeholdersPromise]);
 
   const stages: StageResults = {};
   const sources: Source[] = [];
   let tokensIn = 0;
   let tokensOut = 0;
-  for (const out of [...outputs, modelOut]) {
+  for (const out of [...outputs, modelOut, stakeholdersOut]) {
     if (out.ok && out.data && out.stage !== "financial_model") (stages as any)[out.stage] = out.data;
     sources.push(...out.sources);
     tokensIn += out.tokensIn;

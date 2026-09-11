@@ -47,7 +47,7 @@ function Hero() {
       <Container className="grid gap-14 py-16 sm:py-24 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
         <div className="animate-fade-up">
           <Badge className="mb-6">
-            <span className="h-1.5 w-1.5 rounded-full bg-go" /> Six-dimension analysis · GO / NO-GO in minutes
+            <span className="h-1.5 w-1.5 rounded-full bg-go" /> Eight-dimension analysis · GO / NO-GO in minutes
           </Badge>
           <h1 className="font-display text-[2.75rem] font-semibold leading-[1.02] tracking-tightest sm:text-6xl">
             Know if your idea<br />
@@ -177,7 +177,7 @@ function Dimensions() {
         <div className="mx-auto max-w-2xl text-center">
           <div className="flex justify-center"><Eyebrow>What we analyze</Eyebrow></div>
           <h2 className="font-display mt-4 text-3xl font-semibold tracking-tight sm:text-4xl">
-            Six dimensions. One clear score.
+            Eight dimensions. One clear score.
           </h2>
           <p className="mt-4 leading-relaxed text-muted">
             Every idea is scored across the six things that decide whether a business survives —
@@ -275,7 +275,7 @@ function Pricing() {
           </p>
         </div>
         <div className="mx-auto mt-12 grid max-w-4xl gap-5 md:grid-cols-3">
-          <PlanCard name="Starter" price="Free" note="On approval" features={["3 free reports", "Full 6-dimension analysis", "PDF download"]} />
+          <PlanCard name="Starter" price="Free" note="On approval" features={["3 free reports", "Full 8-dimension analysis", "PDF download"]} />
           <PlanCard name="Credits" price="Pay as you go" note="Top up anytime" highlight features={["Buy report packs", "Priority processing", "Shareable report links"]} />
           <PlanCard name="Bring your own key" price="At cost" note="Power users" features={["Use your own AI key", "No per-report credit", "Higher rate limits"]} />
         </div>

@@ -29,6 +29,8 @@ export const ReportSchema = z
         technical: z.string(),
         competitive: z.string(),
         location: z.string(),
+        operational: z.string(),
+        legal: z.string(),
         risk: z.string(),
       })
       .strict(),
@@ -46,7 +48,7 @@ You are given the final scores, the verdict, the computed financials, and each s
 - key_findings: 3-5 crisp bullet strings drawn from the analyses.
 - critical_success_factors: 3-5 things that must go right.
 - major_risks: the top 3 risks in plain language.
-- dimension_narratives: one short paragraph per dimension (market, financial, technical, competitive, location, risk) summarizing that specialist's findings and score.
+- dimension_narratives: one short paragraph per dimension (market, financial, technical, competitive, location, operational, legal, risk) summarizing that specialist's findings and score.
 - conclusion: a final 1-2 paragraph recommendation with a confidence note.
 
 Use ONLY the provided data. Never invent numbers. Return JSON matching the schema.`;
@@ -111,6 +113,8 @@ function mockReport(ctx: {
       technical: `Technical scored ${scores.technical}/100 (mock).`,
       competitive: `Competitive scored ${scores.competitive}/100 (mock).`,
       location: `Location scored ${scores.location}/100 (mock).`,
+      operational: `Operational scored ${scores.operational}/100 (mock).`,
+      legal: `Legal scored ${scores.legal}/100 (mock).`,
       risk: `Risk level ${riskScoring.riskLevel}; risk-adjusted score ${scores.risk}/100 (mock).`,
     },
     conclusion: `Based on a ${overall.overall_score}/100 assessment, the recommendation is ${overall.recommendation}. (mock)`,

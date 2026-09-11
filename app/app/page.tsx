@@ -49,7 +49,7 @@ export default function Dashboard() {
           <div className="card grid place-items-center py-16 text-center">
             <span className="grid h-14 w-14 place-items-center rounded-2xl bg-brand/10 text-brand"><Icon name="doc" size={26} /></span>
             <h3 className="font-display mt-4 text-lg font-semibold">No analyses yet</h3>
-            <p className="mt-1 max-w-sm text-sm text-muted">Describe a business idea and get a full six-dimension feasibility report in minutes.</p>
+            <p className="mt-1 max-w-sm text-sm text-muted">Describe a business idea and get a full eight-dimension feasibility report in minutes.</p>
             <Button href="/app/new" className="mt-5">Analyze your first idea <Icon name="arrow" size={17} /></Button>
           </div>
         ) : (

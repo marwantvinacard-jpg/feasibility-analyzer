@@ -10,27 +10,36 @@ import { FinancialModelSchema } from "./financialModel";
 import {
   CompetitiveSchema,
   FinancialJudgmentSchema,
+  LegalSchema,
   LocationSchema,
   MarketSchema,
+  OperationalSchema,
   RiskSchema,
+  StakeholderSchema,
   TechnicalSchema,
 } from "./schemas";
 import {
   COMPETITIVE_PROMPT,
   FINANCIAL_MODEL_PROMPT,
   FINANCIAL_PROMPT,
+  LEGAL_PROMPT,
   LOCATION_PROMPT,
   MARKET_PROMPT,
+  OPERATIONAL_PROMPT,
   RISK_PROMPT,
+  STAKEHOLDER_PROMPT,
   TECHNICAL_PROMPT,
 } from "./prompts";
 import {
   mockCompetitive,
   mockFinancialJudgment,
   mockFinancialModel,
+  mockLegal,
   mockLocation,
   mockMarket,
+  mockOperational,
   mockRisk,
+  mockStakeholders,
   mockTechnical,
 } from "./mocks";
 import type {
@@ -61,6 +70,17 @@ const knowledgeBlock = (input: BusinessInput) =>
     ? `\n\nReference material provided by the applicant (uploaded documents — use where relevant and cite as "applicant documents"; do not treat as verified):\n"""\n${input.knowledge_base.trim()}\n"""`
     : "";
 
+/**
+ * Optional user-chosen methodology/emphasis (e.g. "follow SBA feasibility
+ * study format", "weight legal risk heavily", "assume a lean bootstrap
+ * approach"). Advisory only — it can never override the scoring rubric or
+ * the requirement to return the schema shape exactly.
+ */
+const protocolBlock = (input: BusinessInput) =>
+  input.study_protocol && input.study_protocol.trim()
+    ? `\n\nThe applicant requested this study emphasize or follow: "${input.study_protocol.trim()}". Honor this in your ANALYSIS AND NARRATIVE where it doesn't conflict with the instructions above — never change the required output schema or the scoring rubric to fit it.`
+    : "";
+
 /** Generic runner: gather research (if any), call the LLM, validate, capture cost. */
 async function runStage<T>(
   llm: LlmProvider,
@@ -76,7 +96,7 @@ async function runStage<T>(
   try {
     const research =
       stage === "financial" ? { text: "", sources: [] } : await gatherResearch(search, stage, input);
-    const user = `${businessBlock(input)}${knowledgeBlock(input)}${extraUser}${research.text}`;
+    const user = `${businessBlock(input)}${knowledgeBlock(input)}${protocolBlock(input)}${extraUser}${research.text}`;
     const { data, tokensIn, tokensOut } = await llm.structured<T>({
       system,
       user,
@@ -173,4 +193,17 @@ export function runLocation(llm: LlmProvider, search: SearchProvider, input: Bus
 
 export function runRisk(llm: LlmProvider, search: SearchProvider, input: BusinessInput) {
   return runStage(llm, search, "risk", RISK_PROMPT, RiskSchema, "risk", input, mockRisk(input));
+}
+
+export function runOperational(llm: LlmProvider, search: SearchProvider, input: BusinessInput) {
+  return runStage(llm, search, "operational", OPERATIONAL_PROMPT, OperationalSchema, "operational", input, mockOperational(input));
+}
+
+export function runLegal(llm: LlmProvider, search: SearchProvider, input: BusinessInput) {
+  return runStage(llm, search, "legal", LEGAL_PROMPT, LegalSchema, "legal", input, mockLegal(input));
+}
+
+/** Not a scored dimension — runs alongside the six/eight like the financial model. */
+export function runStakeholders(llm: LlmProvider, search: SearchProvider, input: BusinessInput) {
+  return runStage(llm, search, "stakeholders", STAKEHOLDER_PROMPT, StakeholderSchema, "stakeholders", input, mockStakeholders(input));
 }

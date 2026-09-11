@@ -9,7 +9,7 @@ admin-gated access, per-user credits, and an optional bring-your-own-key mode.
 
 ## What the engine does
 
-Six-dimension feasibility analysis over 10 business inputs:
+Eight-dimension feasibility analysis over 10 business inputs:
 
 ```
 input (10 fields) → deterministic financials
@@ -56,7 +56,7 @@ Both must be rotated before live use. This repo reads them from env only and nev
 
 | File | Role |
 |---|---|
-| `types.ts` | Domain types (10 fields, 6 dimensions, scores, verdict) |
+| `types.ts` | Domain types (10 fields, 8 dimensions, scores, verdict) |
 | `schemas.ts` | Zod schemas → OpenAI structured-output JSON schemas |
 | `prompts.ts` | Cleaned specialist system prompts |
 | `provider.ts` | LLM provider (OpenAI + mock) |

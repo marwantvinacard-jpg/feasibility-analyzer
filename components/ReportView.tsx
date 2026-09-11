@@ -9,7 +9,7 @@ import { DIMENSION_META, money, scoreTone, toneText, verdictTone, cn, type Tone 
 import type { FullResult } from "@/lib/engine/runFeasibility";
 import type { StageName } from "@/lib/engine/types";
 
-const ORDER: StageName[] = ["market", "financial", "technical", "competitive", "location", "risk"];
+const ORDER: StageName[] = ["market", "financial", "technical", "competitive", "location", "operational", "legal", "risk"];
 const VERDICT_ICON = { go: "check", warn: "clock", stop: "x" } as const;
 
 export function ReportView({ result, print = false }: { result: FullResult; print?: boolean }) {
@@ -73,7 +73,7 @@ export function ReportView({ result, print = false }: { result: FullResult; prin
       {showFeasibility && (
         <>
       {/* Dimension scores */}
-      <Section title="Scorecard" subtitle="Weighted across the six dimensions of feasibility">
+      <Section title="Scorecard" subtitle="Weighted across eight dimensions of feasibility">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {ORDER.map((s) => (
             <div key={s} className="rounded-xl border border-border bg-surface-2 p-4">
@@ -189,6 +189,37 @@ export function ReportView({ result, print = false }: { result: FullResult; prin
           ))}
         </div>
       </Section>
+
+      {/* Stakeholders */}
+      {result.stages.stakeholders && (
+        <Section title="Stakeholder analysis" subtitle={result.stages.stakeholders.summary}>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {result.stages.stakeholders.stakeholders.map((sh, i) => (
+              <div key={i} className="rounded-xl border border-border bg-surface-2 p-4">
+                <div className="flex items-center justify-between">
+                  <div className="font-semibold">{sh.group}</div>
+                  <div className="flex gap-1.5">
+                    <Badge tone={sh.influence === "High" ? "warn" : "go"}>Influence: {sh.influence}</Badge>
+                    <Badge tone={sh.impact === "High" ? "warn" : "go"}>Impact: {sh.impact}</Badge>
+                  </div>
+                </div>
+                <p className="mt-1.5 text-xs text-muted">{sh.interest}</p>
+                <p className="mt-1.5 text-xs"><span className="text-faint">Engagement:</span> {sh.engagement_strategy}</p>
+              </div>
+            ))}
+          </div>
+          {result.stages.stakeholders.key_concerns.length > 0 && (
+            <div className="mt-4">
+              <div className="text-xs text-faint">Key concerns to address early</div>
+              <ul className="mt-1.5 space-y-1 text-sm text-muted">
+                {result.stages.stakeholders.key_concerns.map((c, i) => (
+                  <li key={i} className="flex gap-2"><span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-warn" />{c}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </Section>
+      )}
 
       {/* Recommendation */}
       <Section title="Recommendation & next steps">
