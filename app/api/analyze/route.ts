@@ -62,6 +62,7 @@ export async function POST(req: Request) {
   const id = ref.id;
   const callerDoc = await userRef.get();
   const orgId = callerDoc.data()?.orgId as string | undefined;
+  const trainingOptOut = callerDoc.data()?.trainingOptOut === true;
   await ref.set({
     id,
     uid: caller.uid,
@@ -85,7 +86,7 @@ export async function POST(req: Request) {
   const encoder = new TextEncoder();
 
   async function saveTrainingData() {
-    if (trainingEntries.length === 0) return;
+    if (trainingEntries.length === 0 || trainingOptOut) return;
     try {
       const batch = db.batch();
       for (const entry of trainingEntries) {

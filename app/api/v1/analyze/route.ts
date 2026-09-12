@@ -51,14 +51,15 @@ export async function POST(req: Request) {
   const ownerRef = db.collection("users").doc(apiCaller.ownerUid);
 
   let charged = false;
+  let trainingOptOut = false;
   try {
-    charged = await db.runTransaction(async (tx) => {
+    ({ charged, trainingOptOut } = await db.runTransaction(async (tx) => {
       const snap = await tx.get(ownerRef);
       const credits = (snap.data()?.credits as number) ?? 0;
       if (credits < 1) throw new HttpError(402, "The organization is out of credits.");
       tx.update(ownerRef, { credits: credits - 1 });
-      return true;
-    });
+      return { charged: true, trainingOptOut: snap.data()?.trainingOptOut === true };
+    }));
   } catch (err) {
     const e = err as HttpError;
     return json({ error: e.message ?? "Not allowed" }, e.status ?? 403);
@@ -93,7 +94,7 @@ export async function POST(req: Request) {
   try {
     const result = await runFeasibility(input, { llm, search });
     await ref.update({ status: "complete", result });
-    if (trainingEntries.length > 0) {
+    if (trainingEntries.length > 0 && !trainingOptOut) {
       const batch = db.batch();
       for (const entry of trainingEntries) {
         batch.set(db.collection("trainingData").doc(), { analysisId: id, uid: apiCaller.ownerUid, ...entry });

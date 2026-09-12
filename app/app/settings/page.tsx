@@ -8,7 +8,8 @@ import { cn } from "@/lib/ui";
 import { useT } from "@/lib/i18n/LanguageContext";
 
 export default function SettingsPage() {
-  const { user, setKeyMode } = useSession();
+  const { user, setKeyMode, setTrainingOptOut } = useSession();
+  const [trainingSaving, setTrainingSaving] = useState(false);
   const t = useT();
   const [key, setKey] = useState("");
   const [saved, setSaved] = useState(false);
@@ -76,6 +77,34 @@ export default function SettingsPage() {
             </p>
           </div>
         )}
+      </section>
+
+      {/* Model training opt-out */}
+      <section className="card p-5">
+        <h2 className="label">{t("settings.trainingTitle")}</h2>
+        <p className="mt-1 text-sm text-muted">{t("settings.trainingHint")}</p>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          <ModeCard
+            active={!user.trainingOptOut}
+            title={t("settings.trainingOn")}
+            desc={t("settings.trainingOnDesc")}
+            onClick={async () => {
+              if (trainingSaving) return;
+              setTrainingSaving(true);
+              try { await setTrainingOptOut(false); } finally { setTrainingSaving(false); }
+            }}
+          />
+          <ModeCard
+            active={!!user.trainingOptOut}
+            title={t("settings.trainingOff")}
+            desc={t("settings.trainingOffDesc")}
+            onClick={async () => {
+              if (trainingSaving) return;
+              setTrainingSaving(true);
+              try { await setTrainingOptOut(true); } finally { setTrainingSaving(false); }
+            }}
+          />
+        </div>
       </section>
 
       <p className="text-center text-xs text-faint">{t("settings.footerNote")}</p>

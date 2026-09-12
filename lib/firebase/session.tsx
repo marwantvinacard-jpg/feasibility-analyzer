@@ -37,6 +37,8 @@ export interface Account {
   language?: "en" | "ar" | "fr";
   /** Org workspace this account belongs to, if any (see lib/orgTypes.ts). */
   orgId?: string;
+  /** True if this account has opted out of having its analyses used for model training. */
+  trainingOptOut?: boolean;
 }
 
 interface SessionCtx {
@@ -48,6 +50,7 @@ interface SessionCtx {
   logout: () => Promise<void>;
   setKeyMode: (mode: Account["keyMode"]) => Promise<void>;
   setLanguage: (lang: NonNullable<Account["language"]>) => Promise<void>;
+  setTrainingOptOut: (optOut: boolean) => Promise<void>;
   getIdToken: () => Promise<string>;
   refreshClaims: () => Promise<void>;
 }
@@ -123,6 +126,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
             subscriptionStatus: d.subscriptionStatus,
             language: d.language,
             orgId: d.orgId,
+            trainingOptOut: d.trainingOptOut ?? false,
           });
           setReady(true);
 
@@ -182,6 +186,11 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         const fb = getFirebase();
         if (!fb || !fbUser) return;
         await updateDoc(doc(fb.db, "users", fbUser.uid), { language: lang });
+      },
+      async setTrainingOptOut(optOut) {
+        const fb = getFirebase();
+        if (!fb || !fbUser) return;
+        await updateDoc(doc(fb.db, "users", fbUser.uid), { trainingOptOut: optOut });
       },
       async getIdToken() {
         if (!fbUser) throw new Error("Not signed in.");
