@@ -20,7 +20,11 @@ export async function requireUser(req: Request): Promise<Caller> {
   const token = authz.startsWith("Bearer ") ? authz.slice(7).trim() : "";
   if (!token) throw new HttpError(401, "Not signed in.");
   try {
-    const decoded = await adminAuth().verifyIdToken(token);
+    // checkRevoked:true costs one extra Identity Toolkit round-trip per call,
+    // but it's what makes a rejected/disabled account's already-issued token
+    // stop working immediately instead of staying valid until its natural
+    // ~1h expiry — worth it for an app that gates paid access by approval.
+    const decoded = await adminAuth().verifyIdToken(token, true);
     return { uid: decoded.uid, email: decoded.email, admin: decoded.admin === true };
   } catch {
     throw new HttpError(401, "Invalid or expired session.");

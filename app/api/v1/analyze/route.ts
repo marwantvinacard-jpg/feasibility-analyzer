@@ -16,9 +16,15 @@ import { HttpError } from "@/lib/firebase/verify";
 import { logAudit } from "@/lib/firebase/audit";
 import { withTrainingLog, type TrainingEntry } from "@/lib/engine/trainingLog";
 import type { BusinessInput } from "@/lib/engine/types";
+import { checkRateLimit } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
+
+// Each call already costs a credit, which caps total exposure — this bounds
+// *burst rate* on top of that, per instance (see lib/rateLimit.ts).
+const RATE_LIMIT = 10;
+const RATE_WINDOW_MS = 60_000;
 
 export async function POST(req: Request) {
   let apiCaller;
@@ -27,6 +33,14 @@ export async function POST(req: Request) {
   } catch (err) {
     const e = err as HttpError;
     return json({ error: e.message ?? "Unauthorized" }, e.status ?? 401);
+  }
+
+  const rl = checkRateLimit(apiCaller.keyId, RATE_LIMIT, RATE_WINDOW_MS);
+  if (!rl.allowed) {
+    return json(
+      { error: `Rate limit exceeded (${RATE_LIMIT} requests/minute per key). Try again in ${Math.ceil(rl.retryAfterMs / 1000)}s.` },
+      429
+    );
   }
 
   const { input } = (await req.json().catch(() => ({}))) as { input?: BusinessInput };

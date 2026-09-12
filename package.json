@@ -10,7 +10,8 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "engine": "tsx scripts/run-engine.ts",
-    "pdf": "tsx scripts/build-pdf.ts"
+    "pdf": "tsx scripts/build-pdf.ts",
+    "test": "node node_modules/typescript/bin/tsc -p tsconfig.test.json && node -r ./test/register.cjs --test .test-build/test/*.test.js"
   },
   "dependencies": {
     "firebase": "^12.19.0",

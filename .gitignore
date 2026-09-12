@@ -44,3 +44,4 @@ serviceAccountKey.json
 # local-only
 .vercel.token
 *.bak
+.test-build
