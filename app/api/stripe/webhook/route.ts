@@ -8,6 +8,7 @@ import { stripe, creditsForTopup, PRO_PLAN, ORG_PLANS } from "@/lib/stripe";
 import { adminDb } from "@/lib/firebase/admin";
 import { FieldValue } from "firebase-admin/firestore";
 import { logAudit } from "@/lib/firebase/audit";
+import { logError } from "@/lib/firebase/errorLog";
 import type Stripe from "stripe";
 
 export const runtime = "nodejs";
@@ -184,7 +185,7 @@ export async function POST(req: Request) {
   } catch (err) {
     // Stripe retries on non-2xx, which is exactly what we want on a genuine
     // failure — don't mark the event processed, so the retry can complete it.
-    console.error("stripe webhook handler error:", err);
+    await logError("stripe.webhook", err, { eventType: event.type, eventId: event.id });
     return NextResponse.json({ error: "Handler error" }, { status: 500 });
   }
 

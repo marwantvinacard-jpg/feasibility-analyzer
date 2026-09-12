@@ -14,6 +14,7 @@ import { adminDb } from "@/lib/firebase/admin";
 import { requireApiKey } from "@/lib/firebase/apiKeyAuth";
 import { HttpError } from "@/lib/firebase/verify";
 import { logAudit } from "@/lib/firebase/audit";
+import { logError } from "@/lib/firebase/errorLog";
 import { withTrainingLog, type TrainingEntry } from "@/lib/engine/trainingLog";
 import type { BusinessInput } from "@/lib/engine/types";
 import { checkRateLimit } from "@/lib/rateLimit";
@@ -105,6 +106,7 @@ export async function POST(req: Request) {
     await Promise.allSettled([
       ref.update({ status: "failed", error: message }),
       charged ? ownerRef.update({ credits: FieldValue.increment(1) }) : Promise.resolve(),
+      logError("v1.analyze", err, { analysisId: id, orgId: apiCaller.orgId }),
     ]);
     return json({ error: message }, 500);
   }

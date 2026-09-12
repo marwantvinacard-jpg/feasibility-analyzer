@@ -128,5 +128,11 @@ service cloud.firestore {
     match /processedStripeEvents/{eventId} {
       allow read, write: if false; // server only, via app/api/stripe/webhook
     }
+
+    // --- server-side error log — admin-only read, server-only write. ---
+    match /errorLog/{entry} {
+      allow read: if isAdmin();
+      allow write: if false; // server only, via lib/firebase/errorLog.ts
+    }
   }
 }

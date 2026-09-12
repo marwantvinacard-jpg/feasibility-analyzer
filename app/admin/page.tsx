@@ -32,6 +32,12 @@ interface OrgRow {
   ownerEmail: string;
   status: "pending" | "approved" | "rejected";
 }
+interface ErrorRow {
+  id: string;
+  context: string;
+  message: string;
+  createdAt: number;
+}
 
 export default function AdminPage() {
   const { ready, user, getIdToken } = useSession();
@@ -40,6 +46,7 @@ export default function AdminPage() {
   const [users, setUsers] = useState<UserRow[]>([]);
   const [audit, setAudit] = useState<AuditRow[]>([]);
   const [orgs, setOrgs] = useState<OrgRow[]>([]);
+  const [errors, setErrors] = useState<ErrorRow[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
 
   useEffect(() => {
@@ -61,7 +68,10 @@ export default function AdminPage() {
     const u3 = onSnapshot(collection(fb.db, "organizations"), (snap) => {
       setOrgs(snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })));
     });
-    return () => { u1(); u2(); u3(); };
+    const u4 = onSnapshot(query(collection(fb.db, "errorLog"), orderBy("createdAt", "desc"), limit(20)), (snap) => {
+      setErrors(snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })));
+    });
+    return () => { u1(); u2(); u3(); u4(); };
   }, [user]);
 
   async function act(uid: string, action: "approve" | "reject" | "grant", amount?: number) {
@@ -175,6 +185,25 @@ export default function AdminPage() {
                 {a.target && <span className="text-faint"> · {a.target.slice(0, 12)}</span>}
               </span>
               <span className={cn("text-xs text-faint")}>{a.email ?? a.uid.slice(0, 8)} · {new Date(a.createdAt).toLocaleString()}</span>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section>
+        <h2 className="label mb-3 flex items-center gap-2">
+          Server errors (latest 20)
+          {errors.length > 0 && <Badge tone="stop">{errors.length}</Badge>}
+        </h2>
+        <div className="card divide-y divide-border/60 p-0">
+          {errors.length === 0 && <p className="p-4 text-sm text-muted">No server errors logged. Good sign.</p>}
+          {errors.map((e) => (
+            <div key={e.id} className="px-4 py-2.5 text-sm">
+              <div className="flex items-center justify-between">
+                <span className="font-medium text-stop">{e.context}</span>
+                <span className="text-xs text-faint">{new Date(e.createdAt).toLocaleString()}</span>
+              </div>
+              <div className="mt-0.5 text-xs text-muted">{e.message}</div>
             </div>
           ))}
         </div>

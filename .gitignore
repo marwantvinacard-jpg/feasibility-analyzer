@@ -45,3 +45,4 @@ serviceAccountKey.json
 .vercel.token
 *.bak
 .test-build
+backups/

@@ -14,6 +14,7 @@ import { SerpApiProvider } from "@/lib/engine/search";
 import { adminDb } from "@/lib/firebase/admin";
 import { requireUser, HttpError, type Caller } from "@/lib/firebase/verify";
 import { logAudit } from "@/lib/firebase/audit";
+import { logError } from "@/lib/firebase/errorLog";
 import { withTrainingLog, type TrainingEntry } from "@/lib/engine/trainingLog";
 import { SIX_STAGES, type BusinessInput, type StageName, type StageStatus } from "@/lib/engine/types";
 
@@ -124,6 +125,7 @@ export async function POST(req: Request) {
           ref.update({ status: "failed", error: message }),
           charged ? userRef.update({ credits: FieldValue.increment(1) }) : Promise.resolve(),
           saveTrainingData(),
+          logError("analyze.run", err, { analysisId: id, uid: caller.uid }),
         ]);
         send("error", { message });
       } finally {
