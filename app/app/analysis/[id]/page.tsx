@@ -126,6 +126,9 @@ export default function AnalysisPage() {
               </button>
             )}
             <Button href={`/app/analysis/${id}/stress`} variant="ghost" className="text-sm"><Icon name="sliders" size={17} /> {t("analysis.stressTest")}</Button>
+            {rec.result.study && (rec.uid === user?.uid || user?.role === "admin") && (
+              <Button href={`/app/analysis/${id}/edit-model`} variant="ghost" className="text-sm"><Icon name="operational" size={17} /> Edit model</Button>
+            )}
             {isExportExempt(user) || rec.exportUnlocked ? (
               <button onClick={() => downloadPdf(rec.result!.input.business_idea)} disabled={dl} className="btn btn-ghost text-sm">
                 <Icon name="download" size={17} /> {dl ? t("analysis.preparing") : t("analysis.download")}
@@ -150,7 +153,7 @@ export default function AnalysisPage() {
             <span className="font-medium text-go">{t("analysis.reviewerNotes")}</span> <span className="text-muted">{rec.reviewNotes}</span>
           </div>
         )}
-        <ReportView result={rec.result} />
+        <ReportView result={rec.result} analysisId={id} canEditModel={rec.uid === user?.uid || user?.role === "admin"} />
 
         {/* Off-screen export copy for the PDF (light palette, fixed width) */}
         <div style={{ position: "fixed", left: "-10000px", top: 0 }} aria-hidden>

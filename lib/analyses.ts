@@ -87,6 +87,23 @@ export async function saveScenario(analysisId: string, name: string, knobs: Reco
   await authedFetch("/api/scenarios", { method: "POST", body: JSON.stringify({ analysisId, name, knobs }) });
 }
 
+async function authedFetchJson(url: string, init: RequestInit = {}) {
+  const res = await authedFetch(url, init);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error ?? `Request failed (${res.status})`);
+  return data;
+}
+
+/** Save a hand-edited financial model — recomputed deterministically server-side, free. */
+export async function saveFinancialModel(id: string, model: unknown): Promise<{ projections: unknown }> {
+  return authedFetchJson("/api/analysis/model", { method: "PATCH", body: JSON.stringify({ id, model }) });
+}
+
+/** Re-writes the study's narrative against the current model. Costs 1 credit. */
+export async function regenerateNarrative(id: string): Promise<{ narrative: unknown }> {
+  return authedFetchJson("/api/analysis/regenerate-narrative", { method: "POST", body: JSON.stringify({ id }) });
+}
+
 export async function deleteScenario(analysisId: string, scenarioId: string): Promise<void> {
   await authedFetch(`/api/scenarios?analysisId=${analysisId}&scenarioId=${scenarioId}`, { method: "DELETE" });
 }

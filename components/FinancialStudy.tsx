@@ -7,13 +7,15 @@
 // study.narrative. Nothing is calculated in this component beyond formatting,
 // so the web view, the print view and the PDF can never disagree.
 
-import { Badge } from "@/components/kit";
+import { useState } from "react";
+import { Badge, Button } from "@/components/kit";
 import { Icon } from "@/components/icons";
 import { money, cn, type Tone } from "@/lib/ui";
 import type { FinancialStudy as Study } from "@/lib/engine/study";
 import type { MonthRow } from "@/lib/engine/projections";
 import type { BusinessInput } from "@/lib/engine/types";
 import { useT } from "@/lib/i18n/LanguageContext";
+import { regenerateNarrative } from "@/lib/analyses";
 
 const VERDICT_TONE: Record<Study["narrative"]["verdict"], Tone> = {
   Viable: "go",
@@ -25,10 +27,14 @@ export function FinancialStudyView({
   study,
   input,
   print = false,
+  analysisId,
+  canEditModel = false,
 }: {
   study: Study;
   input: BusinessInput;
   print?: boolean;
+  analysisId?: string;
+  canEditModel?: boolean;
 }) {
   const t = useT();
   const { model, projections: p, narrative: n } = study;
@@ -36,8 +42,39 @@ export function FinancialStudyView({
   const f = (v: number) => money(v, cur);
   const vtone = VERDICT_TONE[n.verdict];
 
+  const isStale = !!study.modelEditedAt && (!study.narrativeGeneratedAt || study.modelEditedAt > study.narrativeGeneratedAt);
+  const [regenerating, setRegenerating] = useState(false);
+  const [regenError, setRegenError] = useState("");
+
+  async function handleRegenerate() {
+    if (!analysisId) return;
+    setRegenError("");
+    setRegenerating(true);
+    try {
+      await regenerateNarrative(analysisId);
+    } catch (e) {
+      setRegenError(e instanceof Error ? e.message : "Could not regenerate.");
+    } finally {
+      setRegenerating(false);
+    }
+  }
+
   return (
     <div className="space-y-5">
+      {!print && isStale && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-warn/40 bg-warn/10 px-4 py-3 text-sm text-warn">
+          <span className="flex items-center gap-2">
+            <Icon name="clock" size={16} className="shrink-0" />
+            The model was edited on {new Date(study.modelEditedAt!).toLocaleDateString()} — the narrative below was written for the original numbers.
+          </span>
+          {canEditModel && (
+            <Button variant="ghost" className="shrink-0 text-xs" onClick={handleRegenerate} disabled={regenerating}>
+              {regenerating ? "Regenerating…" : "Regenerate narrative — 1 credit"}
+            </Button>
+          )}
+        </div>
+      )}
+      {regenError && <p className="text-sm text-stop">{regenError}</p>}
       {/* ---------------------------------------------------------- 1 */}
       <StudySection n={1} title={t("study.s1title")}>
         <Badge tone={vtone} className="mb-3">

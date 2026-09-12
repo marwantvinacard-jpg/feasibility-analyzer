@@ -13,7 +13,17 @@ import { useT } from "@/lib/i18n/LanguageContext";
 const ORDER: StageName[] = ["market", "financial", "technical", "competitive", "location", "operational", "legal", "risk"];
 const VERDICT_ICON = { go: "check", warn: "clock", stop: "x" } as const;
 
-export function ReportView({ result, print = false }: { result: FullResult; print?: boolean }) {
+export function ReportView({
+  result,
+  print = false,
+  analysisId,
+  canEditModel = false,
+}: {
+  result: FullResult;
+  print?: boolean;
+  analysisId?: string;
+  canEditModel?: boolean;
+}) {
   const t = useT();
   const { input, overall, categoryScores: cs, financials: f, riskScoring, report } = result;
   const cur = input.currency ?? "USD";
@@ -262,7 +272,7 @@ export function ReportView({ result, print = false }: { result: FullResult; prin
               </p>
             </div>
           )}
-          <FinancialStudyView study={study!} input={input} print={print} />
+          <FinancialStudyView study={study!} input={input} print={print} analysisId={analysisId} canEditModel={canEditModel} />
         </>
       )}
 

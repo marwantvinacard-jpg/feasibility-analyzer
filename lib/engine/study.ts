@@ -63,6 +63,11 @@ export interface FinancialStudy {
   model: FinancialModel;
   projections: Projections;
   narrative: StudyNarrative;
+  /** Set once a user hand-edits the model after generation — see /api/analysis/model. */
+  modelEditedAt?: number;
+  modelEditedBy?: string; // email
+  /** Set when the narrative was (re)generated — lets the UI detect a stale narrative after an edit. */
+  narrativeGeneratedAt?: number;
 }
 
 const STUDY_PROMPT = `You are a financial feasibility consultant writing the narrative of an investor-grade Financial Feasibility Study.
@@ -123,7 +128,11 @@ export async function generateStudy(
     mockValue: mockNarrative(ctx.input, projections),
   });
 
-  return { study: { model: ctx.model, projections, narrative: data }, tokensIn, tokensOut };
+  return {
+    study: { model: ctx.model, projections, narrative: data, narrativeGeneratedAt: Date.now() },
+    tokensIn,
+    tokensOut,
+  };
 }
 
 /**
