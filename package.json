@@ -18,7 +18,7 @@
     "firebase-admin": "^12.7.0",
     "html2pdf.js": "^0.14.0",
     "mammoth": "^1.12.2",
-    "next": "^15.5.23",
+    "next": "^15.5.25",
     "ollama": "^0.6.3",
     "openai": "^4.77.0",
     "pdf-parse": "^2.4.5",
