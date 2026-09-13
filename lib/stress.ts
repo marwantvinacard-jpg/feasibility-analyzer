@@ -209,8 +209,11 @@ function solve(
   for (let i = 0; i < 44; i++) {
     const mid = (lo + hi) / 2;
     const ok = at(mid) >= target;
-    if (field === "monthlyRevenue") ok ? (hi = mid) : (lo = mid);
-    else ok ? (lo = mid) : (hi = mid);
+    if (field === "monthlyRevenue") {
+      if (ok) hi = mid; else lo = mid;
+    } else {
+      if (ok) lo = mid; else hi = mid;
+    }
   }
   return field === "monthlyRevenue" ? hi : lo;
 }
