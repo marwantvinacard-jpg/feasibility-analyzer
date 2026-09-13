@@ -138,9 +138,14 @@ function handleGenError(res: express.Response, error: any, fallbackMsg: string) 
 // document-path traversal when interpolated into db.doc(`users/${uid}`).
 const UID_RE = /^[A-Za-z0-9_-]{1,128}$/;
 
-async function startServer() {
+/**
+ * Builds the Express app (routes, middleware) without binding a port.
+ * Used both by the long-running Cloud Run/local-dev server below and by
+ * the Vercel serverless entry point (api/index.ts), which calls this once
+ * per cold start and hands the resulting app raw requests directly.
+ */
+async function createApp() {
   const app = express();
-  const PORT = Number(process.env.PORT) || 3000;
 
   // Use increased limit for base64 images
   app.use(express.json({ limit: "50mb" }));
@@ -1041,11 +1046,15 @@ Do not add any preamble, explanation, notes, or metadata. Output ONLY the transc
       const taskId = createJson?.data?.task_id;
       if (!taskId) throw new Error("Magnific did not return a task_id.");
 
-      // Poll for completion — creative upscales can take a while. Bounded to
-      // ~2 minutes so a stuck job can't hold the request (and the rate
-      // limiter slot) open indefinitely.
+      // Poll for completion — creative upscales can take a while, but this
+      // request has to return before Vercel's serverless function timeout
+      // (60s on this project's plan) whenever it's deployed there, so it's
+      // capped well under that rather than the ~2 minutes Cloud Run could
+      // comfortably allow. If it's not done in time, the client gets the
+      // enhance_timeout response below and can retry.
+      const maxAttempts = process.env.VERCEL ? 12 : 40;
       let resultUrl: string | null = null;
-      for (let attempt = 0; attempt < 40; attempt++) {
+      for (let attempt = 0; attempt < maxAttempts; attempt++) {
         await new Promise((resolve) => setTimeout(resolve, 3000));
         const pollRes = await fetch(`${MAGNIFIC_API_BASE}/${taskId}`, {
           headers: { "x-magnific-api-key": magnificKey },
@@ -1117,9 +1126,23 @@ Do not add any preamble, explanation, notes, or metadata. Output ONLY the transc
     });
   }
 
+  return app;
+}
+
+async function startServer() {
+  const app = await createApp();
+  const PORT = Number(process.env.PORT) || 3000;
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);
   });
 }
 
-startServer();
+// Vercel's Node runtime imports this module for its request handler (see
+// api/index.ts) rather than running it as a long-lived process — don't try
+// to bind a port there. Cloud Run and local dev both set PORT/run this
+// directly, so they fall through to the normal long-running server.
+if (!process.env.VERCEL) {
+  startServer();
+}
+
+export { createApp };
