@@ -6,9 +6,13 @@ import { NextResponse } from "next/server";
 import { extractFromText } from "@/lib/engine/extractor";
 import { createLlm } from "@/lib/engine/factory";
 import { requireUser, HttpError } from "@/lib/firebase/verify";
+import { checkRateLimit } from "@/lib/rateLimit";
 import type { BusinessInput } from "@/lib/engine/types";
 
 export const runtime = "nodejs";
+
+const RATE_LIMIT = 20;
+const RATE_WINDOW_MS = 60_000;
 
 function makeProvider() {
   return createLlm({ mockDelayMs: 500 });
@@ -16,7 +20,14 @@ function makeProvider() {
 
 export async function POST(req: Request) {
   try {
-    await requireUser(req); // signed-in only — don't let anyone burn our AI key
+    const caller = await requireUser(req); // signed-in only — don't let anyone burn our AI key
+    const rl = checkRateLimit(caller.uid, RATE_LIMIT, RATE_WINDOW_MS);
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { error: `Too many requests. Try again in ${Math.ceil(rl.retryAfterMs / 1000)}s.` },
+        { status: 429 }
+      );
+    }
     const { text, previous } = (await req.json()) as {
       text: string;
       previous?: Partial<BusinessInput>;

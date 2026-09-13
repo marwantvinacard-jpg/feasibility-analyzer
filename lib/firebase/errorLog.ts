@@ -1,7 +1,6 @@
-// Minimal server-side error visibility until a real APM (Sentry, etc.) is
-// wired in — that needs your own account/DSN, which I can't create for you.
-// This at least means a production error doesn't disappear into a server log
-// nobody reads: it's queryable from the admin panel's Firestore access.
+// Server-side error visibility: written to Firestore (queryable from the admin
+// panel) and, when NEXT_PUBLIC_SENTRY_DSN is set, reported to Sentry too.
+import * as Sentry from "@sentry/nextjs";
 import { adminDb } from "./admin";
 
 export async function logError(context: string, err: unknown, meta?: Record<string, unknown>) {
@@ -18,6 +17,7 @@ export async function logError(context: string, err: unknown, meta?: Record<stri
   } catch {
     /* logging must never itself throw and mask the original error */
   }
+  Sentry.captureException(err, { tags: { context }, extra: meta });
   // Still surface it in the server's own logs (Vercel/Cloud Run capture stdout).
   console.error(`[${context}]`, err);
 }

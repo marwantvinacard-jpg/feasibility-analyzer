@@ -14,6 +14,7 @@
     "test": "node node_modules/typescript/bin/tsc -p tsconfig.test.json && node -r ./test/register.cjs --test .test-build/test/*.test.js"
   },
   "dependencies": {
+    "@sentry/nextjs": "^10.74.0",
     "firebase": "^12.19.0",
     "firebase-admin": "^12.7.0",
     "html2pdf.js": "^0.14.0",
@@ -22,6 +23,8 @@
     "ollama": "^0.6.3",
     "openai": "^4.77.0",
     "pdf-parse": "^2.4.5",
+    "posthog-js": "^1.430.3",
+    "posthog-node": "^5.52.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "stripe": "^22.6.2",

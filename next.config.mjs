@@ -1,3 +1,5 @@
+import { withSentryConfig } from "@sentry/nextjs/config";
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
@@ -8,4 +10,16 @@ const nextConfig = {
   serverExternalPackages: ["openai", "pdf-parse", "firebase-admin"],
 };
 
-export default nextConfig;
+export default withSentryConfig(nextConfig, {
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
+  authToken: process.env.SENTRY_AUTH_TOKEN,
+  silent: true,
+  // Source map upload only runs when SENTRY_AUTH_TOKEN is set (e.g. in CI/Vercel);
+  // local dev builds skip it automatically.
+  widenClientFileUpload: true,
+  webpack: {
+    removeDebugLogging: true,
+    automaticVercelMonitors: true,
+  },
+});

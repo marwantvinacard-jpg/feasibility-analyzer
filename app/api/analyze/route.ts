@@ -18,9 +18,15 @@ import { logError } from "@/lib/firebase/errorLog";
 import { sendAnalysisReadyEmail } from "@/lib/email";
 import { withTrainingLog, type TrainingEntry } from "@/lib/engine/trainingLog";
 import { SIX_STAGES, type BusinessInput, type StageName, type StageStatus } from "@/lib/engine/types";
+import { checkRateLimit } from "@/lib/rateLimit";
+import { captureServerEvent } from "@/lib/posthog/server";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
+
+// Burst protection on top of the per-run credit cost (see lib/rateLimit.ts).
+const RATE_LIMIT = 6;
+const RATE_WINDOW_MS = 60_000;
 
 const initialStages = () =>
   Object.fromEntries(SIX_STAGES.map((s) => [s, "pending"])) as Record<StageName, StageStatus>;
@@ -32,6 +38,14 @@ export async function POST(req: Request) {
   } catch (err) {
     const e = err as HttpError;
     return json({ error: e.message ?? "Unauthorized" }, e.status ?? 401);
+  }
+
+  const rl = checkRateLimit(caller.uid, RATE_LIMIT, RATE_WINDOW_MS);
+  if (!rl.allowed) {
+    return json(
+      { error: `Too many analyses started at once. Try again in ${Math.ceil(rl.retryAfterMs / 1000)}s.` },
+      429
+    );
   }
 
   const { input } = (await req.json()) as { input: BusinessInput };
@@ -106,6 +120,7 @@ export async function POST(req: Request) {
         controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
 
       send("start", { analysisId: id, stages: SIX_STAGES });
+      captureServerEvent(caller.uid, "analysis_started", { analysisId: id });
       const stageStatus = initialStages();
 
       try {
@@ -120,6 +135,7 @@ export async function POST(req: Request) {
         });
         await ref.update({ status: "complete", result, stageStatus });
         send("done", { analysisId: id });
+        captureServerEvent(caller.uid, "analysis_completed", { analysisId: id });
         await saveTrainingData();
         if (caller.email) {
           sendAnalysisReadyEmail(caller.email, callerDoc.data()?.name ?? "", id, input.business_idea).catch(() => {});
@@ -132,6 +148,7 @@ export async function POST(req: Request) {
           saveTrainingData(),
           logError("analyze.run", err, { analysisId: id, uid: caller.uid }),
         ]);
+        captureServerEvent(caller.uid, "analysis_failed", { analysisId: id, message });
         send("error", { message });
       } finally {
         controller.close();
