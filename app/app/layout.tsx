@@ -7,6 +7,7 @@ import { Logo } from "@/components/Brand";
 import { Badge } from "@/components/kit";
 import { Icon, type IconName } from "@/components/icons";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { useSession } from "@/lib/session";
 import { useT } from "@/lib/i18n/LanguageContext";
 import { cn } from "@/lib/ui";
@@ -98,7 +99,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </div>
 
         <div className="mt-auto space-y-3">
-          <LanguageSwitcher className="w-full [&>button]:w-full [&>button]:justify-center" />
+          <div className="grid grid-cols-2 gap-2">
+            <LanguageSwitcher className="[&>button]:w-full [&>button]:justify-center" />
+            <ThemeToggle className="[&>button]:w-full [&>button]:justify-center" />
+          </div>
           <div className="rounded-xl border border-border bg-surface-2 p-3.5">
             <div className="label">{t("dashboard.creditsRemaining")}</div>
             <div className="num mt-1 text-2xl font-semibold text-brand">{user.credits}</div>

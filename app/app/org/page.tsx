@@ -132,7 +132,7 @@ export default function OrgPage() {
             </div>
           )}
 
-          {isOwner && org.status === "approved" && <OrgPlans currentPlan={org.plan} />}
+          {isOwner && org.status === "approved" && <OrgPlans currentPlan={org.plan} trialUsed={org.trialUsed} />}
 
           {isOwner && (
             <div className="card space-y-4 p-6">

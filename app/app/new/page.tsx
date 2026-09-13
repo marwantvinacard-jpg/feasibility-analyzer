@@ -184,6 +184,19 @@ export default function NewAnalysis() {
         <p className="mt-1.5 text-sm text-muted">{t("newA.formHint")}</p>
       </div>
 
+      {user.orgId && (
+        <div className="card p-5">
+          <label className="mb-1.5 block text-sm font-medium">{t("newA.clientName")}</label>
+          <input
+            className="input"
+            placeholder={t("newA.clientNamePh")}
+            value={input.client_name ?? ""}
+            onChange={(e) => set("client_name", e.target.value)}
+          />
+          <p className="mt-1.5 text-xs text-faint">{t("newA.clientNameHint")}</p>
+        </div>
+      )}
+
       <div className="card p-5">
         <div className="flex items-center gap-2">
           <Badge tone="go"><Icon name="spark" size={13} /> {t("newA.aiPrefillBadge")}</Badge>

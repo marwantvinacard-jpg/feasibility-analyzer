@@ -39,6 +39,9 @@ export interface BusinessInput {
 
   /** UI language the applicant is using — the narrative (report + financial study prose) is written in this language. Defaults to English. */
   report_language?: "en" | "ar" | "fr";
+
+  /** Purely organizational tag (which client this study is for) — org-tier bookkeeping only, never sent to the AI specialists. */
+  client_name?: string;
 }
 
 export const REQUIRED_TEXT_FIELDS = [

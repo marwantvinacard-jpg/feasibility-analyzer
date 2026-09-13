@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import { SessionProvider, useSession } from "@/lib/session";
 import { LanguageProvider, useLanguage } from "@/lib/i18n/LanguageContext";
 import { ToastProvider } from "@/lib/toast";
+import { ThemeProvider } from "@/lib/theme";
 
 /** Once signed in, the account's saved language preference wins (cross-device
  *  sync); a manual switch while signed in is written back to the profile. */
@@ -24,13 +25,15 @@ function LanguageSync() {
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
-    <LanguageProvider>
-      <SessionProvider>
-        <ToastProvider>
-          <LanguageSync />
-          {children}
-        </ToastProvider>
-      </SessionProvider>
-    </LanguageProvider>
+    <ThemeProvider>
+      <LanguageProvider>
+        <SessionProvider>
+          <ToastProvider>
+            <LanguageSync />
+            {children}
+          </ToastProvider>
+        </SessionProvider>
+      </LanguageProvider>
+    </ThemeProvider>
   );
 }

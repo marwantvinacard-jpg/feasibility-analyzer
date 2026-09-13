@@ -12,7 +12,7 @@ export const PLAN_LABEL: Record<OrgPlan["key"], string> = Object.fromEntries(
 ) as Record<OrgPlan["key"], string>;
 
 /** The 3 organization subscription tiers, with a real Stripe Checkout per plan. */
-export function OrgPlans({ currentPlan }: { currentPlan?: OrgPlan["key"] }) {
+export function OrgPlans({ currentPlan, trialUsed }: { currentPlan?: OrgPlan["key"]; trialUsed?: boolean }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [cycle, setCycle] = useState<BillingCycle>("monthly");
@@ -46,6 +46,11 @@ export function OrgPlans({ currentPlan }: { currentPlan?: OrgPlan["key"] }) {
         Credits cover both web-app analyses and API calls from the same pool. Buy more anytime from the wallet in
         Settings once subscribed.
       </p>
+      {!trialUsed && !currentPlan && (
+        <div className="mt-3 flex items-center gap-2 rounded-lg border border-go/30 bg-go/8 px-3 py-2 text-sm text-go">
+          <Icon name="spark" size={15} /> <strong>First plan starts with a 14-day free trial</strong> — cancel anytime before it ends and you won't be charged.
+        </div>
+      )}
       <div className="mt-4 inline-flex items-center gap-1 rounded-lg border border-border bg-surface-2 p-1">
         <button
           onClick={() => setCycle("monthly")}

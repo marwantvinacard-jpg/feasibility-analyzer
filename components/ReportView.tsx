@@ -5,6 +5,7 @@ import { Badge } from "@/components/kit";
 import { ScoreGauge, ScoreBar } from "@/components/ScoreGauge";
 import { Icon } from "@/components/icons";
 import { FinancialStudyView } from "@/components/FinancialStudy";
+import { SensitivityPanel } from "@/components/SensitivityPanel";
 import { money, scoreTone, toneText, verdictTone, cn, type Tone } from "@/lib/ui";
 import type { FullResult } from "@/lib/engine/runFeasibility";
 import type { StageName } from "@/lib/engine/types";
@@ -135,6 +136,9 @@ export function ReportView({
           </div>
         )}
       </Section>
+
+      {/* Sensitivity — automatic, no manual stress-test session required */}
+      {!print && <SensitivityPanel input={input} analysisId={analysisId} />}
 
       {/* Risk register */}
       <Section title={t("report.riskRegister")} subtitle={t("report.riskRegisterSubtitle", { score: riskScoring.overallRiskScore, level: riskScoring.riskLevel })}>

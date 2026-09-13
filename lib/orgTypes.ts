@@ -23,6 +23,8 @@ export interface Organization {
   /** Subscription tier, if any (see lib/pricing.ts ORG_PLANS). Undefined = no active plan. */
   plan?: OrgPlanKey;
   subscriptionStatus?: string; // mirrors Stripe subscription.status
+  /** True once this org has ever started a plan checkout — gates the one-time 14-day trial. */
+  trialUsed?: boolean;
   createdAt: number;
 }
 

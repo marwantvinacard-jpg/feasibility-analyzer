@@ -38,6 +38,7 @@ export default function Dashboard() {
   const [filter, setFilter] = useState<Filter>("all");
   const [sort, setSort] = useState<Sort>("newest");
   const [range, setRange] = useState<Range>("all");
+  const [client, setClient] = useState<string>("all");
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
   useEffect(() => {
@@ -58,7 +59,13 @@ export default function Dashboard() {
     : null;
 
   const cutoff = range === "all" ? 0 : Date.now() - RANGE_MS[range];
-  const filtered = items.filter((a) => (filter === "all" || a.status === filter) && a.createdAt >= cutoff);
+  const clients = Array.from(new Set(items.map((a) => a.input.client_name).filter((c): c is string => !!c?.trim()))).sort();
+  const filtered = items.filter(
+    (a) =>
+      (filter === "all" || a.status === filter) &&
+      a.createdAt >= cutoff &&
+      (client === "all" || a.input.client_name === client)
+  );
   const sorted = [...filtered].sort((a, b) => {
     if (sort === "oldest") return a.createdAt - b.createdAt;
     if (sort === "score") return (b.result?.overall.overall_score ?? -1) - (a.result?.overall.overall_score ?? -1);
@@ -90,6 +97,18 @@ export default function Dashboard() {
           {items.length > 0 && (
             <div className="flex flex-wrap items-center gap-2">
               <FilterTabs value={filter} onChange={setFilter} />
+              {clients.length > 0 && (
+                <select
+                  value={client}
+                  onChange={(e) => setClient(e.target.value)}
+                  className="rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs font-medium text-muted focus:outline-none"
+                >
+                  <option value="all">{t("dashboard.allClients")}</option>
+                  {clients.map((c) => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+              )}
               <select
                 value={range}
                 onChange={(e) => setRange(e.target.value as Range)}
@@ -245,6 +264,12 @@ function AnalysisRow({
       <div className="min-w-0 flex-1">
         <Link href={`/app/analysis/${a.id}`} className="block truncate font-semibold hover:text-brand">{a.input.business_idea || t("dashboard.untitled")}</Link>
         <div className="mt-0.5 flex items-center gap-2 text-xs text-faint">
+          {a.input.client_name && (
+            <>
+              <span className="rounded-full bg-brand/10 px-1.5 py-0.5 font-medium text-brand">{a.input.client_name}</span>
+              <span>·</span>
+            </>
+          )}
           <span className="truncate">{a.input.location}</span>
           <span>·</span>
           <span>{new Date(a.createdAt).toLocaleDateString()}</span>

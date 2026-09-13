@@ -99,6 +99,12 @@ export async function POST(req: Request) {
       const priceId = process.env[priceEnvKey];
       if (!priceId) throw new HttpError(500, `The ${plan.name} plan (${billingCycle}) is not configured yet (${priceEnvKey}).`);
 
+      // First-ever subscription for this org gets a 14-day free trial. Marking
+      // trialUsed the moment the trial is offered (not only on completion)
+      // keeps this un-exploitable via cancel-and-resubscribe.
+      const eligibleForTrial = !orgSnap.data()?.trialUsed;
+      if (eligibleForTrial) await db.collection("organizations").doc(orgId).update({ trialUsed: true });
+
       const session = await stripe().checkout.sessions.create({
         mode: "subscription",
         customer: customerId,
@@ -108,7 +114,10 @@ export async function POST(req: Request) {
         // Subscription object — set it explicitly so the webhook can find
         // orgId/planKey from subscription and invoice events, not just this
         // one checkout.session.completed event.
-        subscription_data: { metadata: { uid: caller.uid, kind: "org_plan", orgId, planKey: plan.key, cycle: billingCycle } },
+        subscription_data: {
+          metadata: { uid: caller.uid, kind: "org_plan", orgId, planKey: plan.key, cycle: billingCycle },
+          ...(eligibleForTrial ? { trial_period_days: 14 } : {}),
+        },
         success_url: `${origin}/app/org?subscribed=success`,
         cancel_url: `${origin}/app/org?subscribed=cancelled`,
       });
