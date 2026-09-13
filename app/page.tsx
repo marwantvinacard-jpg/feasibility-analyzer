@@ -36,6 +36,7 @@ function SiteNav() {
           <a href="#dimensions" className="transition-colors hover:text-ink">{t("nav.whatWeAnalyze")}</a>
           <a href="#pricing" className="transition-colors hover:text-ink">{t("nav.pricing")}</a>
           <a href="#faq" className="transition-colors hover:text-ink">{t("nav.faq")}</a>
+          <Link href="/methodology" className="transition-colors hover:text-ink">Methodology</Link>
         </nav>
         <div className="flex items-center gap-2">
           <LanguageSwitcher className="hidden sm:block" />
@@ -229,8 +230,9 @@ function SampleReport() {
               </li>
             ))}
           </ul>
-          <div className="mt-8">
-            <Button href="/signup">{t("landing.reportCta")}</Button>
+          <div className="mt-8 flex flex-wrap gap-3">
+            <Button href="/sample-report">{t("landing.reportCta")}</Button>
+            <Button href="/signup" variant="ghost">{t("nav.getStarted")}</Button>
           </div>
         </div>
         <div className="card p-6 shadow-lift">
@@ -354,6 +356,8 @@ function Footer() {
         </div>
         <p className="text-xs text-faint">© {new Date().getFullYear()} {t("common.appName")} · {t("landing.footerNote")}</p>
         <div className="flex gap-5 text-sm text-muted">
+          <Link href="/methodology" className="hover:text-ink">Methodology</Link>
+          <Link href="/sample-report" className="hover:text-ink">Sample report</Link>
           <Link href="/login" className="hover:text-ink">{t("nav.logIn")}</Link>
           <Link href="/signup" className="hover:text-ink">{t("nav.getStarted")}</Link>
         </div>

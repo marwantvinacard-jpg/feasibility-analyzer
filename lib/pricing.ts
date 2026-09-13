@@ -17,6 +17,15 @@ export function creditsForTopup(amountUsd: number): number {
   return Math.floor(net / USD_PER_CREDIT);
 }
 
+/** Annual billing discount vs. paying monthly — 2 months free, the SaaS-standard framing. */
+export const ANNUAL_DISCOUNT_MONTHS = 2;
+export type BillingCycle = "monthly" | "annual";
+
+/** monthlyUsd × 10 billed once a year — i.e. 12 months for the price of 10. */
+export function annualUsd(monthlyUsd: number): number {
+  return monthlyUsd * (12 - ANNUAL_DISCOUNT_MONTHS);
+}
+
 /** The single individual subscription plan. Created once via scripts/setup-stripe.mjs. */
 export const PRO_PLAN = {
   name: "Pro",

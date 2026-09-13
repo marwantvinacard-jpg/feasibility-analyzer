@@ -26,11 +26,12 @@ async function getOrCreateCustomer(uid: string, email?: string): Promise<string>
 export async function POST(req: Request) {
   try {
     const caller = await requireUser(req);
-    const { kind, amount, planKey, analysisId } = (await req.json()) as {
+    const { kind, amount, planKey, analysisId, cycle } = (await req.json()) as {
       kind: "wallet" | "subscription" | "org_plan" | "unlock_export";
       amount?: WalletTier;
       planKey?: OrgPlanKey;
       analysisId?: string;
+      cycle?: "monthly" | "annual";
     };
 
     const origin = req.headers.get("origin") ?? new URL(req.url).origin;
@@ -90,24 +91,28 @@ export async function POST(req: Request) {
         throw new HttpError(403, "Your organization must be approved before subscribing to a plan.");
       }
 
-      const priceEnvKey = `STRIPE_ORG_${plan.key.toUpperCase()}_PRICE_ID`;
+      const billingCycle = cycle === "annual" ? "annual" : "monthly";
+      const priceEnvKey =
+        billingCycle === "annual"
+          ? `STRIPE_ORG_${plan.key.toUpperCase()}_ANNUAL_PRICE_ID`
+          : `STRIPE_ORG_${plan.key.toUpperCase()}_PRICE_ID`;
       const priceId = process.env[priceEnvKey];
-      if (!priceId) throw new HttpError(500, `The ${plan.name} plan is not configured yet (${priceEnvKey}).`);
+      if (!priceId) throw new HttpError(500, `The ${plan.name} plan (${billingCycle}) is not configured yet (${priceEnvKey}).`);
 
       const session = await stripe().checkout.sessions.create({
         mode: "subscription",
         customer: customerId,
         line_items: [{ price: priceId, quantity: 1 }],
-        metadata: { uid: caller.uid, kind: "org_plan", orgId, planKey: plan.key },
+        metadata: { uid: caller.uid, kind: "org_plan", orgId, planKey: plan.key, cycle: billingCycle },
         // Checkout session metadata isn't reliably copied onto the resulting
         // Subscription object — set it explicitly so the webhook can find
         // orgId/planKey from subscription and invoice events, not just this
         // one checkout.session.completed event.
-        subscription_data: { metadata: { uid: caller.uid, kind: "org_plan", orgId, planKey: plan.key } },
+        subscription_data: { metadata: { uid: caller.uid, kind: "org_plan", orgId, planKey: plan.key, cycle: billingCycle } },
         success_url: `${origin}/app/org?subscribed=success`,
         cancel_url: `${origin}/app/org?subscribed=cancelled`,
       });
-      await logAudit({ uid: caller.uid, email: caller.email, action: "billing.checkout_started", meta: { kind, planKey, orgId } });
+      await logAudit({ uid: caller.uid, email: caller.email, action: "billing.checkout_started", meta: { kind, planKey, orgId, cycle: billingCycle } });
       return NextResponse.json({ url: session.url });
     }
 

@@ -7,6 +7,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import { adminDb } from "@/lib/firebase/admin";
 import { requireAdmin, HttpError } from "@/lib/firebase/verify";
 import { logAudit } from "@/lib/firebase/audit";
+import { sendApprovalEmail, sendRejectionEmail } from "@/lib/email";
 
 export const runtime = "nodejs";
 
@@ -32,8 +33,12 @@ export async function POST(req: Request) {
         { status: "approved", credits: current > 0 ? current : APPROVAL_CREDITS, updatedAt: new Date().toISOString() },
         { merge: true }
       );
+      const d = snap.data();
+      if (d?.email) sendApprovalEmail(d.email, d.name ?? "").catch(() => {});
     } else if (action === "reject") {
       await ref.set({ status: "rejected", updatedAt: new Date().toISOString() }, { merge: true });
+      const d = snap.data();
+      if (d?.email) sendRejectionEmail(d.email, d.name ?? "").catch(() => {});
     } else if (action === "grant") {
       await ref.update({ credits: FieldValue.increment(amount ?? APPROVAL_CREDITS) });
     } else {

@@ -6,11 +6,13 @@ import { Icon } from "@/components/icons";
 import { useSession } from "@/lib/session";
 import { cn } from "@/lib/ui";
 import { useT } from "@/lib/i18n/LanguageContext";
+import { useToast } from "@/lib/toast";
 
 export default function SettingsPage() {
   const { user, setKeyMode, setTrainingOptOut } = useSession();
   const [trainingSaving, setTrainingSaving] = useState(false);
   const t = useT();
+  const toast = useToast();
   const [key, setKey] = useState("");
   const [saved, setSaved] = useState(false);
 
@@ -64,7 +66,13 @@ export default function SettingsPage() {
                 value={key}
                 onChange={(e) => { setKey(e.target.value); setSaved(false); }}
               />
-              <Button variant="ghost" onClick={() => setSaved(true)} disabled={key.length < 8}>{t("common.save")}</Button>
+              <Button
+                variant="ghost"
+                onClick={() => { setSaved(true); toast.show(t("settings.keySaved"), "success"); }}
+                disabled={key.length < 8}
+              >
+                {t("common.save")}
+              </Button>
             </div>
             <p className="mt-2 text-xs text-faint">
               {saved ? (
@@ -91,7 +99,14 @@ export default function SettingsPage() {
             onClick={async () => {
               if (trainingSaving) return;
               setTrainingSaving(true);
-              try { await setTrainingOptOut(false); } finally { setTrainingSaving(false); }
+              try {
+                await setTrainingOptOut(false);
+                toast.show(t("settings.trainingSaved"), "success");
+              } catch {
+                toast.show(t("settings.trainingSaveFailed"), "error");
+              } finally {
+                setTrainingSaving(false);
+              }
             }}
           />
           <ModeCard
@@ -101,7 +116,14 @@ export default function SettingsPage() {
             onClick={async () => {
               if (trainingSaving) return;
               setTrainingSaving(true);
-              try { await setTrainingOptOut(true); } finally { setTrainingSaving(false); }
+              try {
+                await setTrainingOptOut(true);
+                toast.show(t("settings.trainingSaved"), "success");
+              } catch {
+                toast.show(t("settings.trainingSaveFailed"), "error");
+              } finally {
+                setTrainingSaving(false);
+              }
             }}
           />
         </div>

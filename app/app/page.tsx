@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Button, Badge } from "@/components/kit";
 import { Icon, type IconName } from "@/components/icons";
 import { useSession } from "@/lib/session";
@@ -11,9 +12,16 @@ import { scoreTone, toneText, verdictTone, cn, type Tone } from "@/lib/ui";
 import { dashboardGreeting } from "@/lib/greeting";
 import { DashboardInsights } from "@/components/DashboardInsights";
 import { useT } from "@/lib/i18n/LanguageContext";
+import { useToast } from "@/lib/toast";
 
 type Filter = "all" | "complete" | "failed" | "running";
 type Sort = "newest" | "oldest" | "score";
+type Range = "all" | "7d" | "30d" | "90d";
+const RANGE_MS: Record<Exclude<Range, "all">, number> = {
+  "7d": 7 * 86_400_000,
+  "30d": 30 * 86_400_000,
+  "90d": 90 * 86_400_000,
+};
 
 const TONE_CHIP: Record<Tone, string> = {
   go: "bg-go/12 text-go",
@@ -24,9 +32,13 @@ const TONE_CHIP: Record<Tone, string> = {
 export default function Dashboard() {
   const { user } = useSession();
   const t = useT();
+  const toast = useToast();
+  const router = useRouter();
   const [items, setItems] = useState<AnalysisDoc[]>([]);
   const [filter, setFilter] = useState<Filter>("all");
   const [sort, setSort] = useState<Sort>("newest");
+  const [range, setRange] = useState<Range>("all");
+  const [selected, setSelected] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (!user) return;
@@ -45,7 +57,8 @@ export default function Dashboard() {
     ? Math.round(completedScores.reduce((s, v) => s + v, 0) / completedScores.length)
     : null;
 
-  const filtered = items.filter((a) => filter === "all" || a.status === filter);
+  const cutoff = range === "all" ? 0 : Date.now() - RANGE_MS[range];
+  const filtered = items.filter((a) => (filter === "all" || a.status === filter) && a.createdAt >= cutoff);
   const sorted = [...filtered].sort((a, b) => {
     if (sort === "oldest") return a.createdAt - b.createdAt;
     if (sort === "score") return (b.result?.overall.overall_score ?? -1) - (a.result?.overall.overall_score ?? -1);
@@ -78,6 +91,16 @@ export default function Dashboard() {
             <div className="flex flex-wrap items-center gap-2">
               <FilterTabs value={filter} onChange={setFilter} />
               <select
+                value={range}
+                onChange={(e) => setRange(e.target.value as Range)}
+                className="rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs font-medium text-muted focus:outline-none"
+              >
+                <option value="all">{t("dashboard.rangeAll")}</option>
+                <option value="7d">{t("dashboard.range7d")}</option>
+                <option value="30d">{t("dashboard.range30d")}</option>
+                <option value="90d">{t("dashboard.range90d")}</option>
+              </select>
+              <select
                 value={sort}
                 onChange={(e) => setSort(e.target.value as Sort)}
                 className="rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs font-medium text-muted focus:outline-none"
@@ -89,6 +112,23 @@ export default function Dashboard() {
             </div>
           )}
         </div>
+        {selected.size > 0 && (
+          <div className="mb-3 flex items-center justify-between gap-3 rounded-xl border border-brand/30 bg-brand/8 px-4 py-2.5">
+            <span className="text-sm font-medium text-ink">{t("dashboard.selectedCount", { count: selected.size })}</span>
+            <div className="flex items-center gap-2">
+              <button onClick={() => setSelected(new Set())} className="text-xs font-semibold text-muted hover:text-ink">
+                {t("dashboard.clearSelection")}
+              </button>
+              <Button
+                className="text-xs"
+                onClick={() => router.push(`/app/compare?ids=${Array.from(selected).join(",")}`)}
+                disabled={selected.size < 2}
+              >
+                {t("dashboard.compareSelected")}
+              </Button>
+            </div>
+          </div>
+        )}
         {items.length === 0 ? (
           <div className="card grid place-items-center py-16 text-center">
             <span className="grid h-14 w-14 place-items-center rounded-2xl bg-brand/10 text-brand"><Icon name="doc" size={26} /></span>
@@ -103,7 +143,24 @@ export default function Dashboard() {
         ) : (
           <div className="space-y-3">
             {sorted.map((a) => (
-              <AnalysisRow key={a.id} a={a} onDelete={() => deleteAnalysis(a.id)} />
+              <AnalysisRow
+                key={a.id}
+                a={a}
+                selected={selected.has(a.id)}
+                onToggleSelect={() =>
+                  setSelected((s) => {
+                    const next = new Set(s);
+                    if (next.has(a.id)) next.delete(a.id);
+                    else next.add(a.id);
+                    return next;
+                  })
+                }
+                onDelete={() =>
+                  deleteAnalysis(a.id)
+                    .then(() => toast.show(t("dashboard.deleted"), "success"))
+                    .catch(() => toast.show(t("dashboard.deleteFailed"), "error"))
+                }
+              />
             ))}
           </div>
         )}
@@ -152,7 +209,17 @@ function StatCard({ label, value, icon, tone }: { label: string; value: string; 
   );
 }
 
-function AnalysisRow({ a, onDelete }: { a: AnalysisDoc; onDelete: () => void }) {
+function AnalysisRow({
+  a,
+  onDelete,
+  selected,
+  onToggleSelect,
+}: {
+  a: AnalysisDoc;
+  onDelete: () => void;
+  selected: boolean;
+  onToggleSelect: () => void;
+}) {
   const t = useT();
   const score = a.result?.overall.overall_score;
   const rec = a.result?.overall.recommendation;
@@ -160,7 +227,18 @@ function AnalysisRow({ a, onDelete }: { a: AnalysisDoc; onDelete: () => void }) 
   const statusIcon: IconName = a.status === "complete" ? "check" : a.status === "failed" ? "x" : "clock";
 
   return (
-    <div className="card flex items-center gap-4 p-4">
+    <div className={cn("card flex items-center gap-4 p-4", selected && "ring-1 ring-brand")}>
+      {a.status === "complete" ? (
+        <input
+          type="checkbox"
+          checked={selected}
+          onChange={onToggleSelect}
+          aria-label={t("dashboard.selectForCompare")}
+          className="h-4 w-4 shrink-0 accent-[rgb(var(--brand))]"
+        />
+      ) : (
+        <span className="w-4 shrink-0" />
+      )}
       <span className={cn("grid h-11 w-11 shrink-0 place-items-center rounded-xl", a.status === "complete" ? TONE_CHIP[tone] : a.status === "failed" ? "bg-stop/12 text-stop" : "bg-surface-2 text-faint")}>
         <Icon name={statusIcon} size={19} strokeWidth={2} />
       </span>

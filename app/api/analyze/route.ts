@@ -15,6 +15,7 @@ import { adminDb } from "@/lib/firebase/admin";
 import { requireUser, HttpError, type Caller } from "@/lib/firebase/verify";
 import { logAudit } from "@/lib/firebase/audit";
 import { logError } from "@/lib/firebase/errorLog";
+import { sendAnalysisReadyEmail } from "@/lib/email";
 import { withTrainingLog, type TrainingEntry } from "@/lib/engine/trainingLog";
 import { SIX_STAGES, type BusinessInput, type StageName, type StageStatus } from "@/lib/engine/types";
 
@@ -120,6 +121,9 @@ export async function POST(req: Request) {
         await ref.update({ status: "complete", result, stageStatus });
         send("done", { analysisId: id });
         await saveTrainingData();
+        if (caller.email) {
+          sendAnalysisReadyEmail(caller.email, callerDoc.data()?.name ?? "", id, input.business_idea).catch(() => {});
+        }
       } catch (err) {
         const message = err instanceof Error ? err.message : "Analysis failed";
         await Promise.allSettled([
