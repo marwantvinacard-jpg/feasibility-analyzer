@@ -15,6 +15,8 @@ import {
 } from "firebase/auth";
 import { auth } from "../services/firebase";
 import { bootstrapProfile, type UserProfile } from "../services/api";
+import { identifyUser, resetAnalytics } from "../services/analytics";
+import { setMonitoringUser, clearMonitoringUser } from "../services/monitoring";
 
 interface AuthContextValue {
   user: User | null;
@@ -53,9 +55,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     const unsub = onAuthStateChanged(auth, async (u) => {
       setUser(u);
       if (u) {
+        identifyUser(u.uid, { email: u.email || undefined });
+        setMonitoringUser(u.uid, u.email || undefined);
         await refreshProfile();
       } else {
         setProfile(null);
+        resetAnalytics();
+        clearMonitoringUser();
       }
       setLoading(false);
     });

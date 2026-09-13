@@ -152,6 +152,67 @@ app and API share one origin.
 
 ---
 
+## 6. Analytics, crash reporting, and feature flags
+
+Optional — the app runs fine with these unset (each SDK no-ops without a key).
+
+### 6a. PostHog (product analytics + feature flags)
+
+1. Sign up at https://posthog.com → create a project.
+2. Project Settings → copy the **Project API key** and **API host**.
+3. Add to `.env.local` / your deployment's env vars:
+   ```
+   VITE_POSTHOG_KEY=phc_...
+   VITE_POSTHOG_HOST=https://us.i.posthog.com
+   ```
+4. Feature flags: create one in PostHog's **Feature Flags** tab, then read it
+   in code with `useFeatureFlag("your-flag-key")` (see
+   [hooks/useFeatureFlag.ts](hooks/useFeatureFlag.ts)) or
+   `isFeatureEnabled("your-flag-key")` from
+   [services/analytics.ts](services/analytics.ts) outside React.
+
+### 6b. Sentry (crash reporting)
+
+1. Sign up at https://sentry.io → create a **React** project (frontend) and a
+   **Node/Express** project (backend) — or one project used for both.
+2. Copy each project's DSN and add:
+   ```
+   VITE_SENTRY_DSN=https://...@o0.ingest.sentry.io/...     # frontend
+   SENTRY_DSN=https://...@o0.ingest.sentry.io/...          # backend (server-only, no VITE_ prefix)
+   ```
+3. Errors caught by [components/ErrorBoundary.tsx](components/ErrorBoundary.tsx)
+   (frontend) and any unhandled Express route error (backend, via
+   [services/sentryServer.ts](services/sentryServer.ts)) are reported
+   automatically.
+
+---
+
+## 7. Staging environment
+
+Recommended setup: a second Firebase project + Vercel's branch preview deploys,
+so staging traffic never touches production data.
+
+1. **Second Firebase project:** repeat steps 1–2 above with a new project name
+   (e.g. `lumina-studio-staging`). This gives staging its own Auth users,
+   Firestore data, and Storage bucket — safe to break without risk to prod.
+2. **Service account for staging:** Project Settings → Service accounts →
+   Generate new private key → copy the full JSON into the `FIREBASE_SERVICE_ACCOUNT`
+   env var (see `services/firebaseAdmin.ts` — this is the credential path that
+   works on Vercel, since there's no local file to point
+   `GOOGLE_APPLICATION_CREDENTIALS` at).
+3. **In Vercel** → Project → Settings → Environment Variables: add every
+   `VITE_FIREBASE_*`, `FIREBASE_SERVICE_ACCOUNT`, `FIREBASE_STORAGE_BUCKET`,
+   `KEY_ENCRYPTION_SECRET`, `SUPER_ADMIN_EMAIL` entry scoped to **Preview**
+   only, using the staging project's values (Production keeps the real
+   project's values, scoped to **Production** only).
+4. Optionally set `VITE_APP_ENV=staging` and a separate `VITE_POSTHOG_KEY` /
+   `SENTRY_DSN` (or just a different `VITE_APP_ENV` tag on the same keys) on
+   Preview, so staging events don't mix with production analytics/errors.
+5. Push to any non-`main` branch (or open a PR) — Vercel deploys it as a
+   Preview URL automatically using the Preview-scoped env vars above.
+
+---
+
 ## Troubleshooting
 
 - **"Bucket name not specified"** → `FIREBASE_STORAGE_BUCKET` is missing/typo'd.

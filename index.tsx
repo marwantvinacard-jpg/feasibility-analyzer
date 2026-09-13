@@ -2,6 +2,11 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './AppRoot';
 import './index.css';
+import { initAnalytics } from './services/analytics';
+import { initMonitoring } from './services/monitoring';
+
+initAnalytics();
+initMonitoring();
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {

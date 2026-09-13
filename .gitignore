@@ -35,3 +35,7 @@ service-account*.json
 *.njsproj
 *.sln
 *.sw?
+.vercel
+.env*
+api/_server.mjs
+api/_server.mjs.map

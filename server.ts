@@ -1,4 +1,6 @@
 import "./loadEnv";
+import { initServerMonitoring, sentryEnabled, Sentry } from "./services/sentryServer";
+initServerMonitoring();
 import express from "express";
 import path from "path";
 import rateLimit from "express-rate-limit";
@@ -1102,6 +1104,12 @@ Do not add any preamble, explanation, notes, or metadata. Output ONLY the transc
 
   // Health check for Cloud Run
   app.get("/api/health", (_req, res) => res.json({ ok: true }));
+
+  // Must be registered after all routes (and before any other error
+  // middleware) so Sentry sees errors thrown by the handlers above.
+  if (sentryEnabled) {
+    Sentry.setupExpressErrorHandler(app);
+  }
 
   // -------------------------------------------------------------------------
   // Static / dev serving
