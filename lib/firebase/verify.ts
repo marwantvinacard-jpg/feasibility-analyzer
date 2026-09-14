@@ -1,6 +1,7 @@
 // Server-side auth verification for API routes. Reads the Firebase ID token
 // from the Authorization: Bearer header and verifies it with the Admin SDK.
 import { adminAuth } from "./admin";
+import { logError } from "./errorLog";
 
 export interface Caller {
   uid: string;
@@ -26,7 +27,11 @@ export async function requireUser(req: Request): Promise<Caller> {
     // ~1h expiry — worth it for an app that gates paid access by approval.
     const decoded = await adminAuth().verifyIdToken(token, true);
     return { uid: decoded.uid, email: decoded.email, admin: decoded.admin === true };
-  } catch {
+  } catch (err) {
+    // The client only ever sees the generic message below — never leak
+    // verification internals — but every prior occurrence of this error was
+    // otherwise invisible even to us. Now it's queryable in errorLog/Sentry.
+    await logError("auth.verify", err);
     throw new HttpError(401, "Invalid or expired session.");
   }
 }

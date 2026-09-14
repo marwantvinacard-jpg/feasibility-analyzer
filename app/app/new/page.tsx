@@ -135,28 +135,46 @@ export default function NewAnalysis() {
     }
     setPhase("running");
     setStageStatus(initialStages());
-    try {
-      const token = await getIdToken();
-      await streamAnalyze(
-        {
-          ...input,
-          monthly_cost: Number(input.monthly_cost),
-          monthly_revenue: Number(input.monthly_revenue),
-          // Blank optionals would otherwise reach the model as a stated budget
-          // of zero or an empty funding preference.
-          capex_budget: Number(input.capex_budget) > 0 ? Number(input.capex_budget) : undefined,
-          funding_preference: input.funding_preference?.trim() || undefined,
-          knowledge_base: knowledgeBase || undefined,
-          report_language: lang,
+
+    const payload = {
+      ...input,
+      monthly_cost: Number(input.monthly_cost),
+      monthly_revenue: Number(input.monthly_revenue),
+      // Blank optionals would otherwise reach the model as a stated budget
+      // of zero or an empty funding preference.
+      capex_budget: Number(input.capex_budget) > 0 ? Number(input.capex_budget) : undefined,
+      funding_preference: input.funding_preference?.trim() || undefined,
+      knowledge_base: knowledgeBase || undefined,
+      report_language: lang,
+    };
+
+    // The form can sit open a while before "Run analysis" is clicked, so the
+    // cached ID token may be stale. Force a fresh one up front, and if the
+    // server still rejects it as an invalid/expired session (clock skew, a
+    // token refresh that silently failed earlier), retry exactly once with
+    // another forced refresh instead of dead-ending the user on a vague error.
+    async function attempt(forceRefresh: boolean, isRetry: boolean) {
+      const token = await getIdToken(forceRefresh);
+      await streamAnalyze(payload, token, {
+        onProgress: ({ stage, status }) =>
+          setStageStatus((prev) => ({ ...prev, [stage as StageName]: status as StageStatus })),
+        onDone: ({ analysisId }) => router.push(`/app/analysis/${analysisId}`),
+        onError: (message) => {
+          if (!isRetry && /invalid or expired session/i.test(message)) {
+            attempt(true, true).catch((e) => {
+              setError(e instanceof Error ? e.message : "Could not start analysis.");
+              setPhase("form");
+            });
+            return;
+          }
+          setError(message);
+          setPhase("form");
         },
-        token,
-        {
-          onProgress: ({ stage, status }) =>
-            setStageStatus((prev) => ({ ...prev, [stage as StageName]: status as StageStatus })),
-          onDone: ({ analysisId }) => router.push(`/app/analysis/${analysisId}`),
-          onError: (message) => { setError(message); setPhase("form"); },
-        }
-      );
+      });
+    }
+
+    try {
+      await attempt(true, false);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not start analysis.");
       setPhase("form");

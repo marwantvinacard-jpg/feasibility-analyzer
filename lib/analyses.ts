@@ -60,11 +60,14 @@ export function subscribeScenarios(analysisId: string, cb: (items: ScenarioDoc[]
   );
 }
 
-/** Convenience: get the current user's ID token for authorized API calls. */
-export async function getIdToken(): Promise<string> {
+/** Convenience: get the current user's ID token for authorized API calls.
+ *  `forceRefresh` bypasses the SDK's cached token — worth it before a
+ *  long-running, high-value call (e.g. starting an analysis) where a form
+ *  may have sat open long enough for the cached token to be near/at expiry. */
+export async function getIdToken(forceRefresh = false): Promise<string> {
   const fb = getFirebase();
   if (!fb?.auth.currentUser) throw new Error("Not signed in.");
-  return fb.auth.currentUser.getIdToken();
+  return fb.auth.currentUser.getIdToken(forceRefresh);
 }
 
 async function authedFetch(url: string, init: RequestInit = {}) {
