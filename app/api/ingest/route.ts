@@ -1,7 +1,14 @@
 // POST /api/ingest — pull plain text out of an uploaded document so it can be
 // attached to an analysis as extra context. Accepts PDF, Word (.docx), Excel
-// (.xlsx/.xls), CSV and plain text. No auth, no storage — text is returned to
+// (.xlsx), CSV and plain text. No auth, no storage — text is returned to
 // the browser, which keeps it with the analysis input.
+//
+// Excel parsing uses exceljs, not the `xlsx` (SheetJS) package: SheetJS has an
+// unpatched high-severity prototype-pollution + ReDoS advisory, and this route
+// feeds it arbitrary user-uploaded files — the exact untrusted-input path
+// those advisories are about. exceljs only reads the modern .xlsx (OOXML)
+// format, so legacy .xls/.ods uploads are no longer supported — signed-in
+// users are the only reachable audience for that regression.
 
 import { NextResponse } from "next/server";
 import { requireUser, HttpError } from "@/lib/firebase/verify";
@@ -11,6 +18,21 @@ export const maxDuration = 60;
 
 const MAX_BYTES = 15 * 1024 * 1024; // 15 MB upload cap
 const MAX_CHARS = 20_000; // keep prompt cost sane
+
+// exceljs cell values can be a primitive, a Date, a formula result object
+// ({ result, formula }), or rich text ({ richText: [{ text }, ...] }).
+function cellToText(v: unknown): string {
+  if (v == null) return "";
+  if (v instanceof Date) return v.toISOString().slice(0, 10);
+  if (typeof v === "object") {
+    const o = v as { result?: unknown; richText?: { text: string }[]; text?: string };
+    if (o.richText) return o.richText.map((r) => r.text).join("");
+    if (o.result !== undefined) return cellToText(o.result);
+    if (o.text !== undefined) return String(o.text);
+    return "";
+  }
+  return String(v);
+}
 
 export async function POST(req: Request) {
   try {
@@ -39,10 +61,27 @@ export async function POST(req: Request) {
     } else if (ext === "docx" || file.type.includes("wordprocessingml")) {
       const mammoth = await import("mammoth");
       text = (await mammoth.extractRawText({ buffer: buf })).value ?? "";
-    } else if (["xlsx", "xls", "ods"].includes(ext) || file.type.includes("spreadsheet")) {
-      const XLSX = await import("xlsx");
-      const wb = XLSX.read(buf, { type: "buffer" });
-      text = wb.SheetNames.map((s) => `# ${s}\n${XLSX.utils.sheet_to_csv(wb.Sheets[s])}`).join("\n\n");
+    } else if (ext === "xlsx" || file.type.includes("spreadsheet")) {
+      const { default: ExcelJS } = await import("exceljs");
+      const wb = new ExcelJS.Workbook();
+      // exceljs's Buffer type comes from its own @types/node, which can drift
+      // from this project's — both are Node Buffers at runtime.
+      await wb.xlsx.load(buf as unknown as Parameters<typeof wb.xlsx.load>[0]);
+      const sheets: string[] = [];
+      wb.eachSheet((sheet) => {
+        const rows: string[] = [];
+        sheet.eachRow((row) => {
+          const cells = (row.values as unknown[]).slice(1).map(cellToText);
+          rows.push(cells.join(","));
+        });
+        sheets.push(`# ${sheet.name}\n${rows.join("\n")}`);
+      });
+      text = sheets.join("\n\n");
+    } else if (["xls", "ods"].includes(ext)) {
+      return NextResponse.json(
+        { error: `.${ext} isn't supported — save it as .xlsx and try again.` },
+        { status: 415 }
+      );
     } else if (["txt", "md", "csv", "tsv", "json", "log", "rtf"].includes(ext) || file.type.startsWith("text/")) {
       text = buf.toString("utf8");
     } else {
