@@ -4,6 +4,8 @@
 // triggered it" pattern as the mock LLM/search providers: a missing key means
 // no email goes out, not a thrown error that fails the approval or analysis.
 
+import { logError } from "./firebase/errorLog";
+
 const FROM = process.env.EMAIL_FROM || "FeasibilityAI <onboarding@resend.dev>";
 
 async function send(to: string, subject: string, html: string): Promise<void> {
@@ -11,13 +13,21 @@ async function send(to: string, subject: string, html: string): Promise<void> {
   if (!apiKey) return; // not configured — deferred like SERPAPI_API_KEY/Stripe
 
   try {
-    await fetch("https://api.resend.com/emails", {
+    const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({ from: FROM, to, subject, html }),
     });
-  } catch {
-    /* email is best-effort — never fails the action that triggered it */
+    if (!res.ok) {
+      // Previously swallowed silently — a bad key, an unverified sending
+      // domain, or a rate limit all looked identical to "email is working."
+      const body = await res.text().catch(() => "");
+      await logError("email.send", new Error(`Resend ${res.status}: ${body.slice(0, 500)}`), { to, subject });
+    }
+  } catch (err) {
+    // Still best-effort — never fails the action that triggered it — but now
+    // at least visible in errorLog/Sentry instead of vanishing.
+    await logError("email.send", err, { to, subject });
   }
 }
 
