@@ -234,7 +234,7 @@ export default function NewAnalysis() {
             ref={fileRef}
             type="file"
             multiple
-            accept=".pdf,.docx,.xlsx,.xls,.csv,.tsv,.txt,.md,.json"
+            accept=".pdf,.docx,.xlsx,.csv,.tsv,.txt,.md,.json"
             className="hidden"
             onChange={(e) => addFiles(e.target.files)}
           />
