@@ -7,7 +7,7 @@
 import { OpenAIProvider, type LlmProvider } from "./provider";
 import { OllamaProvider } from "./ollama";
 
-export type ProviderName = "mock" | "openai" | "gemini" | "groq" | "cerebras" | "ollama";
+export type ProviderName = "mock" | "openai" | "gemini" | "groq" | "cerebras" | "openrouter" | "omniroute" | "ollama";
 
 interface HostedPreset {
   baseURL?: string;
@@ -26,6 +26,20 @@ const HOSTED: Record<Exclude<ProviderName, "mock" | "ollama">, HostedPreset> = {
   },
   groq: { baseURL: "https://api.groq.com/openai/v1", defaultModel: "openai/gpt-oss-120b", keyEnv: "GROQ_API_KEY" },
   cerebras: { baseURL: "https://api.cerebras.ai/v1", defaultModel: "qwen-3-32b", keyEnv: "CEREBRAS_API_KEY" },
+  // OpenRouter — one key, routes to any of its 300+ hosted models. Default
+  // model routes to OpenAI's own gpt-4o through OpenRouter, since that's the
+  // exact model this app already targets and is confirmed to support strict
+  // JSON-schema structured outputs (the engine's structured() calls require
+  // it) — override with FEASIBILITY_MODEL to point at a different one.
+  openrouter: { baseURL: "https://openrouter.ai/api/v1", defaultModel: "openai/gpt-4o", keyEnv: "OPENROUTER_API_KEY" },
+  // Local OmniRoute gateway (self-hosted, http://localhost:20128) — auto-routes
+  // across whichever providers are connected there. Requires `omniroute serve`
+  // running locally; falls over to nothing if it's down, same as any other preset.
+  omniroute: {
+    baseURL: process.env.OMNIROUTE_BASE_URL ?? "http://localhost:20128/v1",
+    defaultModel: "auto/pro-reasoning",
+    keyEnv: "OMNIROUTE_API_KEY",
+  },
 };
 
 /** Pick a provider from FEASIBILITY_PROVIDER, else auto-detect from present keys. */
@@ -37,6 +51,8 @@ export function activeProviderName(): ProviderName {
   if (process.env.GEMINI_API_KEY) return "gemini";
   if (process.env.GROQ_API_KEY) return "groq";
   if (process.env.CEREBRAS_API_KEY) return "cerebras";
+  if (process.env.OPENROUTER_API_KEY) return "openrouter";
+  if (process.env.OMNIROUTE_API_KEY) return "omniroute";
   if (process.env.OLLAMA_HOST) return "ollama";
   return "mock";
 }
@@ -72,7 +88,7 @@ export function createLlm(opts: LlmFactoryOpts = {}): LlmProvider {
 
   const preset = HOSTED[name as keyof typeof HOSTED];
   if (!preset) {
-    throw new Error(`Unknown FEASIBILITY_PROVIDER "${name}". Use one of: mock, openai, gemini, groq, cerebras, ollama.`);
+    throw new Error(`Unknown FEASIBILITY_PROVIDER "${name}". Use one of: mock, openai, gemini, groq, cerebras, openrouter, omniroute, ollama.`);
   }
   const apiKey = process.env[preset.keyEnv];
   if (!apiKey) {
