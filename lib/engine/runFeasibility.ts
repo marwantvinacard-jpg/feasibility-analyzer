@@ -130,8 +130,15 @@ export async function runFeasibility(
   // 5) Narrative content — the feasibility report, and the financial study when
   //    a model was produced. Independent calls, so they run together.
   const model = modelOut.ok ? (modelOut.data as FinancialModel) : null;
+  // report.content is a required field on the final result (unlike the
+  // financial study, which degrades gracefully to null) — a single transient
+  // failure here would otherwise discard 8 fully-computed, already-paid-for
+  // scoring stages over one narrative hiccup. One bounded retry costs little
+  // and covers the common transient case; a genuine failure still throws.
   const [report, studyOut] = await Promise.all([
-    generateReport(llm, { input, stages, financials, riskScoring, scores, overall }),
+    generateReport(llm, { input, stages, financials, riskScoring, scores, overall }).catch(() =>
+      generateReport(llm, { input, stages, financials, riskScoring, scores, overall })
+    ),
     model
       ? generateStudy(llm, { input, model, stages, riskScoring }).catch(() => null)
       : Promise.resolve(null),

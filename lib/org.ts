@@ -40,8 +40,8 @@ export async function removeMember(uid: string): Promise<void> {
   await authedFetch(`/api/org/members?uid=${encodeURIComponent(uid)}`, { method: "DELETE" });
 }
 
-export async function createApiKey(label: string): Promise<{ key: string; meta: ApiKeyDoc }> {
-  return authedFetch("/api/org/keys", { method: "POST", body: JSON.stringify({ label }) });
+export async function createApiKey(label: string, expiresInDays?: number): Promise<{ key: string; meta: ApiKeyDoc }> {
+  return authedFetch("/api/org/keys", { method: "POST", body: JSON.stringify({ label, expiresInDays }) });
 }
 
 export async function revokeApiKey(id: string): Promise<void> {

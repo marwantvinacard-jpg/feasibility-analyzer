@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Button, Badge } from "@/components/kit";
 import { Icon } from "@/components/icons";
@@ -245,8 +245,8 @@ export default function EditModelPage() {
           <NumField label="Debt term (years)" value={model.funding.debt_term_years} onChange={(v) => setFunding("debt_term_years", v)} />
         </div>
         <div>
-          <label className="mb-1.5 block text-xs text-faint">Structure rationale</label>
-          <textarea className="input min-h-[60px] resize-y" value={model.funding.structure_rationale} onChange={(e) => setFunding("structure_rationale", e.target.value)} />
+          <label htmlFor="structure-rationale" className="mb-1.5 block text-xs text-faint">Structure rationale</label>
+          <textarea id="structure-rationale" className="input min-h-[60px] resize-y" value={model.funding.structure_rationale} onChange={(e) => setFunding("structure_rationale", e.target.value)} />
         </div>
       </div>
 
@@ -272,10 +272,11 @@ function PreviewTile({ label, value, tone }: { label: string; value: string; ton
 }
 
 function NumField({ label, value, onChange }: { label: string; value: number; onChange: (v: number) => void }) {
+  const id = useId();
   return (
     <div>
-      <label className="mb-1.5 block text-xs text-faint">{label}</label>
-      <input className="input" type="number" value={value} onChange={(e) => onChange(Number(e.target.value))} />
+      <label htmlFor={id} className="mb-1.5 block text-xs text-faint">{label}</label>
+      <input id={id} className="input" type="number" value={value} onChange={(e) => onChange(Number(e.target.value))} />
     </div>
   );
 }

@@ -45,4 +45,6 @@ export interface ApiKeyDoc {
   createdBy: string; // email
   lastUsedAt?: number;
   revoked?: boolean;
+  /** Optional — omitted means never expires. */
+  expiresAt?: number;
 }

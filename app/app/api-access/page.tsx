@@ -15,6 +15,7 @@ export default function ApiAccessPage() {
   const [error, setError] = useState("");
 
   const [label, setLabel] = useState("");
+  const [expiresInDays, setExpiresInDays] = useState<string>("");
   const [creating, setCreating] = useState(false);
   const [freshKey, setFreshKey] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -37,9 +38,11 @@ export default function ApiAccessPage() {
     setError("");
     setFreshKey(null);
     try {
-      const { key } = await createApiKey(label.trim() || "Untitled key");
+      const days = expiresInDays ? Number(expiresInDays) : undefined;
+      const { key } = await createApiKey(label.trim() || "Untitled key", days);
       setFreshKey(key);
       setLabel("");
+      setExpiresInDays("");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not create key.");
     } finally {
@@ -108,7 +111,17 @@ export default function ApiAccessPage() {
           <div className="label mb-3">Create a new key</div>
           <div className="flex flex-wrap items-end gap-2">
             <div className="min-w-[12rem] flex-1">
-              <input className="input" placeholder='Label — e.g. "Production backend"' value={label} onChange={(e) => setLabel(e.target.value)} />
+              <label htmlFor="key-label" className="sr-only">Key label</label>
+              <input id="key-label" className="input" placeholder='Label — e.g. "Production backend"' value={label} onChange={(e) => setLabel(e.target.value)} />
+            </div>
+            <div>
+              <label htmlFor="key-expiry" className="sr-only">Expiry</label>
+              <select id="key-expiry" className="input" value={expiresInDays} onChange={(e) => setExpiresInDays(e.target.value)}>
+                <option value="">Never expires</option>
+                <option value="30">Expires in 30 days</option>
+                <option value="90">Expires in 90 days</option>
+                <option value="365">Expires in 1 year</option>
+              </select>
             </div>
             <Button onClick={handleCreate} disabled={creating}>
               {creating ? "Creating…" : <>Create key <Icon name="plus" size={16} /></>}
@@ -136,6 +149,7 @@ export default function ApiAccessPage() {
               <div className="truncate text-xs text-faint">
                 <code>{k.keyPrefix}…</code> · created by {k.createdBy}
                 {k.lastUsedAt ? ` · last used ${new Date(k.lastUsedAt).toLocaleDateString()}` : " · never used"}
+                {k.expiresAt && ` · ${k.expiresAt < Date.now() ? "expired" : `expires ${new Date(k.expiresAt).toLocaleDateString()}`}`}
               </div>
             </div>
             {isOwner && (

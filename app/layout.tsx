@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter, Fraunces, JetBrains_Mono, Noto_Sans_Arabic } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
@@ -36,6 +36,14 @@ export const metadata: Metadata = {
     title: TITLE,
     description: DESCRIPTION,
   },
+  appleWebApp: {
+    title: "FeasibilityAI",
+    statusBarStyle: "default",
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#264DF0",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

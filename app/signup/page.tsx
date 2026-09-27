@@ -66,20 +66,20 @@ export default function SignupPage() {
     >
       <form onSubmit={submit} className="space-y-4">
         <div>
-          <label className="mb-1.5 block text-sm font-medium">{t("auth.nameLabel")}</label>
-          <input className="input" placeholder={t("auth.namePlaceholder")} value={name} onChange={(e) => setName(e.target.value)} required />
+          <label htmlFor="signup-name" className="mb-1.5 block text-sm font-medium">{t("auth.nameLabel")}</label>
+          <input id="signup-name" className="input" placeholder={t("auth.namePlaceholder")} value={name} onChange={(e) => setName(e.target.value)} required />
         </div>
         <div>
-          <label className="mb-1.5 block text-sm font-medium">{t("auth.usernameLabel")}</label>
-          <input className="input" placeholder={t("auth.usernamePlaceholder")} value={username} onChange={(e) => setUsername(e.target.value)} required />
+          <label htmlFor="signup-username" className="mb-1.5 block text-sm font-medium">{t("auth.usernameLabel")}</label>
+          <input id="signup-username" className="input" placeholder={t("auth.usernamePlaceholder")} value={username} onChange={(e) => setUsername(e.target.value)} required />
         </div>
         <div>
-          <label className="mb-1.5 block text-sm font-medium">{t("auth.workEmail")}</label>
-          <input className="input" type="email" placeholder={t("auth.emailPlaceholder")} value={email} onChange={(e) => setEmail(e.target.value)} required />
+          <label htmlFor="signup-email" className="mb-1.5 block text-sm font-medium">{t("auth.workEmail")}</label>
+          <input id="signup-email" className="input" type="email" placeholder={t("auth.emailPlaceholder")} value={email} onChange={(e) => setEmail(e.target.value)} required />
         </div>
         <div>
-          <label className="mb-1.5 block text-sm font-medium">{t("auth.passwordLabel")}</label>
-          <input className="input" type="password" placeholder={t("auth.minChars")} value={password} onChange={(e) => setPassword(e.target.value)} minLength={6} required />
+          <label htmlFor="signup-password" className="mb-1.5 block text-sm font-medium">{t("auth.passwordLabel")}</label>
+          <input id="signup-password" className="input" type="password" placeholder={t("auth.minChars")} value={password} onChange={(e) => setPassword(e.target.value)} minLength={6} required />
         </div>
         {error && <p className="text-sm text-stop">{error}</p>}
         <Button type="submit" className="w-full" disabled={busy}>

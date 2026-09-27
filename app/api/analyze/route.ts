@@ -10,7 +10,9 @@
 import { FieldValue } from "firebase-admin/firestore";
 import { runFeasibility } from "@/lib/engine/runFeasibility";
 import { createLlm, isMockExplicit, isProductionEnv } from "@/lib/engine/factory";
+import { OpenAIProvider } from "@/lib/engine/provider";
 import { SerpApiProvider } from "@/lib/engine/search";
+import { getByokKey } from "@/lib/firebase/byokKey";
 import { adminDb } from "@/lib/firebase/admin";
 import { requireUser, HttpError, type Caller } from "@/lib/firebase/verify";
 import { logAudit } from "@/lib/firebase/audit";
@@ -60,22 +62,38 @@ export async function POST(req: Request) {
   const db = adminDb();
   const userRef = db.collection("users").doc(caller.uid);
 
-  // --- approval + credit gate (atomic) ---
+  // --- approval check + BYOK detection ---
+  const preSnap = await userRef.get();
+  if (!preSnap.exists) return json({ error: "Account not found." }, 403);
+  const preData = preSnap.data() as { status?: string; keyMode?: string };
+  if (preData.status !== "approved") return json({ error: "Your account isn't approved yet." }, 403);
+
+  const isByok = preData.keyMode === "byok";
+  let byokApiKey: string | null = null;
+  if (isByok) {
+    byokApiKey = await getByokKey(caller.uid);
+    if (!byokApiKey) {
+      return json({ error: "Add your API key in Settings before running an analysis in BYOK mode." }, 400);
+    }
+  }
+
+  // --- credit gate (atomic) — skipped entirely in BYOK mode, which runs on
+  // the user's own key and never touches the platform's credit balance ---
   let charged = false;
-  try {
-    charged = await db.runTransaction(async (tx) => {
-      const snap = await tx.get(userRef);
-      if (!snap.exists) throw new HttpError(403, "Account not found.");
-      const u = snap.data() as { status?: string; credits?: number };
-      if (u.status !== "approved") throw new HttpError(403, "Your account isn't approved yet.");
-      const credits = u.credits ?? 0;
-      if (credits < 1) throw new HttpError(402, "You're out of credits. Ask an admin to add more.");
-      tx.update(userRef, { credits: credits - 1 });
-      return true;
-    });
-  } catch (err) {
-    const e = err as HttpError;
-    return json({ error: e.message ?? "Not allowed" }, e.status ?? 403);
+  if (!isByok) {
+    try {
+      charged = await db.runTransaction(async (tx) => {
+        const snap = await tx.get(userRef);
+        const u = snap.data() as { credits?: number };
+        const credits = u.credits ?? 0;
+        if (credits < 1) throw new HttpError(402, "You're out of credits. Ask an admin to add more.");
+        tx.update(userRef, { credits: credits - 1 });
+        return true;
+      });
+    } catch (err) {
+      const e = err as HttpError;
+      return json({ error: e.message ?? "Not allowed" }, e.status ?? 403);
+    }
   }
 
   // --- create the analysis record ---
@@ -93,11 +111,12 @@ export async function POST(req: Request) {
     input,
     stageStatus: initialStages(),
     charged,
+    billedVia: isByok ? "byok" : "credit",
     reviewStatus: "unreviewed",
   });
   await logAudit({ uid: caller.uid, email: caller.email, action: "analysis.run", target: id, meta: { business_idea: input.business_idea } });
 
-  const baseLlm = createLlm();
+  const baseLlm = isByok && byokApiKey ? new OpenAIProvider({ apiKey: byokApiKey }) : createLlm();
   if (baseLlm.mock && !isMockExplicit() && isProductionEnv()) {
     // Every AI-provider env var is simply absent in production — this run is
     // about to charge a real credit for fabricated output with nothing but a

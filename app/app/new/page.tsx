@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useId, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button, Badge } from "@/components/kit";
 import { Icon } from "@/components/icons";
@@ -310,14 +310,14 @@ export default function NewAnalysis() {
         <div className="grid gap-5 sm:grid-cols-2">
           {TEXT_FIELDS.map((f) => (
             <div key={f.key} className={f.long ? "sm:col-span-2" : ""}>
-              <label className="mb-1.5 flex items-center gap-2 text-sm font-medium">
+              <label htmlFor={`field-${f.key}`} className="mb-1.5 flex items-center gap-2 text-sm font-medium">
                 {f.label}
                 {FILLED(input[f.key]) && <Icon name="check" size={14} className="text-go" strokeWidth={2.5} />}
               </label>
               {f.long ? (
-                <textarea className="input min-h-[70px] resize-y" placeholder={f.placeholder} value={String(input[f.key] ?? "")} onChange={(e) => set(f.key, e.target.value as never)} />
+                <textarea id={`field-${f.key}`} className="input min-h-[70px] resize-y" placeholder={f.placeholder} value={String(input[f.key] ?? "")} onChange={(e) => set(f.key, e.target.value as never)} />
               ) : (
-                <input className="input" placeholder={f.placeholder} value={String(input[f.key] ?? "")} onChange={(e) => set(f.key, e.target.value as never)} />
+                <input id={`field-${f.key}`} className="input" placeholder={f.placeholder} value={String(input[f.key] ?? "")} onChange={(e) => set(f.key, e.target.value as never)} />
               )}
             </div>
           ))}
@@ -410,15 +410,16 @@ export default function NewAnalysis() {
 }
 
 function NumberField({ label, value, onChange, currency }: { label: string; value: number; onChange: (n: number) => void; currency?: string }) {
+  const id = useId();
   return (
     <div>
-      <label className="mb-1.5 flex items-center gap-2 text-sm font-medium">
+      <label htmlFor={id} className="mb-1.5 flex items-center gap-2 text-sm font-medium">
         {label}
         {value > 0 && <Icon name="check" size={14} className="text-go" strokeWidth={2.5} />}
       </label>
       <div className="relative">
         <span className="pointer-events-none absolute start-3 top-1/2 -translate-y-1/2 text-sm text-faint">{currencySymbol(currency)}</span>
-        <input className="input ps-7" type="number" min={0} placeholder="0" value={value || ""} onChange={(e) => onChange(Number(e.target.value))} />
+        <input id={id} className="input ps-7" type="number" min={0} placeholder="0" value={value || ""} onChange={(e) => onChange(Number(e.target.value))} />
       </div>
     </div>
   );

@@ -42,7 +42,10 @@ export async function POST(req: Request) {
     const caller = await requireUser(req);
     const rl = checkRateLimit(`org-keys-create:${caller.uid}`, RATE_LIMIT, RATE_WINDOW_MS);
     if (!rl.allowed) throw new HttpError(429, `Too many keys created at once. Try again in ${Math.ceil(rl.retryAfterMs / 1000)}s.`);
-    const { label } = (await req.json()) as { label?: string };
+    const { label, expiresInDays } = (await req.json()) as { label?: string; expiresInDays?: number };
+    if (expiresInDays !== undefined && (!Number.isFinite(expiresInDays) || expiresInDays <= 0 || expiresInDays > 3650)) {
+      throw new HttpError(400, "expiresInDays must be a positive number of days (up to 10 years).");
+    }
 
     const { orgRef } = await requireOwnedOrg(caller, true);
 
@@ -54,6 +57,7 @@ export async function POST(req: Request) {
       keyPrefix: raw.slice(0, 16),
       createdAt: Date.now(),
       createdBy: caller.email ?? caller.uid,
+      ...(expiresInDays ? { expiresAt: Date.now() + expiresInDays * 86_400_000 } : {}),
     };
     await keyRef.set({ ...doc, keyHash: hashKey(raw) });
 

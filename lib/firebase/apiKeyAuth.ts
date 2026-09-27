@@ -25,6 +25,9 @@ export async function requireApiKey(req: Request): Promise<ApiCaller> {
   const keyDoc = snap.docs[0];
   const data = keyDoc.data();
   if (data.revoked) throw new HttpError(401, "This API key has been revoked.");
+  if (typeof data.expiresAt === "number" && data.expiresAt < Date.now()) {
+    throw new HttpError(401, "This API key has expired.");
+  }
 
   const orgRef = keyDoc.ref.parent.parent;
   if (!orgRef) throw new HttpError(500, "Malformed API key record.");

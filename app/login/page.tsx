@@ -45,12 +45,12 @@ export default function LoginPage() {
     >
       <form onSubmit={(e) => { e.preventDefault(); run(() => signInEmail(identifier, password)); }} className="space-y-4">
         <div>
-          <label className="mb-1.5 block text-sm font-medium">{t("auth.identifierLabel")}</label>
-          <input className="input" type="text" placeholder={t("auth.identifierPlaceholder")} value={identifier} onChange={(e) => setIdentifier(e.target.value)} required />
+          <label htmlFor="login-identifier" className="mb-1.5 block text-sm font-medium">{t("auth.identifierLabel")}</label>
+          <input id="login-identifier" className="input" type="text" placeholder={t("auth.identifierPlaceholder")} value={identifier} onChange={(e) => setIdentifier(e.target.value)} required />
         </div>
         <div>
-          <label className="mb-1.5 block text-sm font-medium">{t("auth.passwordLabel")}</label>
-          <input className="input" type="password" placeholder={t("auth.passwordPlaceholder")} value={password} onChange={(e) => setPassword(e.target.value)} required />
+          <label htmlFor="login-password" className="mb-1.5 block text-sm font-medium">{t("auth.passwordLabel")}</label>
+          <input id="login-password" className="input" type="password" placeholder={t("auth.passwordPlaceholder")} value={password} onChange={(e) => setPassword(e.target.value)} required />
         </div>
         {error && <p className="text-sm text-stop">{error}</p>}
         <Button type="submit" className="w-full" disabled={busy}>{busy ? t("auth.loggingIn") : t("auth.logIn")}</Button>

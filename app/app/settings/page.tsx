@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Badge, Button } from "@/components/kit";
 import { Icon } from "@/components/icons";
 import { useSession } from "@/lib/session";
@@ -9,11 +9,81 @@ import { useT } from "@/lib/i18n/LanguageContext";
 import { useToast } from "@/lib/toast";
 
 export default function SettingsPage() {
-  const { user, setKeyMode, setTrainingOptOut } = useSession();
+  const { user, setKeyMode, setTrainingOptOut, getIdToken } = useSession();
   const [trainingSaving, setTrainingSaving] = useState(false);
   const t = useT();
   const toast = useToast();
   const [key, setKey] = useState("");
+  const [keyPreview, setKeyPreview] = useState<string | null>(null);
+  const [keySaving, setKeySaving] = useState(false);
+  const [keyLoaded, setKeyLoaded] = useState(false);
+  const [portalLoading, setPortalLoading] = useState(false);
+
+  async function openBillingPortal() {
+    setPortalLoading(true);
+    try {
+      const token = await getIdToken();
+      const res = await fetch("/api/stripe/portal", { method: "POST", headers: { Authorization: `Bearer ${token}` } });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error ?? "Could not open the billing portal.");
+      window.location.href = data.url;
+    } catch (e) {
+      toast.show(e instanceof Error ? e.message : "Could not open the billing portal.", "error");
+      setPortalLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    if (!user || user.keyMode !== "byok" || keyLoaded) return;
+    (async () => {
+      try {
+        const token = await getIdToken();
+        const res = await fetch("/api/settings/byok-key", { headers: { Authorization: `Bearer ${token}` } });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok) setKeyPreview(data.preview ?? null);
+      } finally {
+        setKeyLoaded(true);
+      }
+    })();
+  }, [user, keyLoaded, getIdToken]);
+
+  async function saveKey() {
+    if (key.trim().length < 8) return;
+    setKeySaving(true);
+    try {
+      const token = await getIdToken();
+      const res = await fetch("/api/settings/byok-key", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ key: key.trim() }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error ?? "Could not save the key.");
+      setKeyPreview(data.preview ?? null);
+      setKey("");
+      toast.show(t("settings.keySaved"), "success");
+    } catch (e) {
+      toast.show(e instanceof Error ? e.message : t("settings.keySaveFailed"), "error");
+    } finally {
+      setKeySaving(false);
+    }
+  }
+
+  async function removeKey() {
+    if (!window.confirm(t("settings.confirmRemoveKey"))) return;
+    setKeySaving(true);
+    try {
+      const token = await getIdToken();
+      const res = await fetch("/api/settings/byok-key", { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) throw new Error("Could not remove the key.");
+      setKeyPreview(null);
+      toast.show(t("settings.keyRemoved"), "success");
+    } catch (e) {
+      toast.show(e instanceof Error ? e.message : t("settings.keySaveFailed"), "error");
+    } finally {
+      setKeySaving(false);
+    }
+  }
 
   if (!user) return null;
 
@@ -34,6 +104,22 @@ export default function SettingsPage() {
           <Field label={t("settings.credits")} value={String(user.credits)} />
         </div>
       </section>
+
+      {/* Billing */}
+      {user.subscriptionStatus && (
+        <section className="card p-5">
+          <h2 className="label">{t("settings.billing")}</h2>
+          <div className="mt-3 flex items-center justify-between gap-3">
+            <div>
+              <div className="text-sm font-medium capitalize">{user.subscriptionStatus}</div>
+              <p className="mt-0.5 text-xs text-muted">{t("settings.billingHint")}</p>
+            </div>
+            <Button variant="ghost" onClick={openBillingPortal} disabled={portalLoading}>
+              {portalLoading ? t("common.loading") : t("settings.manageBilling")}
+            </Button>
+          </div>
+        </section>
+      )}
 
       {/* AI key mode */}
       <section className="card p-5">
@@ -56,23 +142,32 @@ export default function SettingsPage() {
 
         {user.keyMode === "byok" && (
           <div className="mt-4 rounded-xl border border-border bg-surface-2 p-4">
-            <label className="mb-1.5 block text-sm font-medium">{t("settings.yourApiKey")}</label>
-            <div className="flex gap-2">
-              <input
-                className="input font-mono"
-                type="password"
-                placeholder={t("settings.keyPlaceholder")}
-                value={key}
-                onChange={(e) => setKey(e.target.value)}
-                disabled
-              />
-              <Button variant="ghost" disabled>
-                {t("common.save")}
-              </Button>
-            </div>
-            <p className="mt-2 flex items-center gap-1 text-xs text-warn">
-              <Icon name="risk" size={13} strokeWidth={2.5} /> {t("settings.keyNotSupportedYet")}
-            </p>
+            <label htmlFor="byok-key" className="mb-1.5 block text-sm font-medium">{t("settings.yourApiKey")}</label>
+            {keyPreview ? (
+              <div className="flex items-center justify-between gap-2 rounded-lg border border-border bg-paper px-3 py-2">
+                <span className="inline-flex items-center gap-1.5 font-mono text-sm">
+                  <Icon name="check" size={14} strokeWidth={2.5} className="text-go" /> {keyPreview}
+                </span>
+                <Button variant="ghost" onClick={removeKey} disabled={keySaving}>
+                  {t("common.remove")}
+                </Button>
+              </div>
+            ) : (
+              <div className="flex gap-2">
+                <input
+                  id="byok-key"
+                  className="input font-mono"
+                  type="password"
+                  placeholder={t("settings.keyPlaceholder")}
+                  value={key}
+                  onChange={(e) => setKey(e.target.value)}
+                />
+                <Button variant="ghost" onClick={saveKey} disabled={keySaving || key.trim().length < 8}>
+                  {keySaving ? t("common.saving") : t("common.save")}
+                </Button>
+              </div>
+            )}
+            <p className="mt-2 text-xs text-faint">{t("settings.keyStoredHint")}</p>
           </div>
         )}
       </section>
