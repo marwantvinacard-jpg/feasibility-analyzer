@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { Badge } from "@/components/kit";
 import { ScoreGauge, ScoreBar } from "@/components/ScoreGauge";
 import { Icon } from "@/components/icons";
@@ -80,7 +81,14 @@ export function ReportView({
 
       <p className="flex items-start gap-1.5 text-xs text-faint">
         <Icon name="risk" size={13} strokeWidth={2} className="mt-0.5 shrink-0" />
-        {t("report.methodologyNote")}
+        <span>
+          {t("report.methodologyNote")}{" "}
+          {!print && (
+            <Link href="/methodology" className="text-brand underline">
+              {t("report.methodologyLink")}
+            </Link>
+          )}
+        </span>
       </p>
 
       {!print && study && (
@@ -97,7 +105,7 @@ export function ReportView({
       {showFeasibility && (
         <>
       {/* Dimension scores */}
-      <Section title={t("report.scorecard")} subtitle={t("report.scorecardSubtitle")}>
+      <Section title={t("report.scorecard")} subtitle={t("report.scorecardSubtitle")} badge="mixed">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {ORDER.map((s) => (
             <div key={s} className="rounded-xl border border-border bg-surface-2 p-4">
@@ -154,7 +162,7 @@ export function ReportView({
       {!print && <SensitivityPanel input={input} analysisId={analysisId} />}
 
       {/* Risk register */}
-      <Section title={t("report.riskRegister")} subtitle={t("report.riskRegisterSubtitle", { score: riskScoring.overallRiskScore, level: riskScoring.riskLevel })}>
+      <Section title={t("report.riskRegister")} subtitle={t("report.riskRegisterSubtitle", { score: riskScoring.overallRiskScore, level: riskScoring.riskLevel })} badge="mixed">
         <div className="space-y-2">
           {riskScoring.rankedRisks.slice(0, 8).map((r, i) => (
             <div key={i} className="rounded-xl border border-border bg-surface-2 p-3.5">
@@ -182,7 +190,7 @@ export function ReportView({
 
       {/* Competitors */}
       {result.stages.competitive && result.stages.competitive.competitive_research.length > 0 && (
-        <Section title={t("report.competitiveLandscape")} subtitle={result.stages.competitive.positioning_recommendation.strategic_approach}>
+        <Section title={t("report.competitiveLandscape")} subtitle={result.stages.competitive.positioning_recommendation.strategic_approach} badge="ai">
           <div className="grid gap-3 sm:grid-cols-2">
             {result.stages.competitive.competitive_research.map((c, i) => (
               <div key={i} className="rounded-xl border border-border bg-surface-2 p-4">
@@ -198,7 +206,7 @@ export function ReportView({
       )}
 
       {/* Dimension narratives */}
-      <Section title={t("report.detailedAnalysis")}>
+      <Section title={t("report.detailedAnalysis")} badge="ai">
         <div className="space-y-3">
           {ORDER.map((s) => (
             <details key={s} className="group rounded-xl border border-border bg-surface-2 p-4" open={print}>
@@ -219,7 +227,7 @@ export function ReportView({
 
       {/* Stakeholders */}
       {result.stages.stakeholders && (
-        <Section title={t("report.stakeholderAnalysis")} subtitle={result.stages.stakeholders.summary}>
+        <Section title={t("report.stakeholderAnalysis")} subtitle={result.stages.stakeholders.summary} badge="ai">
           <div className="grid gap-3 sm:grid-cols-2">
             {result.stages.stakeholders.stakeholders.map((sh, i) => (
               <div key={i} className="rounded-xl border border-border bg-surface-2 p-4">
@@ -249,7 +257,7 @@ export function ReportView({
       )}
 
       {/* Recommendation */}
-      <Section title={t("report.recommendation")}>
+      <Section title={t("report.recommendation")} badge="mixed">
         <p className="whitespace-pre-line text-[0.95rem] leading-relaxed text-muted">{report.conclusion}</p>
         {result.conditions.length > 0 && (
           <div className="mt-4">
@@ -334,6 +342,12 @@ function TabButton({
   );
 }
 
+const BADGE_CLASS = {
+  calculated: "bg-go/10 text-go",
+  ai: "bg-brand/10 text-brand",
+  mixed: "bg-warn/10 text-warn",
+} as const;
+
 function Section({
   title,
   subtitle,
@@ -342,10 +356,11 @@ function Section({
 }: {
   title: string;
   subtitle?: string;
-  badge?: "calculated" | "ai";
+  badge?: "calculated" | "ai" | "mixed";
   children: React.ReactNode;
 }) {
   const t = useT();
+  const badgeLabel = badge === "calculated" ? t("report.badgeCalculated") : badge === "ai" ? t("report.badgeAi") : t("report.badgeMixed");
   return (
     <section className="card p-5 sm:p-6">
       <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
@@ -354,8 +369,8 @@ function Section({
           {subtitle && <p className="mt-0.5 text-sm text-muted">{subtitle}</p>}
         </div>
         {badge && (
-          <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium", badge === "calculated" ? "bg-go/10 text-go" : "bg-brand/10 text-brand")}>
-            {badge === "calculated" ? t("report.badgeCalculated") : t("report.badgeAi")}
+          <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium", BADGE_CLASS[badge])}>
+            {badgeLabel}
           </span>
         )}
       </div>

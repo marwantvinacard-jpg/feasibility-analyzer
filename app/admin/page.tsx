@@ -77,7 +77,7 @@ export default function AdminPage() {
   }, [user]);
 
   async function act(uid: string, action: "approve" | "reject" | "grant", amount?: number) {
-    if (action === "reject" && !window.confirm("Reject this user's account request?")) return;
+    if (action === "reject" && !window.confirm(t("admin.confirmRejectUser"))) return;
     setBusy(uid + action);
     try {
       const token = await getIdToken();
@@ -88,16 +88,16 @@ export default function AdminPage() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error ?? `Request failed (${res.status})`);
-      toast.show(action === "grant" ? "Credits added." : action === "approve" ? "User approved." : "User rejected.", "success");
+      toast.show(action === "grant" ? t("admin.creditsAdded") : action === "approve" ? t("admin.userApproved") : t("admin.userRejected"), "success");
     } catch (e) {
-      toast.show(e instanceof Error ? e.message : "That action failed — try again.", "error");
+      toast.show(e instanceof Error ? e.message : t("admin.actionFailed"), "error");
     } finally {
       setBusy(null);
     }
   }
 
   async function actOrg(orgId: string, action: "approve" | "reject") {
-    if (action === "reject" && !window.confirm("Reject this organization's request?")) return;
+    if (action === "reject" && !window.confirm(t("admin.confirmRejectOrg"))) return;
     setBusy(orgId + action);
     try {
       const token = await getIdToken();
@@ -108,9 +108,9 @@ export default function AdminPage() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error ?? `Request failed (${res.status})`);
-      toast.show(action === "approve" ? "Organization approved." : "Organization rejected.", "success");
+      toast.show(action === "approve" ? t("admin.orgApproved") : t("admin.orgRejected"), "success");
     } catch (e) {
-      toast.show(e instanceof Error ? e.message : "That action failed — try again.", "error");
+      toast.show(e instanceof Error ? e.message : t("admin.actionFailed"), "error");
     } finally {
       setBusy(null);
     }
@@ -206,11 +206,11 @@ export default function AdminPage() {
 
       <section>
         <h2 className="label mb-3 flex items-center gap-2">
-          Server errors (latest 20)
+          {t("admin.serverErrors")}
           {errors.length > 0 && <Badge tone="stop">{errors.length}</Badge>}
         </h2>
         <div className="card divide-y divide-border/60 p-0">
-          {errors.length === 0 && <p className="p-4 text-sm text-muted">No server errors logged. Good sign.</p>}
+          {errors.length === 0 && <p className="p-4 text-sm text-muted">{t("admin.noErrors")}</p>}
           {errors.map((e) => (
             <div key={e.id} className="px-4 py-2.5 text-sm">
               <div className="flex items-center justify-between">

@@ -50,7 +50,8 @@ export default function TeamPage() {
     }
   }
 
-  async function handleRemove(uid: string) {
+  async function handleRemove(uid: string, name: string) {
+    if (!window.confirm(`Remove ${name} from this organization?`)) return;
     setBusyUid(uid);
     try {
       await removeMember(uid);
@@ -91,12 +92,12 @@ export default function TeamPage() {
           <div className="label mb-3">Add a teammate</div>
           <div className="flex flex-wrap items-end gap-2">
             <div className="min-w-[12rem] flex-1">
-              <label className="mb-1.5 block text-xs text-faint">Username or email</label>
-              <input className="input" placeholder="jane or jane@company.com" value={identifier} onChange={(e) => setIdentifier(e.target.value)} />
+              <label htmlFor="team-invite-identifier" className="mb-1.5 block text-xs text-faint">Username or email</label>
+              <input id="team-invite-identifier" className="input" placeholder="jane or jane@company.com" value={identifier} onChange={(e) => setIdentifier(e.target.value)} />
             </div>
             <div>
-              <label className="mb-1.5 block text-xs text-faint">Role</label>
-              <select className="input" value={role} onChange={(e) => setRole(e.target.value as OrgRole)}>
+              <label htmlFor="team-invite-role" className="mb-1.5 block text-xs text-faint">Role</label>
+              <select id="team-invite-role" className="input" value={role} onChange={(e) => setRole(e.target.value as OrgRole)}>
                 <option value="analyst">Analyst</option>
                 <option value="viewer">Viewer</option>
               </select>
@@ -122,7 +123,7 @@ export default function TeamPage() {
             </div>
             {isOwner && m.uid !== org.ownerUid && (
               <button
-                onClick={() => handleRemove(m.uid)}
+                onClick={() => handleRemove(m.uid, m.name)}
                 disabled={busyUid === m.uid}
                 className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-faint hover:text-stop"
                 aria-label={`Remove ${m.name}`}

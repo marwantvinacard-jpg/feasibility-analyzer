@@ -6,9 +6,11 @@ import { Icon } from "@/components/icons";
 import { useSession } from "@/lib/session";
 import { fetchMyOrg, createApiKey, revokeApiKey, subscribeApiKeys } from "@/lib/org";
 import type { Organization, ApiKeyDoc } from "@/lib/orgTypes";
+import { useT } from "@/lib/i18n/LanguageContext";
 
 export default function ApiAccessPage() {
   const { user } = useSession();
+  const t = useT();
   const [org, setOrg] = useState<Organization | null>(null);
   const [keys, setKeys] = useState<ApiKeyDoc[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -23,7 +25,7 @@ export default function ApiAccessPage() {
   useEffect(() => {
     fetchMyOrg()
       .then((d) => setOrg(d.org))
-      .catch((e) => setError(e instanceof Error ? e.message : "Failed to load."))
+      .catch((e) => setError(e instanceof Error ? e.message : t("apiAccess.loadFailed")))
       .finally(() => setLoaded(true));
   }, []);
 
@@ -39,38 +41,38 @@ export default function ApiAccessPage() {
     setFreshKey(null);
     try {
       const days = expiresInDays ? Number(expiresInDays) : undefined;
-      const { key } = await createApiKey(label.trim() || "Untitled key", days);
+      const { key } = await createApiKey(label.trim() || t("apiAccess.untitledKey"), days);
       setFreshKey(key);
       setLabel("");
       setExpiresInDays("");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not create key.");
+      setError(e instanceof Error ? e.message : t("apiAccess.createFailed"));
     } finally {
       setCreating(false);
     }
   }
 
   async function handleRevoke(id: string) {
-    if (!window.confirm("Revoke this API key? Any integration using it will stop working immediately.")) return;
+    if (!window.confirm(t("apiAccess.confirmRevoke"))) return;
     setBusyId(id);
     try {
       await revokeApiKey(id);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not revoke key.");
+      setError(e instanceof Error ? e.message : t("apiAccess.revokeFailed"));
     } finally {
       setBusyId(null);
     }
   }
 
-  if (!user || !loaded) return <div className="py-20 text-center text-sm text-muted">Loading…</div>;
+  if (!user || !loaded) return <div className="py-20 text-center text-sm text-muted">{t("common.loading")}</div>;
 
   if (!org) {
     return (
       <div className="mx-auto max-w-md py-20 text-center">
         <span className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-brand/10 text-brand"><Icon name="sliders" size={26} /></span>
-        <h2 className="font-display mt-4 text-lg font-semibold">No organization yet</h2>
-        <p className="mt-1 text-sm text-muted">API keys are issued per organization — create one first.</p>
-        <Button href="/app/org" variant="ghost" className="mt-5">Go to Organization</Button>
+        <h2 className="font-display mt-4 text-lg font-semibold">{t("apiAccess.noOrgTitle")}</h2>
+        <p className="mt-1 text-sm text-muted">{t("apiAccess.noOrgBody")}</p>
+        <Button href="/app/org" variant="ghost" className="mt-5">{t("apiAccess.goToOrg")}</Button>
       </div>
     );
   }
@@ -80,12 +82,10 @@ export default function ApiAccessPage() {
       <div className="mx-auto max-w-md py-20 text-center">
         <span className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-warn/12 text-warn"><Icon name="clock" size={26} /></span>
         <h2 className="font-display mt-4 text-lg font-semibold">
-          {org.status === "rejected" ? "Access request declined" : "Awaiting admin approval"}
+          {org.status === "rejected" ? t("apiAccess.declinedTitle") : t("apiAccess.pendingTitle")}
         </h2>
         <p className="mt-1 text-sm text-muted">
-          {org.status === "rejected"
-            ? "Contact support if you think this is a mistake."
-            : "An admin needs to approve your organization before API keys can be issued."}
+          {org.status === "rejected" ? t("apiAccess.declinedBody") : t("apiAccess.pendingBody")}
         </p>
       </div>
     );
@@ -97,40 +97,37 @@ export default function ApiAccessPage() {
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <div>
-        <h1 className="font-display text-3xl font-semibold tracking-tight">API access</h1>
-        <p className="mt-1.5 text-sm text-muted">
-          Run feasibility analyses from your own systems instead of the web app. Each call costs one credit from
-          the organization's balance, same as running it here.
-        </p>
+        <h1 className="font-display text-3xl font-semibold tracking-tight">{t("apiAccess.title")}</h1>
+        <p className="mt-1.5 text-sm text-muted">{t("apiAccess.subtitle")}</p>
       </div>
 
       {error && <p className="text-sm text-stop">{error}</p>}
 
       {isOwner && (
         <div className="card p-5">
-          <div className="label mb-3">Create a new key</div>
+          <div className="label mb-3">{t("apiAccess.createNew")}</div>
           <div className="flex flex-wrap items-end gap-2">
             <div className="min-w-[12rem] flex-1">
-              <label htmlFor="key-label" className="sr-only">Key label</label>
-              <input id="key-label" className="input" placeholder='Label — e.g. "Production backend"' value={label} onChange={(e) => setLabel(e.target.value)} />
+              <label htmlFor="key-label" className="sr-only">{t("apiAccess.keyLabelField")}</label>
+              <input id="key-label" className="input" placeholder={t("apiAccess.keyLabelPlaceholder")} value={label} onChange={(e) => setLabel(e.target.value)} />
             </div>
             <div>
-              <label htmlFor="key-expiry" className="sr-only">Expiry</label>
+              <label htmlFor="key-expiry" className="sr-only">{t("apiAccess.expiryField")}</label>
               <select id="key-expiry" className="input" value={expiresInDays} onChange={(e) => setExpiresInDays(e.target.value)}>
-                <option value="">Never expires</option>
-                <option value="30">Expires in 30 days</option>
-                <option value="90">Expires in 90 days</option>
-                <option value="365">Expires in 1 year</option>
+                <option value="">{t("apiAccess.neverExpires")}</option>
+                <option value="30">{t("apiAccess.expires30")}</option>
+                <option value="90">{t("apiAccess.expires90")}</option>
+                <option value="365">{t("apiAccess.expires365")}</option>
               </select>
             </div>
             <Button onClick={handleCreate} disabled={creating}>
-              {creating ? "Creating…" : <>Create key <Icon name="plus" size={16} /></>}
+              {creating ? t("apiAccess.creating") : <>{t("apiAccess.createKey")} <Icon name="plus" size={16} /></>}
             </Button>
           </div>
           {freshKey && (
             <div className="mt-4 rounded-xl border border-go/30 bg-go/8 p-4">
               <div className="flex items-center gap-1.5 text-sm font-semibold text-go">
-                <Icon name="check" size={14} strokeWidth={2.5} /> Copy this now — it won't be shown again
+                <Icon name="check" size={14} strokeWidth={2.5} /> {t("apiAccess.copyNow")}
               </div>
               <code className="mt-2 block break-all rounded-lg bg-surface-2 p-3 text-xs">{freshKey}</code>
             </div>
@@ -140,16 +137,16 @@ export default function ApiAccessPage() {
 
       <div className="space-y-2">
         {activeKeys.length === 0 && !freshKey && (
-          <div className="card py-10 text-center text-sm text-muted">No API keys yet.</div>
+          <div className="card py-10 text-center text-sm text-muted">{t("apiAccess.noKeys")}</div>
         )}
         {activeKeys.map((k) => (
           <div key={k.id} className="card flex items-center justify-between p-4">
             <div className="min-w-0">
               <div className="truncate font-medium">{k.label}</div>
               <div className="truncate text-xs text-faint">
-                <code>{k.keyPrefix}…</code> · created by {k.createdBy}
-                {k.lastUsedAt ? ` · last used ${new Date(k.lastUsedAt).toLocaleDateString()}` : " · never used"}
-                {k.expiresAt && ` · ${k.expiresAt < Date.now() ? "expired" : `expires ${new Date(k.expiresAt).toLocaleDateString()}`}`}
+                <code>{k.keyPrefix}…</code> · {t("apiAccess.createdBy", { by: k.createdBy })}
+                {k.lastUsedAt ? ` · ${t("apiAccess.lastUsed", { date: new Date(k.lastUsedAt).toLocaleDateString() })}` : ` · ${t("apiAccess.neverUsed")}`}
+                {k.expiresAt && ` · ${k.expiresAt < Date.now() ? t("apiAccess.expired") : t("apiAccess.expiresOn", { date: new Date(k.expiresAt).toLocaleDateString() })}`}
               </div>
             </div>
             {isOwner && (
@@ -158,7 +155,7 @@ export default function ApiAccessPage() {
                 disabled={busyId === k.id}
                 className="btn btn-ghost shrink-0 text-xs text-stop"
               >
-                Revoke
+                {t("apiAccess.revoke")}
               </button>
             )}
           </div>
@@ -166,7 +163,7 @@ export default function ApiAccessPage() {
       </div>
 
       <div className="card p-5">
-        <div className="label mb-3">Quick start</div>
+        <div className="label mb-3">{t("apiAccess.quickStart")}</div>
         <pre className="overflow-x-auto rounded-lg bg-surface-2 p-4 text-xs leading-relaxed">
 {`curl -X POST https://your-deployment.example.com/api/v1/analyze \\
   -H "Authorization: Bearer fsa_live_..." \\
@@ -187,11 +184,7 @@ export default function ApiAccessPage() {
     }
   }'`}
         </pre>
-        <p className="mt-3 text-xs text-faint">
-          Synchronous — the response is the full feasibility result (all 8 dimensions plus the financial study, when
-          applicable). A run typically takes under a minute. Same input shape as the web form's 10 core fields, plus
-          the optional financial-study fields (currency, business_type, study_protocol, etc).
-        </p>
+        <p className="mt-3 text-xs text-faint">{t("apiAccess.quickStartHint")}</p>
       </div>
     </div>
   );

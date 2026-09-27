@@ -91,6 +91,49 @@ export default function MethodologyPage() {
           </div>
         </section>
 
+        <section>
+          <h2 className="font-display text-lg font-semibold mb-4">Every section, labeled by exactly what produced it</h2>
+          <p className="mb-4 text-sm text-muted">
+            Every report carries these same three labels inline, section by section — this table is the key.
+          </p>
+          <div className="overflow-hidden rounded-2xl border border-border">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-surface-2 text-left text-xs uppercase tracking-wide text-faint">
+                  <th className="px-4 py-2.5 font-semibold">Report section</th>
+                  <th className="px-4 py-2.5 font-semibold">Label</th>
+                  <th className="px-4 py-2.5 font-semibold">What that means</th>
+                </tr>
+              </thead>
+              <tbody className="text-muted">
+                {[
+                  ["Financial Analysis", "Calculated", "Every figure comes straight from your stated cost/revenue — no AI involvement."],
+                  ["Executive summary, competitive landscape, detailed dimension analysis, stakeholder analysis", "AI-generated", "Written by the model, grounded in your inputs and live web research where enabled."],
+                  ["Dimension scorecard", "Calculated + AI", "The financial score is deterministic math; the other seven dimension scores are the AI's own 0–100 judgment."],
+                  ["Risk register", "Calculated + AI", "Risk descriptions and mitigations are AI-written; the priority ranking and overall risk score are a fixed formula applied to those AI-provided ratings."],
+                  ["Recommendation", "Calculated + AI", "The narrative conclusion is AI-written; the conditions-to-address and next-steps lists are a fixed template keyed off your score, not AI-authored."],
+                  ["Financial Study (all 15 sections)", "Calculated + AI", "Every table and figure comes from the deterministic projections engine; every section also carries an AI-written commentary paragraph explaining what the numbers mean."],
+                ].map(([section, label, meaning]) => (
+                  <tr key={section} className="border-t border-border align-top">
+                    <td className="px-4 py-3 font-medium text-ink">{section}</td>
+                    <td className="px-4 py-3">
+                      <span
+                        className={
+                          "inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-medium " +
+                          (label === "Calculated" ? "bg-go/10 text-go" : label === "AI-generated" ? "bg-brand/10 text-brand" : "bg-warn/10 text-warn")
+                        }
+                      >
+                        {label}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">{meaning}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
         <section className="card space-y-3 p-6">
           <h2 className="font-display text-lg font-semibold">What this is not</h2>
           <p className="text-sm leading-relaxed text-muted">

@@ -564,16 +564,26 @@ function StudySection({
   subtitle?: string;
   children: React.ReactNode;
 }) {
+  const t = useT();
+  // Every section in this study pairs deterministic figures (from
+  // projections.ts) with an AI-written commentary paragraph explaining them
+  // — see this file's own header comment. That pairing is uniform across all
+  // 15 sections, so the badge is applied here once rather than per call site.
   return (
     <section className="card p-5 sm:p-6">
-      <div className="mb-4 flex items-start gap-3">
-        <span className="num mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-brand/10 text-sm font-bold text-brand">
-          {n}
-        </span>
-        <div>
-          <h2 className="font-display text-xl font-semibold tracking-tight">{title}</h2>
-          {subtitle && <p className="mt-0.5 text-sm text-muted">{subtitle}</p>}
+      <div className="mb-4 flex items-start justify-between gap-3">
+        <div className="flex items-start gap-3">
+          <span className="num mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-brand/10 text-sm font-bold text-brand">
+            {n}
+          </span>
+          <div>
+            <h2 className="font-display text-xl font-semibold tracking-tight">{title}</h2>
+            {subtitle && <p className="mt-0.5 text-sm text-muted">{subtitle}</p>}
+          </div>
         </div>
+        <span className="shrink-0 rounded-full bg-warn/10 px-2 py-0.5 text-[11px] font-medium text-warn">
+          {t("report.badgeMixed")}
+        </span>
       </div>
       {children}
     </section>

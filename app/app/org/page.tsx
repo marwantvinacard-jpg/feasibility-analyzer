@@ -96,8 +96,8 @@ export default function OrgPage() {
             </p>
           </div>
           <div>
-            <label className="mb-1.5 block text-sm font-medium">Organization name</label>
-            <input className="input" placeholder="e.g. Meridian Feasibility Partners" value={name} onChange={(e) => setName(e.target.value)} />
+            <label htmlFor="org-create-name" className="mb-1.5 block text-sm font-medium">Organization name</label>
+            <input id="org-create-name" className="input" placeholder="e.g. Meridian Feasibility Partners" value={name} onChange={(e) => setName(e.target.value)} />
           </div>
           <Button onClick={handleCreate} disabled={creating || !name.trim()}>
             {creating ? "Creating…" : <>Create organization <Icon name="arrow" size={16} /></>}
@@ -142,23 +142,24 @@ export default function OrgPage() {
                 needs a DNS step outside this app — ask when you're ready to set that up.
               </p>
               <div>
-                <label className="mb-1.5 block text-sm font-medium">Organization name</label>
-                <input className="input" value={editName} onChange={(e) => setEditName(e.target.value)} />
+                <label htmlFor="org-edit-name" className="mb-1.5 block text-sm font-medium">Organization name</label>
+                <input id="org-edit-name" className="input" value={editName} onChange={(e) => setEditName(e.target.value)} />
               </div>
               <div>
-                <label className="mb-1.5 block text-sm font-medium">Logo URL</label>
-                <input className="input" placeholder="https://…/logo.png" value={logoUrl} onChange={(e) => setLogoUrl(e.target.value)} />
+                <label htmlFor="org-logo-url" className="mb-1.5 block text-sm font-medium">Logo URL</label>
+                <input id="org-logo-url" className="input" placeholder="https://…/logo.png" value={logoUrl} onChange={(e) => setLogoUrl(e.target.value)} />
               </div>
               <div>
-                <label className="mb-1.5 block text-sm font-medium">Primary color</label>
+                <label htmlFor="org-primary-color" className="mb-1.5 block text-sm font-medium">Primary color</label>
                 <div className="flex items-center gap-2">
                   <input
                     className="h-10 w-14 cursor-pointer rounded-lg border border-border bg-transparent"
                     type="color"
+                    aria-label="Primary color picker"
                     value={primaryColor || "#6366f1"}
                     onChange={(e) => setPrimaryColor(e.target.value)}
                   />
-                  <input className="input" value={primaryColor} onChange={(e) => setPrimaryColor(e.target.value)} placeholder="#6366f1" />
+                  <input id="org-primary-color" className="input" value={primaryColor} onChange={(e) => setPrimaryColor(e.target.value)} placeholder="#6366f1" />
                 </div>
               </div>
               <div className="flex items-center gap-3">
