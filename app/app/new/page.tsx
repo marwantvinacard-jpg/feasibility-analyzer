@@ -64,6 +64,11 @@ export default function NewAnalysis() {
   const [ingesting, setIngesting] = useState(false);
   const [ingestNote, setIngestNote] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
+  // Guards against a double-click starting two concurrent, separately-charged
+  // runs before React's state update (phase -> "running") has re-rendered
+  // and removed the button. A plain ref (not state) so the check is
+  // synchronous on the very first line of run().
+  const submittingRef = useRef(false);
   const knowledgeBase = useMemo(
     () => docs.map((d) => `### ${d.name}\n${d.text}`).join("\n\n").slice(0, 20000),
     [docs]
@@ -124,13 +129,17 @@ export default function NewAnalysis() {
   }
 
   async function run() {
+    if (submittingRef.current) return; // already starting a run — ignore the double-click
+    submittingRef.current = true;
     setError("");
     if (completeness < 100) {
       setError(t("newA.errMissing", { n: missing.length }));
+      submittingRef.current = false;
       return;
     }
     if (user!.credits < 1) {
       setError(t("newA.errNoCredits"));
+      submittingRef.current = false;
       return;
     }
     setPhase("running");
@@ -164,11 +173,13 @@ export default function NewAnalysis() {
             attempt(true, true).catch((e) => {
               setError(e instanceof Error ? e.message : "Could not start analysis.");
               setPhase("form");
+              submittingRef.current = false;
             });
             return;
           }
           setError(message);
           setPhase("form");
+          submittingRef.current = false;
         },
       });
     }
@@ -178,6 +189,7 @@ export default function NewAnalysis() {
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not start analysis.");
       setPhase("form");
+      submittingRef.current = false;
     }
   }
 

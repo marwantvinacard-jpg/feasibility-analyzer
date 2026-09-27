@@ -41,6 +41,21 @@ export function activeProviderName(): ProviderName {
   return "mock";
 }
 
+/**
+ * True only when mock mode was deliberately requested (FEASIBILITY_PROVIDER=mock
+ * or FEASIBILITY_MOCK=true). If mock is active WITHOUT either of these — every
+ * provider env var is simply absent — that's an accidental fallback, not a
+ * choice, and callers that charge a credit per run should treat it as one.
+ */
+export function isMockExplicit(): boolean {
+  return process.env.FEASIBILITY_PROVIDER?.toLowerCase() === "mock" || process.env.FEASIBILITY_MOCK === "true";
+}
+
+/** Best-effort "is this a real deployment" check — Vercel sets VERCEL_ENV; anything else falls back to NODE_ENV. */
+export function isProductionEnv(): boolean {
+  return (process.env.VERCEL_ENV ?? process.env.NODE_ENV) === "production";
+}
+
 export interface LlmFactoryOpts {
   /** Slow the mock provider so the web UI shows believable live progress. */
   mockDelayMs?: number;

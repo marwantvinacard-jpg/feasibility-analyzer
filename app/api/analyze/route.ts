@@ -9,7 +9,7 @@
 
 import { FieldValue } from "firebase-admin/firestore";
 import { runFeasibility } from "@/lib/engine/runFeasibility";
-import { createLlm } from "@/lib/engine/factory";
+import { createLlm, isMockExplicit, isProductionEnv } from "@/lib/engine/factory";
 import { SerpApiProvider } from "@/lib/engine/search";
 import { adminDb } from "@/lib/firebase/admin";
 import { requireUser, HttpError, type Caller } from "@/lib/firebase/verify";
@@ -17,7 +17,7 @@ import { logAudit } from "@/lib/firebase/audit";
 import { logError } from "@/lib/firebase/errorLog";
 import { sendAnalysisReadyEmail } from "@/lib/email";
 import { withTrainingLog, type TrainingEntry } from "@/lib/engine/trainingLog";
-import { SIX_STAGES, type BusinessInput, type StageName, type StageStatus } from "@/lib/engine/types";
+import { SIX_STAGES, capBusinessInput, type BusinessInput, type StageName, type StageStatus } from "@/lib/engine/types";
 import { checkRateLimit } from "@/lib/rateLimit";
 import { captureServerEvent } from "@/lib/posthog/server";
 
@@ -48,8 +48,9 @@ export async function POST(req: Request) {
     );
   }
 
-  const { input } = (await req.json()) as { input: BusinessInput };
-  if (!input?.business_idea) return json({ error: "Missing business input." }, 400);
+  const { input: rawInput } = (await req.json()) as { input: BusinessInput };
+  if (!rawInput?.business_idea) return json({ error: "Missing business input." }, 400);
+  const input = capBusinessInput(rawInput);
 
   const db = adminDb();
   const userRef = db.collection("users").doc(caller.uid);
@@ -92,6 +93,16 @@ export async function POST(req: Request) {
   await logAudit({ uid: caller.uid, email: caller.email, action: "analysis.run", target: id, meta: { business_idea: input.business_idea } });
 
   const baseLlm = createLlm();
+  if (baseLlm.mock && !isMockExplicit() && isProductionEnv()) {
+    // Every AI-provider env var is simply absent in production — this run is
+    // about to charge a real credit for fabricated output with nothing but a
+    // small in-report banner to show for it. Never block the run (mock mode
+    // must keep working as a deliberate demo path elsewhere) — just make sure
+    // this doesn't happen invisibly.
+    logError("analyze.accidentalMock", new Error("No AI provider configured in production — serving mock output"), {
+      uid: caller.uid,
+    }).catch(() => {});
+  }
   const trainingEntries: TrainingEntry[] = [];
   // Every raw prompt->completion pair the model produces for this run, captured
   // so a later fine-tune (e.g. onto a small local model) has real input/output

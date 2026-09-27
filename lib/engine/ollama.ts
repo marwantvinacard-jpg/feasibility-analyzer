@@ -20,16 +20,22 @@ export class OllamaProvider implements LlmProvider {
   async structured<T>(call: StructuredCall<T>): Promise<StructuredResult<T>> {
     const { Ollama } = await import("ollama");
     const client = new Ollama({ host: this.host });
-    const res = await client.chat({
-      model: call.model ?? this.model,
-      messages: [
-        { role: "system", content: call.system },
-        { role: "user", content: call.user },
-      ],
-      // Grammar-constrained JSON — guarantees a parseable object matching the schema.
-      format: zodToJsonSchema(call.schema as any) as any,
-      options: { temperature: 0 },
-    });
+    // Same reasoning as OpenAIProvider's client timeout: the caller's credit-
+    // refund logic needs this call to fail on its own well before the route's
+    // platform-level maxDuration kills the whole request.
+    const res = await Promise.race([
+      client.chat({
+        model: call.model ?? this.model,
+        messages: [
+          { role: "system", content: call.system },
+          { role: "user", content: call.user },
+        ],
+        // Grammar-constrained JSON — guarantees a parseable object matching the schema.
+        format: zodToJsonSchema(call.schema as any) as any,
+        options: { temperature: 0 },
+      }),
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error("Ollama request timed out after 60s")), 60_000)),
+    ]);
     const parsed = JSON.parse(res.message.content);
     const data = call.schema.parse(parsed); // still validate — belt and braces
     return {

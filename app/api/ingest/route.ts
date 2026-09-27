@@ -12,12 +12,15 @@
 
 import { NextResponse } from "next/server";
 import { requireUser, HttpError } from "@/lib/firebase/verify";
+import { checkRateLimit } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
 const MAX_BYTES = 15 * 1024 * 1024; // 15 MB upload cap
 const MAX_CHARS = 20_000; // keep prompt cost sane
+const RATE_LIMIT = 15;
+const RATE_WINDOW_MS = 60_000;
 
 // exceljs cell values can be a primitive, a Date, a formula result object
 // ({ result, formula }), or rich text ({ richText: [{ text }, ...] }).
@@ -35,11 +38,20 @@ function cellToText(v: unknown): string {
 }
 
 export async function POST(req: Request) {
+  let caller;
   try {
-    await requireUser(req); // signed-in only — parsing documents isn't free
+    caller = await requireUser(req); // signed-in only — parsing documents isn't free
   } catch (err) {
     const e = err as HttpError;
     return NextResponse.json({ error: e.message ?? "Unauthorized" }, { status: e.status ?? 401 });
+  }
+
+  const rl = checkRateLimit(caller.uid, RATE_LIMIT, RATE_WINDOW_MS);
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: `Too many uploads. Try again in ${Math.ceil(rl.retryAfterMs / 1000)}s.` },
+      { status: 429 }
+    );
   }
 
   const form = await req.formData().catch(() => null);

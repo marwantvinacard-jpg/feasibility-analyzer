@@ -41,7 +41,10 @@ export class SerpApiProvider implements SearchProvider {
       ];
     }
     const params = new URLSearchParams({ q: query, api_key: this.apiKey, num: String(num) });
-    const res = await fetch(`https://serpapi.com/search?${params.toString()}`);
+    // See OpenAIProvider's client timeout for why this matters: an unbounded
+    // fetch here can outlast the route's own maxDuration and skip the credit
+    // refund that's supposed to fire on failure.
+    const res = await fetch(`https://serpapi.com/search?${params.toString()}`, { signal: AbortSignal.timeout(20_000) });
     if (!res.ok) throw new Error(`SerpAPI ${res.status}: ${await res.text()}`);
     const json = (await res.json()) as { organic_results?: any[] };
     return (json.organic_results ?? []).slice(0, num).map((r) => ({

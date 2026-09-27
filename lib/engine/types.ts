@@ -66,6 +66,44 @@ export const ALL_FIELDS = [
 
 export type FieldKey = keyof BusinessInput;
 
+// Text fields that go straight into specialist prompts with no length check
+// upstream of this — the web form and /api/ingest both cap what they send,
+// but a direct API caller does not go through either, so this is the one
+// place that's actually enforced. Truncating (not rejecting) matches how
+// /api/ingest already handles an oversized document.
+const TEXT_FIELD_CAP = 4_000;
+const KNOWLEDGE_BASE_CAP = 20_000;
+const TEXT_FIELDS_TO_CAP: (keyof BusinessInput)[] = [
+  "business_idea",
+  "target_customer",
+  "location",
+  "problem_solved",
+  "product_service",
+  "revenue_model",
+  "competitors",
+  "unique_advantage",
+  "funding_preference",
+  "study_protocol",
+];
+
+function truncate(s: string, max: number): string {
+  return s.length > max ? s.slice(0, max) + "…[truncated]" : s;
+}
+
+/** Caps every free-text field of a BusinessInput to a sane length before it
+ *  reaches a prompt or Firestore. Returns a new object; never mutates. */
+export function capBusinessInput(input: BusinessInput): BusinessInput {
+  const out = { ...input };
+  for (const key of TEXT_FIELDS_TO_CAP) {
+    const v = out[key];
+    if (typeof v === "string") (out as Record<string, unknown>)[key] = truncate(v, TEXT_FIELD_CAP);
+  }
+  if (typeof out.knowledge_base === "string") {
+    out.knowledge_base = truncate(out.knowledge_base, KNOWLEDGE_BASE_CAP);
+  }
+  return out;
+}
+
 export const FIELD_LABELS: Record<string, string> = {
   business_idea: "Business Idea",
   target_customer: "Target Customer",

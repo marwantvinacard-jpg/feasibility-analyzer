@@ -8,8 +8,14 @@ import { collection, doc, onSnapshot, query, where } from "firebase/firestore";
 import { getFirebase } from "@/lib/firebase/client";
 import type { AnalysisDoc, ScenarioDoc } from "@/lib/analysisTypes";
 
-/** Subscribe to all of a user's analyses (sorted newest-first client-side to avoid a composite index). */
-export function subscribeAnalyses(uid: string, cb: (items: AnalysisDoc[]) => void): () => void {
+/** Subscribe to all of a user's analyses (sorted newest-first client-side to avoid a composite index).
+ *  `onError`, when given, fires on a listener failure instead of that failure
+ *  silently looking identical to "you have zero analyses". */
+export function subscribeAnalyses(
+  uid: string,
+  cb: (items: AnalysisDoc[]) => void,
+  onError?: (err: unknown) => void
+): () => void {
   const fb = getFirebase();
   if (!fb) return () => {};
   const q = query(collection(fb.db, "analyses"), where("uid", "==", uid));
@@ -19,7 +25,10 @@ export function subscribeAnalyses(uid: string, cb: (items: AnalysisDoc[]) => voi
       const items = snap.docs.map((d) => d.data() as AnalysisDoc).sort((a, b) => b.createdAt - a.createdAt);
       cb(items);
     },
-    () => cb([])
+    (err) => {
+      onError?.(err);
+      cb([]);
+    }
   );
 }
 

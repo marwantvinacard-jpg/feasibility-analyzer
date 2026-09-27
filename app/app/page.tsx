@@ -35,6 +35,8 @@ export default function Dashboard() {
   const toast = useToast();
   const router = useRouter();
   const [items, setItems] = useState<AnalysisDoc[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [filter, setFilter] = useState<Filter>("all");
   const [sort, setSort] = useState<Sort>("newest");
   const [range, setRange] = useState<Range>("all");
@@ -43,7 +45,19 @@ export default function Dashboard() {
 
   useEffect(() => {
     if (!user) return;
-    const unsub = subscribeAnalyses(user.uid, setItems);
+    setLoading(true);
+    setLoadError(false);
+    const unsub = subscribeAnalyses(
+      user.uid,
+      (items) => {
+        setItems(items);
+        setLoading(false);
+      },
+      () => {
+        setLoadError(true);
+        setLoading(false);
+      }
+    );
     return () => unsub();
   }, [user]);
 
@@ -148,7 +162,16 @@ export default function Dashboard() {
             </div>
           </div>
         )}
-        {items.length === 0 ? (
+        {loading ? (
+          <div className="card grid place-items-center py-16 text-center text-sm text-muted">{t("common.loading")}</div>
+        ) : loadError ? (
+          <div className="card grid place-items-center gap-3 py-16 text-center">
+            <span className="grid h-14 w-14 place-items-center rounded-2xl bg-stop/10 text-stop"><Icon name="risk" size={26} /></span>
+            <h3 className="font-display text-lg font-semibold">{t("common.error")}</h3>
+            <p className="max-w-sm text-sm text-muted">Couldn't load your analyses. Check your connection and try again.</p>
+            <Button variant="ghost" onClick={() => window.location.reload()}>{t("common.tryAgain")}</Button>
+          </div>
+        ) : items.length === 0 ? (
           <div className="card grid place-items-center py-16 text-center">
             <span className="grid h-14 w-14 place-items-center rounded-2xl bg-brand/10 text-brand"><Icon name="doc" size={26} /></span>
             <h3 className="font-display mt-4 text-lg font-semibold">{t("dashboard.emptyTitle")}</h3>

@@ -60,7 +60,12 @@ export class OpenAIProvider implements LlmProvider {
     const apiKey = opts.apiKey ?? process.env.OPENAI_API_KEY;
     const baseURL = opts.baseURL ?? process.env.FEASIBILITY_BASE_URL;
     // In mock mode we never touch the network, so a missing key is fine.
-    this.client = this.mock ? null : new OpenAI({ apiKey, baseURL });
+    // A hard per-call timeout matters here specifically because the route's
+    // credit-refund logic lives in a try/catch around this call — without a
+    // timeout well under the route's `maxDuration`, a hanging provider gets
+    // killed by the platform first, which skips that catch block entirely
+    // (no refund, no user-visible error, analysis doc stuck at "running").
+    this.client = this.mock ? null : new OpenAI({ apiKey, baseURL, timeout: 60_000, maxRetries: 2 });
     if (!this.mock && !apiKey) {
       throw new Error(
         "No LLM API key set. Set OPENAI_API_KEY (or a compatible key + FEASIBILITY_BASE_URL) in .env.local, or run with FEASIBILITY_MOCK=true."

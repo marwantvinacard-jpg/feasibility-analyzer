@@ -15,10 +15,27 @@ const jetbrains = JetBrains_Mono({ subsets: ["latin"], variable: "--font-mono", 
 // text when the UI switches to Arabic (see globals.css [dir="rtl"] rules).
 const notoArabic = Noto_Sans_Arabic({ subsets: ["arabic"], variable: "--font-sans-ar", display: "swap" });
 
+const TITLE = "FeasibilityAI — Know if your business idea will work";
+const DESCRIPTION =
+  "Turn a business idea into a professional 8-dimension feasibility report — market, financial, technical, competitive, location, operational, legal and risk — with a clear GO / NO-GO verdict.";
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://feasibility-analyzer-eight.vercel.app";
+
 export const metadata: Metadata = {
-  title: "FeasibilityAI — Know if your business idea will work",
-  description:
-    "Turn a business idea into a professional 8-dimension feasibility report — market, financial, technical, competitive, location, operational, legal and risk — with a clear GO / NO-GO verdict.",
+  metadataBase: new URL(APP_URL),
+  title: TITLE,
+  description: DESCRIPTION,
+  openGraph: {
+    title: TITLE,
+    description: DESCRIPTION,
+    url: APP_URL,
+    siteName: "FeasibilityAI",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: TITLE,
+    description: DESCRIPTION,
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

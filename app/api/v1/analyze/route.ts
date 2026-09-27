@@ -8,7 +8,7 @@
 
 import { FieldValue } from "firebase-admin/firestore";
 import { runFeasibility } from "@/lib/engine/runFeasibility";
-import { createLlm } from "@/lib/engine/factory";
+import { createLlm, isMockExplicit, isProductionEnv } from "@/lib/engine/factory";
 import { SerpApiProvider } from "@/lib/engine/search";
 import { adminDb } from "@/lib/firebase/admin";
 import { requireApiKey } from "@/lib/firebase/apiKeyAuth";
@@ -16,7 +16,7 @@ import { HttpError } from "@/lib/firebase/verify";
 import { logAudit } from "@/lib/firebase/audit";
 import { logError } from "@/lib/firebase/errorLog";
 import { withTrainingLog, type TrainingEntry } from "@/lib/engine/trainingLog";
-import type { BusinessInput } from "@/lib/engine/types";
+import { capBusinessInput, type BusinessInput } from "@/lib/engine/types";
 import { checkRateLimit } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
@@ -44,8 +44,9 @@ export async function POST(req: Request) {
     );
   }
 
-  const { input } = (await req.json().catch(() => ({}))) as { input?: BusinessInput };
-  if (!input?.business_idea) return json({ error: "Missing 'input.business_idea'." }, 400);
+  const { input: rawInput } = (await req.json().catch(() => ({}))) as { input?: BusinessInput };
+  if (!rawInput?.business_idea) return json({ error: "Missing 'input.business_idea'." }, 400);
+  const input = capBusinessInput(rawInput);
 
   const db = adminDb();
   const ownerRef = db.collection("users").doc(apiCaller.ownerUid);
@@ -87,6 +88,11 @@ export async function POST(req: Request) {
   });
 
   const baseLlm = createLlm();
+  if (baseLlm.mock && !isMockExplicit() && isProductionEnv()) {
+    logError("v1.analyze.accidentalMock", new Error("No AI provider configured in production — serving mock output"), {
+      orgId: apiCaller.orgId,
+    }).catch(() => {});
+  }
   const trainingEntries: TrainingEntry[] = [];
   const llm = withTrainingLog(baseLlm, (e) => trainingEntries.push(e));
   const search = new SerpApiProvider({ mock: llm.mock || !process.env.SERPAPI_API_KEY });
