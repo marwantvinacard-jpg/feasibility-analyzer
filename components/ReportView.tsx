@@ -34,10 +34,11 @@ export function ReportView({
   // Analyses created before the financial study existed have no `study`, so the
   // tabs only appear when there is a second view to switch to. Printing renders
   // both stacked — a PDF has no tabs.
-  const [tab, setTab] = useState<"feasibility" | "study">("feasibility");
+  const [tab, setTab] = useState<"feasibility" | "study" | "process">("feasibility");
   const study = result.study;
-  const showFeasibility = print || !study || tab === "feasibility";
-  const showStudy = study && (print || tab === "study");
+  const showFeasibility = print || tab === "feasibility";
+  const showStudy = !!study && (print || tab === "study");
+  const showProcess = !print && tab === "process";
 
   return (
     <div className={cn("space-y-6", print && "mx-auto max-w-3xl")}>
@@ -91,13 +92,18 @@ export function ReportView({
         </span>
       </p>
 
-      {!print && study && (
+      {!print && (
         <div className="no-print flex gap-1 rounded-xl border border-border bg-surface-2 p-1">
           <TabButton active={tab === "feasibility"} onClick={() => setTab("feasibility")} icon="spark">
             {t("report.tabFeasibility")}
           </TabButton>
-          <TabButton active={tab === "study"} onClick={() => setTab("study")} icon="financial">
-            {t("report.tabStudy")}
+          {study && (
+            <TabButton active={tab === "study"} onClick={() => setTab("study")} icon="financial">
+              {t("report.tabStudy")}
+            </TabButton>
+          )}
+          <TabButton active={tab === "process"} onClick={() => setTab("process")} icon="search">
+            {t("report.tabProcess")}
           </TabButton>
         </div>
       )}
@@ -301,6 +307,28 @@ export function ReportView({
         </>
       )}
 
+      {showProcess && (
+        <>
+          <Section title={t("report.tabProcess")} subtitle={t("report.processSubtitle")}>
+            <p className="text-sm leading-relaxed text-muted">{t("report.processIntro")}</p>
+          </Section>
+          {ORDER.map((s) => {
+            const data = result.stages[s] as Record<string, unknown> | undefined;
+            if (!data) return null;
+            return (
+              <Section key={s} title={t(`dim.${s}`)} badge={s === "financial" ? "mixed" : "ai"}>
+                <div className="mb-3 flex items-center gap-2">
+                  <Icon name={dimIcon(s)} size={18} className="text-muted" />
+                  <span className={cn("num text-lg font-semibold", toneText[scoreTone(cs[s])])}>{cs[s]}/100</span>
+                  <span className="text-xs text-faint">{t("report.specialistScore")}</span>
+                </div>
+                <ProcessDetail value={data} />
+              </Section>
+            );
+          })}
+        </>
+      )}
+
       <p className="pt-2 text-center text-xs text-faint">
         {t("report.footer", { app: t("common.appName"), mock: result.usage.mock ? t("report.demoDataSuffix") : "" })}
       </p>
@@ -395,6 +423,70 @@ function Row({ k, v, tone }: { k: string; v: string; tone?: "go" | "stop" | "war
       <td className={cn("num py-2.5 text-right font-semibold", tone === "go" ? "text-go" : tone === "stop" ? "text-stop" : tone === "warn" ? "text-warn" : "")}>{v}</td>
     </tr>
   );
+}
+
+// Renders a specialist's raw structured output (whatever shape that
+// dimension's schema happens to have) without a bespoke component per
+// dimension — snake_case keys become readable labels, arrays become bullet
+// lists, and nested objects recurse one level of indentation at a time.
+function humanizeKey(key: string): string {
+  return key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function ProcessDetail({ value }: { value: unknown }) {
+  if (value === null || value === undefined || value === "") return null;
+
+  if (Array.isArray(value)) {
+    if (value.length === 0) return null;
+    if (value.every((v) => typeof v !== "object" || v === null)) {
+      return (
+        <ul className="space-y-1 text-sm text-muted">
+          {value.map((v, i) => (
+            <li key={i} className="flex gap-2">
+              <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-faint" />
+              <span>{String(v)}</span>
+            </li>
+          ))}
+        </ul>
+      );
+    }
+    return (
+      <div className="space-y-2">
+        {value.map((v, i) => (
+          <div key={i} className="rounded-lg border border-border bg-surface p-3">
+            <ProcessDetail value={v} />
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (typeof value === "object") {
+    const entries = Object.entries(value as Record<string, unknown>).filter(
+      ([, v]) => v !== null && v !== undefined && v !== ""
+    );
+    if (entries.length === 0) return null;
+    return (
+      <dl className="space-y-2.5">
+        {entries.map(([k, v]) => (
+          <div key={k}>
+            <dt className="text-xs font-medium uppercase tracking-wide text-faint">{humanizeKey(k)}</dt>
+            <dd className="mt-0.5">
+              {typeof v === "object" ? (
+                <div className="mt-1 border-l-2 border-border pl-3">
+                  <ProcessDetail value={v} />
+                </div>
+              ) : (
+                <span className="text-sm text-ink">{String(v)}</span>
+              )}
+            </dd>
+          </div>
+        ))}
+      </dl>
+    );
+  }
+
+  return <span className="text-sm text-ink">{String(value)}</span>;
 }
 
 function ListCard({

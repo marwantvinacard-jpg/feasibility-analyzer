@@ -13,6 +13,7 @@ import { createLlm, isMockExplicit, isProductionEnv } from "@/lib/engine/factory
 import { OpenAIProvider } from "@/lib/engine/provider";
 import { SerpApiProvider } from "@/lib/engine/search";
 import { getByokKey } from "@/lib/firebase/byokKey";
+import { getOrgLlmKey } from "@/lib/firebase/orgLlmKey";
 import { adminDb } from "@/lib/firebase/admin";
 import { requireUser, HttpError, type Caller } from "@/lib/firebase/verify";
 import { logAudit } from "@/lib/firebase/audit";
@@ -65,7 +66,7 @@ export async function POST(req: Request) {
   // --- approval check + BYOK detection ---
   const preSnap = await userRef.get();
   if (!preSnap.exists) return json({ error: "Account not found." }, 403);
-  const preData = preSnap.data() as { status?: string; keyMode?: string };
+  const preData = preSnap.data() as { status?: string; keyMode?: string; orgId?: string };
   if (preData.status !== "approved") return json({ error: "Your account isn't approved yet." }, 403);
 
   const isByok = preData.keyMode === "byok";
@@ -77,10 +78,23 @@ export async function POST(req: Request) {
     }
   }
 
-  // --- credit gate (atomic) — skipped entirely in BYOK mode, which runs on
-  // the user's own key and never touches the platform's credit balance ---
+  // --- org shared key (owner-provided) — only considered when the caller
+  // hasn't set a personal BYOK key of their own; a member's explicit choice
+  // always wins over the org default. Only usable once the org is approved,
+  // matching the same gate applied to org API keys / billing. ---
+  let orgApiKey: string | null = null;
+  if (!isByok && preData.orgId) {
+    const orgSnap = await db.collection("organizations").doc(preData.orgId).get();
+    if (orgSnap.exists && orgSnap.data()?.status === "approved") {
+      orgApiKey = await getOrgLlmKey(preData.orgId);
+    }
+  }
+  const usesOrgKey = !isByok && !!orgApiKey;
+
+  // --- credit gate (atomic) — skipped entirely in BYOK/org-key mode, which
+  // runs on a key that never touches the platform's credit balance ---
   let charged = false;
-  if (!isByok) {
+  if (!isByok && !usesOrgKey) {
     try {
       charged = await db.runTransaction(async (tx) => {
         const snap = await tx.get(userRef);
@@ -111,12 +125,15 @@ export async function POST(req: Request) {
     input,
     stageStatus: initialStages(),
     charged,
-    billedVia: isByok ? "byok" : "credit",
+    billedVia: isByok ? "byok" : usesOrgKey ? "org" : "credit",
     reviewStatus: "unreviewed",
   });
   await logAudit({ uid: caller.uid, email: caller.email, action: "analysis.run", target: id, meta: { business_idea: input.business_idea } });
 
-  const baseLlm = isByok && byokApiKey ? new OpenAIProvider({ apiKey: byokApiKey }) : createLlm();
+  const baseLlm =
+    isByok && byokApiKey ? new OpenAIProvider({ apiKey: byokApiKey }) :
+    usesOrgKey && orgApiKey ? new OpenAIProvider({ apiKey: orgApiKey }) :
+    createLlm();
   if (baseLlm.mock && !isMockExplicit() && isProductionEnv()) {
     // Every AI-provider env var is simply absent in production — this run is
     // about to charge a real credit for fabricated output with nothing but a

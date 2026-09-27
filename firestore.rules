@@ -91,6 +91,11 @@ service cloud.firestore {
         allow read: if isAdmin() || isOrgMember(orgId);
         allow write: if false; // server only, via /api/org/keys
       }
+
+      // The org's shared, encrypted LLM API key — server-only, no client access.
+      match /secrets/{doc} {
+        allow read, write: if false; // Admin SDK only
+      }
     }
 
     // --- reports ---

@@ -48,6 +48,19 @@ export async function revokeApiKey(id: string): Promise<void> {
   await authedFetch(`/api/org/keys?id=${encodeURIComponent(id)}`, { method: "DELETE" });
 }
 
+/** The org's shared AI API key (owner-set) — masked preview only, never the raw secret. */
+export async function fetchOrgLlmKey(): Promise<{ set: boolean; preview: string | null }> {
+  return authedFetch("/api/org/llm-key");
+}
+
+export async function saveOrgLlmKey(apiKey: string): Promise<void> {
+  await authedFetch("/api/org/llm-key", { method: "POST", body: JSON.stringify({ apiKey }) });
+}
+
+export async function clearOrgLlmKey(): Promise<void> {
+  await authedFetch("/api/org/llm-key", { method: "DELETE" });
+}
+
 /** Live subscription to an org's API keys (metadata only — never the raw secret). */
 export function subscribeApiKeys(orgId: string, cb: (keys: ApiKeyDoc[]) => void): () => void {
   const fb = getFirebase();

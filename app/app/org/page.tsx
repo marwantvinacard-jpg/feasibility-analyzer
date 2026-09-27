@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Button, Badge } from "@/components/kit";
 import { Icon } from "@/components/icons";
 import { useSession } from "@/lib/session";
-import { fetchMyOrg, createOrg, updateOrgBranding } from "@/lib/org";
+import { fetchMyOrg, createOrg, updateOrgBranding, fetchOrgLlmKey, saveOrgLlmKey, clearOrgLlmKey } from "@/lib/org";
 import type { Organization } from "@/lib/orgTypes";
 import { OrgPlans, PLAN_LABEL } from "@/components/OrgPlans";
 
@@ -22,6 +22,13 @@ export default function OrgPage() {
   const [primaryColor, setPrimaryColor] = useState("");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+
+  const [llmKeySet, setLlmKeySet] = useState(false);
+  const [llmKeyPreview, setLlmKeyPreview] = useState<string | null>(null);
+  const [llmKeyLoaded, setLlmKeyLoaded] = useState(false);
+  const [llmKeyInput, setLlmKeyInput] = useState("");
+  const [llmKeySaving, setLlmKeySaving] = useState(false);
+  const [llmKeyError, setLlmKeyError] = useState("");
 
   async function load() {
     try {
@@ -42,6 +49,53 @@ export default function OrgPage() {
   useEffect(() => {
     load();
   }, []);
+
+  useEffect(() => {
+    if (org && user && org.ownerUid === user.uid && org.status === "approved" && !llmKeyLoaded) {
+      loadLlmKey();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [org, user]);
+
+  async function loadLlmKey() {
+    try {
+      const { set, preview } = await fetchOrgLlmKey();
+      setLlmKeySet(set);
+      setLlmKeyPreview(preview);
+    } catch {
+      /* owner-only endpoint — silently skip if not applicable */
+    } finally {
+      setLlmKeyLoaded(true);
+    }
+  }
+
+  async function handleSaveLlmKey() {
+    if (llmKeyInput.trim().length < 10) return;
+    setLlmKeySaving(true);
+    setLlmKeyError("");
+    try {
+      await saveOrgLlmKey(llmKeyInput.trim());
+      setLlmKeyInput("");
+      await loadLlmKey();
+    } catch (e) {
+      setLlmKeyError(e instanceof Error ? e.message : "Could not save the key.");
+    } finally {
+      setLlmKeySaving(false);
+    }
+  }
+
+  async function handleClearLlmKey() {
+    setLlmKeySaving(true);
+    setLlmKeyError("");
+    try {
+      await clearOrgLlmKey();
+      await loadLlmKey();
+    } catch (e) {
+      setLlmKeyError(e instanceof Error ? e.message : "Could not remove the key.");
+    } finally {
+      setLlmKeySaving(false);
+    }
+  }
 
   async function handleCreate() {
     if (!name.trim()) return;
@@ -133,6 +187,47 @@ export default function OrgPage() {
           )}
 
           {isOwner && org.status === "approved" && <OrgPlans currentPlan={org.plan} trialUsed={org.trialUsed} />}
+
+          {isOwner && org.status === "approved" && (
+            <div className="card space-y-4 p-6">
+              <div>
+                <h2 className="font-display text-lg font-semibold">Shared API key</h2>
+                <p className="mt-1 text-sm text-muted">
+                  Set one AI API key for the whole org. Every approved member's analyses run on it automatically —
+                  they pay nothing in credits and don't need their own key. A member who's already set a personal
+                  key in Settings keeps using that instead; this only fills in for members who haven't.
+                </p>
+              </div>
+              {llmKeyError && <p className="text-sm text-stop">{llmKeyError}</p>}
+              {llmKeySet ? (
+                <div className="flex items-center justify-between rounded-xl border border-border bg-surface-2 px-4 py-3">
+                  <span className="num text-sm text-muted">{llmKeyPreview}</span>
+                  <Button variant="ghost" onClick={handleClearLlmKey} disabled={llmKeySaving}>
+                    {llmKeySaving ? "Removing…" : "Remove"}
+                  </Button>
+                </div>
+              ) : (
+                <div>
+                  <label htmlFor="org-llm-key" className="mb-1.5 block text-sm font-medium">API key</label>
+                  <div className="flex gap-2">
+                    <input
+                      id="org-llm-key"
+                      className="input flex-1"
+                      type="password"
+                      placeholder="sk-…"
+                      value={llmKeyInput}
+                      onChange={(e) => setLlmKeyInput(e.target.value)}
+                      autoComplete="off"
+                    />
+                    <Button onClick={handleSaveLlmKey} disabled={llmKeySaving || llmKeyInput.trim().length < 10}>
+                      {llmKeySaving ? "Saving…" : "Save"}
+                    </Button>
+                  </div>
+                  <p className="mt-1.5 text-xs text-faint">Stored encrypted server-side. Never shown again after saving.</p>
+                </div>
+              )}
+            </div>
+          )}
 
           {isOwner && (
             <div className="card space-y-4 p-6">
