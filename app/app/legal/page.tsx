@@ -2,12 +2,9 @@
 
 import { Icon } from "@/components/icons";
 
-// Fill these in with your real legal entity before launch — everything below
-// is written to be accurate SaaS boilerplate, but a contract needs a real
-// counterparty and a real forum, which nobody but you can supply.
-const LEGAL_ENTITY = "[Legal entity name — e.g. FeasibilityAI, Inc.]";
-const GOVERNING_LAW = "[Governing law / jurisdiction — e.g. the State of Delaware, USA]";
-const CONTACT_EMAIL = "legal@feasibility.local";
+const LEGAL_ENTITY = "Aibots Automations";
+const GOVERNING_LAW = "Saudi Arabia, the United Arab Emirates (Dubai), Tunisia, and the GCC region, as applicable to the customer's location";
+const CONTACT_EMAIL = "marwan.tvinacard@gmail.com";
 
 export default function LegalPage() {
   return (
@@ -20,10 +17,9 @@ export default function LegalPage() {
       <div className="flex items-start gap-2.5 rounded-xl border border-warn/40 bg-warn/10 px-4 py-3 text-sm text-warn">
         <Icon name="risk" size={16} strokeWidth={2} className="mt-0.5 shrink-0" />
         <span>
-          Two placeholders below (<strong>{LEGAL_ENTITY}</strong> and <strong>{GOVERNING_LAW}</strong>) need your real
-          incorporated entity and chosen jurisdiction — that's business information nobody but you can supply. Once
-          filled in, have counsel give this a final pass before scaling internationally, especially the
-          jurisdiction-specific licensing question called out in the methodology disclaimer.
+          Have a lawyer licensed in {LEGAL_ENTITY}'s operating jurisdictions give this page a final pass before
+          scaling internationally, especially the jurisdiction-specific licensing question called out in the
+          methodology disclaimer below.
         </span>
       </div>
 
