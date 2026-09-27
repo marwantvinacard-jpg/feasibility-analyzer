@@ -7,6 +7,7 @@ export interface Caller {
   uid: string;
   email?: string;
   admin: boolean;
+  emailVerified: boolean;
 }
 
 class HttpError extends Error {
@@ -26,7 +27,7 @@ export async function requireUser(req: Request): Promise<Caller> {
     // stop working immediately instead of staying valid until its natural
     // ~1h expiry — worth it for an app that gates paid access by approval.
     const decoded = await adminAuth().verifyIdToken(token, true);
-    return { uid: decoded.uid, email: decoded.email, admin: decoded.admin === true };
+    return { uid: decoded.uid, email: decoded.email, admin: decoded.admin === true, emailVerified: decoded.email_verified === true };
   } catch (err) {
     // The client only ever sees the generic message below — never leak
     // verification internals — but every prior occurrence of this error was

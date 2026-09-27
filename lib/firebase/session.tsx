@@ -59,6 +59,10 @@ interface SessionCtx {
   refreshClaims: () => Promise<void>;
   resendVerificationEmail: () => Promise<void>;
   sendPasswordReset: (email: string) => Promise<void>;
+  /** Re-fetches the Firebase Auth user's own emailVerified flag from the
+   *  server (Firebase caches it locally otherwise) and syncs it onto the
+   *  account. Returns the fresh value. */
+  checkEmailVerified: () => Promise<boolean>;
 }
 
 const Ctx = createContext<SessionCtx | null>(null);
@@ -212,6 +216,18 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       async resendVerificationEmail() {
         if (!fbUser) throw new Error("Not signed in.");
         await sendEmailVerification(fbUser);
+      },
+      async checkEmailVerified() {
+        if (!fbUser) return false;
+        await fbUser.reload();
+        // reload() refreshes the user profile, but the cached ID token's own
+        // email_verified claim (what the server actually checks) is only set
+        // at token-mint time — force a fresh one or the server call right
+        // after this would still see the stale claim.
+        await fbUser.getIdToken(true);
+        const verified = fbUser.emailVerified;
+        setAccount((prev) => (prev ? { ...prev, emailVerified: verified } : prev));
+        return verified;
       },
       async sendPasswordReset(email) {
         const fb = getFirebase();
