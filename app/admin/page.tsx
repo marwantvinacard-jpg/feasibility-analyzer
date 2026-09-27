@@ -9,6 +9,7 @@ import { useSession } from "@/lib/session";
 import { getFirebase } from "@/lib/firebase/client";
 import { cn } from "@/lib/ui";
 import { useT } from "@/lib/i18n/LanguageContext";
+import { useToast } from "@/lib/toast";
 
 interface UserRow {
   uid: string;
@@ -42,6 +43,7 @@ interface ErrorRow {
 export default function AdminPage() {
   const { ready, user, getIdToken } = useSession();
   const t = useT();
+  const toast = useToast();
   const router = useRouter();
   const [users, setUsers] = useState<UserRow[]>([]);
   const [audit, setAudit] = useState<AuditRow[]>([]);
@@ -75,28 +77,40 @@ export default function AdminPage() {
   }, [user]);
 
   async function act(uid: string, action: "approve" | "reject" | "grant", amount?: number) {
+    if (action === "reject" && !window.confirm("Reject this user's account request?")) return;
     setBusy(uid + action);
     try {
       const token = await getIdToken();
-      await fetch("/api/admin/user", {
+      const res = await fetch("/api/admin/user", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ uid, action, amount }),
       });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error ?? `Request failed (${res.status})`);
+      toast.show(action === "grant" ? "Credits added." : action === "approve" ? "User approved." : "User rejected.", "success");
+    } catch (e) {
+      toast.show(e instanceof Error ? e.message : "That action failed — try again.", "error");
     } finally {
       setBusy(null);
     }
   }
 
   async function actOrg(orgId: string, action: "approve" | "reject") {
+    if (action === "reject" && !window.confirm("Reject this organization's request?")) return;
     setBusy(orgId + action);
     try {
       const token = await getIdToken();
-      await fetch("/api/admin/org", {
+      const res = await fetch("/api/admin/org", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ orgId, action }),
       });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error ?? `Request failed (${res.status})`);
+      toast.show(action === "approve" ? "Organization approved." : "Organization rejected.", "success");
+    } catch (e) {
+      toast.show(e instanceof Error ? e.message : "That action failed — try again.", "error");
     } finally {
       setBusy(null);
     }

@@ -14,7 +14,6 @@ export default function SettingsPage() {
   const t = useT();
   const toast = useToast();
   const [key, setKey] = useState("");
-  const [saved, setSaved] = useState(false);
 
   if (!user) return null;
 
@@ -64,24 +63,15 @@ export default function SettingsPage() {
                 type="password"
                 placeholder={t("settings.keyPlaceholder")}
                 value={key}
-                onChange={(e) => { setKey(e.target.value); setSaved(false); }}
+                onChange={(e) => setKey(e.target.value)}
+                disabled
               />
-              <Button
-                variant="ghost"
-                onClick={() => { setSaved(true); toast.show(t("settings.keySaved"), "success"); }}
-                disabled={key.length < 8}
-              >
+              <Button variant="ghost" disabled>
                 {t("common.save")}
               </Button>
             </div>
-            <p className="mt-2 text-xs text-faint">
-              {saved ? (
-                <span className="inline-flex items-center gap-1 text-go">
-                  <Icon name="check" size={13} strokeWidth={2.5} /> {t("settings.keySaved")}
-                </span>
-              ) : (
-                t("settings.keyStoredHint")
-              )}
+            <p className="mt-2 flex items-center gap-1 text-xs text-warn">
+              <Icon name="risk" size={13} strokeWidth={2.5} /> {t("settings.keyNotSupportedYet")}
             </p>
           </div>
         )}

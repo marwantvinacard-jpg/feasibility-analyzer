@@ -14,7 +14,9 @@ import { createLlm } from "@/lib/engine/factory";
 import { generateStudy } from "@/lib/engine/study";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+// Single generateStudy call, no search fan-out: worst case is the LLM
+// client's own 2-attempts * 30s ceiling, plus margin.
+export const maxDuration = 90;
 
 export async function POST(req: Request) {
   const db = adminDb();

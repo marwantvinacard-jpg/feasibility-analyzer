@@ -48,6 +48,7 @@ export default function ApiAccessPage() {
   }
 
   async function handleRevoke(id: string) {
+    if (!window.confirm("Revoke this API key? Any integration using it will stop working immediately.")) return;
     setBusyId(id);
     try {
       await revokeApiKey(id);

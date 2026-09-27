@@ -65,7 +65,11 @@ export class OpenAIProvider implements LlmProvider {
     // timeout well under the route's `maxDuration`, a hanging provider gets
     // killed by the platform first, which skips that catch block entirely
     // (no refund, no user-visible error, analysis doc stuck at "running").
-    this.client = this.mock ? null : new OpenAI({ apiKey, baseURL, timeout: 60_000, maxRetries: 2 });
+    // Worst case is timeout * (maxRetries + 1): keep that product well under
+    // the calling routes' maxDuration even after adding search-fetch time on
+    // top (runFeasibility runs up to ~12 of these, several stages preceded by
+    // their own capped search calls) — 2 attempts * 30s = 60s per call.
+    this.client = this.mock ? null : new OpenAI({ apiKey, baseURL, timeout: 30_000, maxRetries: 1 });
     if (!this.mock && !apiKey) {
       throw new Error(
         "No LLM API key set. Set OPENAI_API_KEY (or a compatible key + FEASIBILITY_BASE_URL) in .env.local, or run with FEASIBILITY_MOCK=true."

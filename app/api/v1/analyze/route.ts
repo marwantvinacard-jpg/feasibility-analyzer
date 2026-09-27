@@ -20,7 +20,8 @@ import { capBusinessInput, type BusinessInput } from "@/lib/engine/types";
 import { checkRateLimit } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
-export const maxDuration = 120;
+// See app/api/analyze/route.ts for the worst-case latency arithmetic behind this number.
+export const maxDuration = 240;
 
 // Each call already costs a credit, which caps total exposure — this bounds
 // *burst rate* on top of that, per instance (see lib/rateLimit.ts).

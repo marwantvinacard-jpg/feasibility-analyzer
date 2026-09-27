@@ -7,10 +7,15 @@ import { stripe, WALLET_TIERS, creditsForTopup, ORG_PLANS, type WalletTier } fro
 import { adminDb } from "@/lib/firebase/admin";
 import { requireUser, HttpError } from "@/lib/firebase/verify";
 import { logAudit } from "@/lib/firebase/audit";
+import { logError } from "@/lib/firebase/errorLog";
 import type { OrgPlanKey } from "@/lib/orgTypes";
 import { EXPORT_UNLOCK_PRICE_USD, isExportExempt } from "@/lib/exportAccess";
+import { checkRateLimit } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
+
+const RATE_LIMIT = 10;
+const RATE_WINDOW_MS = 60_000;
 
 async function getOrCreateCustomer(uid: string, email?: string): Promise<string> {
   const ref = adminDb().collection("users").doc(uid);
@@ -26,6 +31,8 @@ async function getOrCreateCustomer(uid: string, email?: string): Promise<string>
 export async function POST(req: Request) {
   try {
     const caller = await requireUser(req);
+    const rl = checkRateLimit(`stripe-checkout:${caller.uid}`, RATE_LIMIT, RATE_WINDOW_MS);
+    if (!rl.allowed) throw new HttpError(429, `Too many checkout attempts. Try again in ${Math.ceil(rl.retryAfterMs / 1000)}s.`);
     const { kind, amount, planKey, analysisId, cycle } = (await req.json()) as {
       kind: "wallet" | "subscription" | "org_plan" | "unlock_export";
       amount?: WalletTier;
@@ -162,6 +169,10 @@ export async function POST(req: Request) {
     throw new HttpError(400, "Unknown checkout kind.");
   } catch (err) {
     if (err instanceof HttpError) return NextResponse.json({ error: err.message }, { status: err.status });
-    return NextResponse.json({ error: err instanceof Error ? err.message : "Checkout failed" }, { status: 500 });
+    // Anything else is an unexpected internal failure (Stripe SDK error, etc) —
+    // the raw message can carry internal details, so log it server-side and
+    // give the caller a generic one instead of forwarding it verbatim.
+    await logError("stripe.checkout", err);
+    return NextResponse.json({ error: "Checkout failed. Please try again." }, { status: 500 });
   }
 }

@@ -40,9 +40,19 @@ export async function POST(req: Request) {
   // redeliver even after a 2xx), and a captured signed payload could be replayed
   // within its timestamp tolerance. Without this guard a retry after a partial
   // failure — or a replay — would grant credits twice for the same event.
+  //
+  // The claim itself has to happen atomically, before any side effects, or two
+  // near-simultaneous deliveries of the same event can both pass a plain
+  // get()-then-later-set() check. A Firestore transaction serializes concurrent
+  // writes to the same doc, so only one delivery ever wins the claim below.
   const eventRef = adminDb().collection("processedStripeEvents").doc(event.id);
-  const alreadyProcessed = await eventRef.get().then((s) => s.exists);
-  if (alreadyProcessed) {
+  const claimed = await adminDb().runTransaction(async (tx) => {
+    const snap = await tx.get(eventRef);
+    if (snap.exists) return false;
+    tx.set(eventRef, { type: event.type, status: "processing", claimedAt: Date.now() });
+    return true;
+  });
+  if (!claimed) {
     return NextResponse.json({ received: true, deduped: true });
   }
 
@@ -103,8 +113,18 @@ export async function POST(req: Request) {
             await logAudit({ uid, action: "billing.org_plan_started", target: orgId, meta: { plan: plan.key } });
           }
         }
-        // Individual "subscription" checkout completion is handled by the
-        // subscription events below (created/updated), which fire right after this.
+
+        if (session.metadata?.kind === "subscription") {
+          // First month's credits land immediately, same as org_plan above —
+          // invoice.payment_succeeded only fires again on renewal
+          // (billing_reason === "subscription_cycle"), so this is the only
+          // place the individual Pro plan's first credit grant can happen.
+          await adminDb().collection("users").doc(uid).update({ credits: FieldValue.increment(PRO_PLAN.creditsPerMonth) });
+          await adminDb()
+            .collection("payments")
+            .add({ uid, type: "subscription_start", creditsGranted: PRO_PLAN.creditsPerMonth, createdAt: Date.now() });
+          await logAudit({ uid, action: "billing.subscription_started", meta: { credits: PRO_PLAN.creditsPerMonth } });
+        }
         break;
       }
 
@@ -184,14 +204,15 @@ export async function POST(req: Request) {
     }
   } catch (err) {
     // Stripe retries on non-2xx, which is exactly what we want on a genuine
-    // failure — don't mark the event processed, so the retry can complete it.
+    // failure — release the claim so the retry can actually reprocess it,
+    // instead of finding it pre-claimed and silently deduping a delivery that
+    // never actually completed.
+    await eventRef.delete().catch(() => {});
     await logError("stripe.webhook", err, { eventType: event.type, eventId: event.id });
     return NextResponse.json({ error: "Handler error" }, { status: 500 });
   }
 
-  // Only mark processed after the handler above completed without throwing —
-  // this is what makes the dedupe check at the top safe.
-  await eventRef.set({ type: event.type, processedAt: Date.now() });
+  await eventRef.set({ type: event.type, status: "completed", processedAt: Date.now() });
 
   return NextResponse.json({ received: true });
 }

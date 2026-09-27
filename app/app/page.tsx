@@ -308,7 +308,15 @@ function AnalysisRow({
       )}
       <div className="flex items-center gap-1">
         <Link href={`/app/analysis/${a.id}`} className="btn btn-ghost px-3 text-xs" style={{ minHeight: 36 }}>{t("common.open")}</Link>
-        <button onClick={onDelete} className="grid h-9 w-9 place-items-center rounded-lg text-faint hover:text-stop" aria-label="Delete analysis"><Icon name="x" size={16} /></button>
+        <button
+          onClick={() => {
+            if (window.confirm(t("dashboard.confirmDelete", { name: a.input.business_idea || t("dashboard.untitled") }))) onDelete();
+          }}
+          className="grid h-9 w-9 place-items-center rounded-lg text-faint hover:text-stop"
+          aria-label={t("dashboard.deleteAnalysis")}
+        >
+          <Icon name="x" size={16} />
+        </button>
       </div>
     </div>
   );

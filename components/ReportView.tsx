@@ -48,6 +48,14 @@ export function ReportView({
           </span>
         </div>
       )}
+      {!!study?.modelEditedAt && (
+        <div className="no-print flex items-center gap-2.5 rounded-xl border border-warn/40 bg-warn/10 px-4 py-3 text-sm text-warn">
+          <Icon name="risk" size={16} strokeWidth={2} className="shrink-0" />
+          <span>
+            <strong>{t("report.staleScoreTitle")}</strong> {t("report.staleScoreBody")}
+          </span>
+        </div>
+      )}
       {/* Verdict hero */}
       <div className="card overflow-hidden p-0">
         <div className="bg-paper-glow flex flex-col items-center gap-6 p-6 sm:flex-row sm:p-8">

@@ -22,7 +22,12 @@ import { checkRateLimit } from "@/lib/rateLimit";
 import { captureServerEvent } from "@/lib/posthog/server";
 
 export const runtime = "nodejs";
-export const maxDuration = 120;
+// Worst-case latency: one stage's serial search calls (up to 4 * 12s) plus its
+// own LLM call (2 attempts * 30s), then the report/study pair after all stages
+// finish (another 2 attempts * 30s, run in parallel with each other) — roughly
+// 48 + 60 + 60 = 168s. 240s leaves real margin so the platform-level kill stays
+// well behind the in-code catch/refund logic, not ahead of it.
+export const maxDuration = 240;
 
 // Burst protection on top of the per-run credit cost (see lib/rateLimit.ts).
 const RATE_LIMIT = 6;
@@ -127,8 +132,20 @@ export async function POST(req: Request) {
 
   const stream = new ReadableStream({
     async start(controller) {
-      const send = (event: string, data: unknown) =>
-        controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
+      // If the client disconnects (tab closed, hard navigation), a later
+      // enqueue on this controller throws — and without this guard, that
+      // throw propagates into the try/catch below indistinguishably from a
+      // real engine failure, marking a run "failed" and refunding a credit
+      // for a run that may have completed successfully server-side. Losing
+      // the ability to stream progress to a gone client is fine; treating
+      // that as an analysis failure is not.
+      const send = (event: string, data: unknown) => {
+        try {
+          controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
+        } catch {
+          /* client is gone — the run continues and still writes its real result to Firestore */
+        }
+      };
 
       send("start", { analysisId: id, stages: SIX_STAGES });
       captureServerEvent(caller.uid, "analysis_started", { analysisId: id });
@@ -162,7 +179,11 @@ export async function POST(req: Request) {
         captureServerEvent(caller.uid, "analysis_failed", { analysisId: id, message });
         send("error", { message });
       } finally {
-        controller.close();
+        try {
+          controller.close();
+        } catch {
+          /* already closed by the client disconnecting — nothing to do */
+        }
       }
     },
   });

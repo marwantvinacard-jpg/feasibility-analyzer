@@ -22,6 +22,7 @@ export default function EditModelPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const initialized = useRef(false);
+  const initialModelRef = useRef<FinancialModel | null>(null);
 
   useEffect(() => {
     const unsub = subscribeAnalysis(id, (d) => {
@@ -32,11 +33,34 @@ export default function EditModelPage() {
       // since this callback is created once and never sees later state.
       if (d?.result?.study?.model && !initialized.current) {
         initialized.current = true;
-        setModel(structuredClone(d.result.study.model));
+        const snapshot = structuredClone(d.result.study.model);
+        initialModelRef.current = snapshot;
+        setModel(snapshot);
       }
     });
     return () => unsub();
   }, [id]);
+
+  const isDirty = () => !!model && JSON.stringify(model) !== JSON.stringify(initialModelRef.current);
+
+  // Editing many CapEx/OpEx/revenue rows is easy to lose to an accidental
+  // refresh or tab close — warn before that happens, same as any form with
+  // real unsaved work.
+  useEffect(() => {
+    function handler(e: BeforeUnloadEvent) {
+      if (isDirty()) {
+        e.preventDefault();
+        e.returnValue = "";
+      }
+    }
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [model]);
+
+  function goBack() {
+    if (isDirty() && !window.confirm("Discard your unsaved changes to this model?")) return;
+    router.push(`/app/analysis/${id}`);
+  }
 
   const cur = model?.currency ?? "USD";
   const f = (v: number) => money(v, cur);
@@ -113,7 +137,7 @@ export default function EditModelPage() {
   return (
     <div className="mx-auto max-w-4xl space-y-5">
       <div className="flex items-center justify-between">
-        <button onClick={() => router.push(`/app/analysis/${id}`)} className="inline-flex items-center gap-1.5 text-sm text-muted hover:text-ink">
+        <button onClick={goBack} className="inline-flex items-center gap-1.5 text-sm text-muted hover:text-ink">
           <Icon name="arrow" size={16} className="rotate-180" /> Back to report
         </button>
         <Badge tone="warn"><Icon name="sliders" size={13} /> Editing financial model</Badge>
@@ -229,7 +253,7 @@ export default function EditModelPage() {
       {error && <p className="text-sm text-stop">{error}</p>}
 
       <div className="flex items-center justify-between pb-8">
-        <Button variant="ghost" onClick={() => router.push(`/app/analysis/${id}`)}>Cancel</Button>
+        <Button variant="ghost" onClick={goBack}>Cancel</Button>
         <Button onClick={save} disabled={saving}>
           {saving ? "Saving…" : <>Save &amp; recompute <Icon name="check" size={16} /></>}
         </Button>

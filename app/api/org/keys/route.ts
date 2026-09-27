@@ -10,9 +10,13 @@ import { randomBytes, createHash } from "node:crypto";
 import { adminDb } from "@/lib/firebase/admin";
 import { requireUser, HttpError } from "@/lib/firebase/verify";
 import { logAudit } from "@/lib/firebase/audit";
+import { checkRateLimit } from "@/lib/rateLimit";
 import type { ApiKeyDoc } from "@/lib/orgTypes";
 
 export const runtime = "nodejs";
+
+const RATE_LIMIT = 10;
+const RATE_WINDOW_MS = 60_000;
 
 function hashKey(key: string): string {
   return createHash("sha256").update(key).digest("hex");
@@ -36,6 +40,8 @@ async function requireOwnedOrg(caller: { uid: string }, requireApproved = false)
 export async function POST(req: Request) {
   try {
     const caller = await requireUser(req);
+    const rl = checkRateLimit(`org-keys-create:${caller.uid}`, RATE_LIMIT, RATE_WINDOW_MS);
+    if (!rl.allowed) throw new HttpError(429, `Too many keys created at once. Try again in ${Math.ceil(rl.retryAfterMs / 1000)}s.`);
     const { label } = (await req.json()) as { label?: string };
 
     const { orgRef } = await requireOwnedOrg(caller, true);

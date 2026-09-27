@@ -22,7 +22,10 @@ export class OllamaProvider implements LlmProvider {
     const client = new Ollama({ host: this.host });
     // Same reasoning as OpenAIProvider's client timeout: the caller's credit-
     // refund logic needs this call to fail on its own well before the route's
-    // platform-level maxDuration kills the whole request.
+    // platform-level maxDuration kills the whole request. Deliberately no
+    // retry here (unlike the OpenAI-compatible path's maxRetries: 1) — a local
+    // model that's this slow is usually resource-starved, not transiently
+    // flaky, so retrying would just double the wait for the same outcome.
     const res = await Promise.race([
       client.chat({
         model: call.model ?? this.model,

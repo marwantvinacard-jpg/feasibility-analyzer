@@ -7,6 +7,7 @@ import { extractFromText } from "@/lib/engine/extractor";
 import { createLlm } from "@/lib/engine/factory";
 import { requireUser, HttpError } from "@/lib/firebase/verify";
 import { checkRateLimit } from "@/lib/rateLimit";
+import { logError } from "@/lib/firebase/errorLog";
 import type { BusinessInput } from "@/lib/engine/types";
 
 export const runtime = "nodejs";
@@ -39,6 +40,7 @@ export async function POST(req: Request) {
     return NextResponse.json(result);
   } catch (err) {
     if (err instanceof HttpError) return NextResponse.json({ error: err.message }, { status: err.status });
-    return NextResponse.json({ error: err instanceof Error ? err.message : "Extraction failed" }, { status: 500 });
+    await logError("extract.run", err);
+    return NextResponse.json({ error: "Extraction failed. Please try again." }, { status: 500 });
   }
 }

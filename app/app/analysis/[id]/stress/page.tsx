@@ -117,8 +117,13 @@ function Board({
   function loadScenario(s: ScenarioDoc) {
     setKnobs({ ...base, ...(s.knobs as unknown as StressKnobs) });
   }
-  async function removeScenario(scenarioId: string) {
-    await deleteScenario(id, scenarioId);
+  async function removeScenario(scenarioId: string, name: string) {
+    if (!window.confirm(t("stress.confirmDeleteScenario", { name }))) return;
+    try {
+      await deleteScenario(id, scenarioId);
+    } catch {
+      window.alert(t("stress.deleteScenarioFailed"));
+    }
   }
 
   const grouped = useMemo(() => {
@@ -189,7 +194,7 @@ function Board({
                       {s.name}
                       <span className="ml-1.5 text-xs text-faint">{s.createdBy}</span>
                     </button>
-                    <button onClick={() => removeScenario(s.id)} className="shrink-0 text-faint hover:text-stop" aria-label={`Delete ${s.name}`}>
+                    <button onClick={() => removeScenario(s.id, s.name)} className="shrink-0 text-faint hover:text-stop" aria-label={`Delete ${s.name}`}>
                       <Icon name="x" size={13} strokeWidth={2} />
                     </button>
                   </div>

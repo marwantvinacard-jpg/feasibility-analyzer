@@ -13,6 +13,7 @@
 import { NextResponse } from "next/server";
 import { requireUser, HttpError } from "@/lib/firebase/verify";
 import { checkRateLimit } from "@/lib/rateLimit";
+import { logError } from "@/lib/firebase/errorLog";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -112,9 +113,10 @@ export async function POST(req: Request) {
     if (!text) return NextResponse.json({ error: "No readable text found in the file." }, { status: 422 });
     return NextResponse.json({ name, chars: text.length, truncated, text });
   } catch (err) {
-    return NextResponse.json(
-      { error: err instanceof Error ? `Could not read ${name}: ${err.message}` : "Extraction failed" },
-      { status: 500 }
-    );
+    // The parser's own error text (a pdf-parse/mammoth internal message) isn't
+    // meant for an end user and could carry more detail than intended — log it
+    // server-side and give the caller a generic reason instead.
+    await logError("ingest.extract", err, { fileName: name });
+    return NextResponse.json({ error: `Could not read ${name}. Try a different file or format.` }, { status: 500 });
   }
 }

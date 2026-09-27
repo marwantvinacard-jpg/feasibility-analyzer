@@ -87,23 +87,27 @@ async function authedFetch(url: string, init: RequestInit = {}) {
   });
 }
 
-export async function deleteAnalysis(id: string): Promise<void> {
-  await authedFetch("/api/analysis/delete", { method: "POST", body: JSON.stringify({ id }) });
-}
-
-export async function reviewAnalysis(id: string, notes: string): Promise<void> {
-  await authedFetch("/api/analysis/review", { method: "POST", body: JSON.stringify({ id, notes }) });
-}
-
-export async function saveScenario(analysisId: string, name: string, knobs: Record<string, number>): Promise<void> {
-  await authedFetch("/api/scenarios", { method: "POST", body: JSON.stringify({ analysisId, name, knobs }) });
-}
-
 async function authedFetchJson(url: string, init: RequestInit = {}) {
   const res = await authedFetch(url, init);
   const data = await res.json().catch(() => ({}));
+  // A non-2xx here must throw, not resolve — every caller below (delete,
+  // review, save/delete a scenario) treats a resolved promise as "it worked"
+  // and fires a success toast off the back of it. Without this check, a
+  // permission error or a 500 from the server was indistinguishable from success.
   if (!res.ok) throw new Error(data.error ?? `Request failed (${res.status})`);
   return data;
+}
+
+export async function deleteAnalysis(id: string): Promise<void> {
+  await authedFetchJson("/api/analysis/delete", { method: "POST", body: JSON.stringify({ id }) });
+}
+
+export async function reviewAnalysis(id: string, notes: string): Promise<void> {
+  await authedFetchJson("/api/analysis/review", { method: "POST", body: JSON.stringify({ id, notes }) });
+}
+
+export async function saveScenario(analysisId: string, name: string, knobs: Record<string, number>): Promise<void> {
+  await authedFetchJson("/api/scenarios", { method: "POST", body: JSON.stringify({ analysisId, name, knobs }) });
 }
 
 /** Save a hand-edited financial model — recomputed deterministically server-side, free. */
@@ -117,5 +121,5 @@ export async function regenerateNarrative(id: string): Promise<{ narrative: unkn
 }
 
 export async function deleteScenario(analysisId: string, scenarioId: string): Promise<void> {
-  await authedFetch(`/api/scenarios?analysisId=${analysisId}&scenarioId=${scenarioId}`, { method: "DELETE" });
+  await authedFetchJson(`/api/scenarios?analysisId=${analysisId}&scenarioId=${scenarioId}`, { method: "DELETE" });
 }
