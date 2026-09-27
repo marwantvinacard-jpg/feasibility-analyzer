@@ -1,16 +1,57 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import { Logo } from "@/components/Brand";
-import { Badge } from "@/components/kit";
+import { Badge, Button } from "@/components/kit";
 import { Icon, type IconName } from "@/components/icons";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { useSession } from "@/lib/session";
 import { useT } from "@/lib/i18n/LanguageContext";
+import { useToast } from "@/lib/toast";
 import { cn } from "@/lib/ui";
+
+function VerifyEmailBanner() {
+  const { user, resendVerificationEmail } = useSession();
+  const toast = useToast();
+  const [dismissed, setDismissed] = useState(false);
+  const [sending, setSending] = useState(false);
+
+  if (!user || user.emailVerified || dismissed) return null;
+
+  return (
+    <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-warn/40 bg-warn/10 px-4 py-3 text-sm text-warn">
+      <span className="inline-flex items-center gap-2">
+        <Icon name="risk" size={16} strokeWidth={2} /> Verify your email ({user.email}) to secure account recovery.
+      </span>
+      <div className="flex items-center gap-2">
+        <Button
+          variant="ghost"
+          className="!h-8 px-3 text-xs"
+          disabled={sending}
+          onClick={async () => {
+            setSending(true);
+            try {
+              await resendVerificationEmail();
+              toast.show("Verification email sent.", "success");
+            } catch {
+              toast.show("Could not send the email — try again shortly.", "error");
+            } finally {
+              setSending(false);
+            }
+          }}
+        >
+          {sending ? "Sending…" : "Resend email"}
+        </Button>
+        <button onClick={() => setDismissed(true)} className="text-warn/70 hover:text-warn" aria-label="Dismiss">
+          <Icon name="x" size={15} />
+        </button>
+      </div>
+    </div>
+  );
+}
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { ready, user, logout } = useSession();
@@ -130,7 +171,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             <Badge tone="go"><span className="num">{user.credits}</span> {t("common.credits")}</Badge>
           </div>
         </header>
-        <main className="flex-1 px-5 py-6 sm:px-8 sm:py-9">{children}</main>
+        <main className="flex-1 px-5 py-6 sm:px-8 sm:py-9">
+          <VerifyEmailBanner />
+          {children}
+        </main>
       </div>
     </div>
   );

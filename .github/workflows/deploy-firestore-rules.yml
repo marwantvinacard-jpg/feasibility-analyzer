@@ -1,0 +1,24 @@
+name: Deploy Firestore rules
+
+# Runs only when firestore.rules actually changes on main, so a rules edit
+# can never again sit committed-but-not-live the way it did before this
+# workflow existed. Needs a FIREBASE_TOKEN repo secret: generate one with
+# `npx firebase-tools login:ci` (run locally, once) and add it under
+# Settings -> Secrets and variables -> Actions.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "firestore.rules"
+
+jobs:
+  deploy-rules:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npx firebase-tools deploy --only firestore:rules --token "$FIREBASE_TOKEN"
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}

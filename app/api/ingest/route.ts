@@ -47,7 +47,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: e.message ?? "Unauthorized" }, { status: e.status ?? 401 });
   }
 
-  const rl = checkRateLimit(caller.uid, RATE_LIMIT, RATE_WINDOW_MS);
+  const rl = await checkRateLimit(caller.uid, RATE_LIMIT, RATE_WINDOW_MS);
   if (!rl.allowed) {
     return NextResponse.json(
       { error: `Too many uploads. Try again in ${Math.ceil(rl.retryAfterMs / 1000)}s.` },

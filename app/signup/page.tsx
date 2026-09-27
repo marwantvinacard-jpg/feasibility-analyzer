@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { AuthShell } from "@/components/AuthShell";
@@ -22,10 +22,20 @@ export default function SignupPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [honeypot, setHoneypot] = useState("");
+  // Bots fill every field, including a hidden one, and submit near-instantly —
+  // real people never touch this field and rarely fill the whole form in under
+  // a couple of seconds. Both checks fail silently (redirect as if it worked)
+  // rather than telling a bot exactly what tripped it.
+  const mountedAt = useRef(Date.now());
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
+    if (honeypot || Date.now() - mountedAt.current < 1500) {
+      router.push("/pending");
+      return;
+    }
     if (!USERNAME_RE.test(username.trim().toLowerCase())) {
       setError(t("auth.usernameInvalid"));
       return;
@@ -65,6 +75,16 @@ export default function SignupPage() {
       }
     >
       <form onSubmit={submit} className="space-y-4">
+        <input
+          type="text"
+          name="company"
+          value={honeypot}
+          onChange={(e) => setHoneypot(e.target.value)}
+          tabIndex={-1}
+          autoComplete="off"
+          aria-hidden="true"
+          style={{ position: "absolute", left: "-9999px", width: 1, height: 1, opacity: 0 }}
+        />
         <div>
           <label htmlFor="signup-name" className="mb-1.5 block text-sm font-medium">{t("auth.nameLabel")}</label>
           <input id="signup-name" className="input" placeholder={t("auth.namePlaceholder")} value={name} onChange={(e) => setName(e.target.value)} required />

@@ -8,14 +8,13 @@ const nextConfig = {
   // must be external, or bundling flattens jwks-rsa→jose into an ESM/CJS clash
   // (ERR_REQUIRE_ESM) that crashes the API routes.
   serverExternalPackages: ["openai", "pdf-parse", "firebase-admin"],
-  // CSP is shipped as Content-Security-Policy-REPORT-ONLY, not enforced: every
-  // third-party origin below (Firebase Auth/Firestore, Stripe's server SDK,
-  // PostHog, Sentry) is all that should be needed per an audit of this repo's
-  // actual client-side calls, but a report-only rollout means a wrong entry
-  // shows up as a console/DevTools violation instead of silently breaking
-  // sign-in or payment. Check the browser console (and Sentry, if a
-  // report-uri is wired up) across a real login + checkout + analysis run for
-  // a few days, then switch the header key below to the enforcing name.
+  // Enforced. Verified zero violations across a production build (next build
+  // + next start, not dev mode — dev's eval-based devtool trips 'unsafe-eval'
+  // on its own and isn't representative) covering the public pages, login,
+  // signup, and the authenticated dashboard/settings with live Firestore
+  // calls. Payment (Stripe Checkout/webhook) is server-only in this app —
+  // nothing client-side to violate — but re-check after any change that
+  // loads a new third-party script or connects to a new origin.
   async headers() {
     const csp = [
       "default-src 'self'",
@@ -40,7 +39,7 @@ const nextConfig = {
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
           { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" },
           { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
-          { key: "Content-Security-Policy-Report-Only", value: csp },
+          { key: "Content-Security-Policy", value: csp },
         ],
       },
     ];

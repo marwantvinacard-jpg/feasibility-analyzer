@@ -40,7 +40,7 @@ async function requireOwnedOrg(caller: { uid: string }, requireApproved = false)
 export async function POST(req: Request) {
   try {
     const caller = await requireUser(req);
-    const rl = checkRateLimit(`org-keys-create:${caller.uid}`, RATE_LIMIT, RATE_WINDOW_MS);
+    const rl = await checkRateLimit(`org-keys-create:${caller.uid}`, RATE_LIMIT, RATE_WINDOW_MS);
     if (!rl.allowed) throw new HttpError(429, `Too many keys created at once. Try again in ${Math.ceil(rl.retryAfterMs / 1000)}s.`);
     const { label, expiresInDays } = (await req.json()) as { label?: string; expiresInDays?: number };
     if (expiresInDays !== undefined && (!Number.isFinite(expiresInDays) || expiresInDays <= 0 || expiresInDays > 3650)) {

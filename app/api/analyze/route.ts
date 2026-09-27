@@ -47,7 +47,7 @@ export async function POST(req: Request) {
     return json({ error: e.message ?? "Unauthorized" }, e.status ?? 401);
   }
 
-  const rl = checkRateLimit(caller.uid, RATE_LIMIT, RATE_WINDOW_MS);
+  const rl = await checkRateLimit(caller.uid, RATE_LIMIT, RATE_WINDOW_MS);
   if (!rl.allowed) {
     return json(
       { error: `Too many analyses started at once. Try again in ${Math.ceil(rl.retryAfterMs / 1000)}s.` },

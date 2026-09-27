@@ -37,7 +37,7 @@ export async function POST(req: Request) {
     return json({ error: e.message ?? "Unauthorized" }, e.status ?? 401);
   }
 
-  const rl = checkRateLimit(apiCaller.keyId, RATE_LIMIT, RATE_WINDOW_MS);
+  const rl = await checkRateLimit(apiCaller.keyId, RATE_LIMIT, RATE_WINDOW_MS);
   if (!rl.allowed) {
     return json(
       { error: `Rate limit exceeded (${RATE_LIMIT} requests/minute per key). Try again in ${Math.ceil(rl.retryAfterMs / 1000)}s.` },

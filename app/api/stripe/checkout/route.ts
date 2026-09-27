@@ -31,7 +31,7 @@ async function getOrCreateCustomer(uid: string, email?: string): Promise<string>
 export async function POST(req: Request) {
   try {
     const caller = await requireUser(req);
-    const rl = checkRateLimit(`stripe-checkout:${caller.uid}`, RATE_LIMIT, RATE_WINDOW_MS);
+    const rl = await checkRateLimit(`stripe-checkout:${caller.uid}`, RATE_LIMIT, RATE_WINDOW_MS);
     if (!rl.allowed) throw new HttpError(429, `Too many checkout attempts. Try again in ${Math.ceil(rl.retryAfterMs / 1000)}s.`);
     const { kind, amount, planKey, analysisId, cycle } = (await req.json()) as {
       kind: "wallet" | "subscription" | "org_plan" | "unlock_export";

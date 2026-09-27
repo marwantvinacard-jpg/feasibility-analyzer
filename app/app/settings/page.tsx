@@ -9,7 +9,7 @@ import { useT } from "@/lib/i18n/LanguageContext";
 import { useToast } from "@/lib/toast";
 
 export default function SettingsPage() {
-  const { user, setKeyMode, setTrainingOptOut, getIdToken } = useSession();
+  const { user, setKeyMode, setTrainingOptOut, getIdToken, logout } = useSession();
   const [trainingSaving, setTrainingSaving] = useState(false);
   const t = useT();
   const toast = useToast();
@@ -18,6 +18,46 @@ export default function SettingsPage() {
   const [keySaving, setKeySaving] = useState(false);
   const [keyLoaded, setKeyLoaded] = useState(false);
   const [portalLoading, setPortalLoading] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  async function exportMyData() {
+    setExporting(true);
+    try {
+      const token = await getIdToken();
+      const res = await fetch("/api/account?export=1", { headers: { Authorization: `Bearer ${token}` } });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Export failed.");
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "feasibilityai-data-export.json";
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      toast.show(e instanceof Error ? e.message : "Export failed.", "error");
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  async function deleteMyAccount() {
+    if (!window.confirm("Permanently delete your account and every analysis you own? This cannot be undone.")) return;
+    if (!window.confirm("Really sure? Type-to-confirm isn't required, but there is no undo after this.")) return;
+    setDeleting(true);
+    try {
+      const token = await getIdToken();
+      const res = await fetch("/api/account", { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error ?? "Could not delete your account.");
+      await logout();
+      window.location.href = "/";
+    } catch (e) {
+      toast.show(e instanceof Error ? e.message : "Could not delete your account.", "error");
+      setDeleting(false);
+    }
+  }
 
   async function openBillingPortal() {
     setPortalLoading(true);
@@ -211,6 +251,34 @@ export default function SettingsPage() {
               }
             }}
           />
+        </div>
+      </section>
+
+      {/* Your data */}
+      <section className="card border-stop/25 p-5">
+        <h2 className="label text-stop">{t("settings.dangerZone")}</h2>
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <div className="text-sm font-medium">{t("settings.exportTitle")}</div>
+            <p className="mt-0.5 text-xs text-muted">{t("settings.exportHint")}</p>
+          </div>
+          <Button variant="ghost" onClick={exportMyData} disabled={exporting}>
+            {exporting ? t("common.loading") : t("settings.exportButton")}
+          </Button>
+        </div>
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
+          <div>
+            <div className="text-sm font-medium text-stop">{t("settings.deleteTitle")}</div>
+            <p className="mt-0.5 text-xs text-muted">{t("settings.deleteHint")}</p>
+          </div>
+          <Button
+            variant="ghost"
+            className="border-stop/40 text-stop hover:bg-stop/10"
+            onClick={deleteMyAccount}
+            disabled={deleting}
+          >
+            {deleting ? t("common.loading") : t("settings.deleteButton")}
+          </Button>
         </div>
       </section>
 

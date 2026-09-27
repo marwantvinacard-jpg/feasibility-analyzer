@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Icon } from "@/components/icons";
 
 const LEGAL_ENTITY = "Aibots Automations";
@@ -83,6 +84,9 @@ export default function LegalPage() {
           analyses, by contacting <a href={`mailto:${CONTACT_EMAIL}`} className="text-brand underline">{CONTACT_EMAIL}</a>.
           We retain analysis records for as long as your account is active, plus a reasonable period afterward for
           legal and accounting purposes.
+        </p>
+        <p className="text-sm leading-relaxed text-muted">
+          Need a Data Processing Agreement for your organization? See the <Link href="/app/legal/dpa" className="text-brand underline">draft DPA</Link>.
         </p>
       </section>
 

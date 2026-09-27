@@ -22,7 +22,7 @@ function makeProvider() {
 export async function POST(req: Request) {
   try {
     const caller = await requireUser(req); // signed-in only — don't let anyone burn our AI key
-    const rl = checkRateLimit(caller.uid, RATE_LIMIT, RATE_WINDOW_MS);
+    const rl = await checkRateLimit(caller.uid, RATE_LIMIT, RATE_WINDOW_MS);
     if (!rl.allowed) {
       return NextResponse.json(
         { error: `Too many requests. Try again in ${Math.ceil(rl.retryAfterMs / 1000)}s.` },

@@ -78,6 +78,11 @@ export function ReportView({
         </div>
       </div>
 
+      <p className="flex items-start gap-1.5 text-xs text-faint">
+        <Icon name="risk" size={13} strokeWidth={2} className="mt-0.5 shrink-0" />
+        {t("report.methodologyNote")}
+      </p>
+
       {!print && study && (
         <div className="no-print flex gap-1 rounded-xl border border-border bg-surface-2 p-1">
           <TabButton active={tab === "feasibility"} onClick={() => setTab("feasibility")} icon="spark">
@@ -112,7 +117,7 @@ export function ReportView({
       </Section>
 
       {/* Executive summary */}
-      <Section title={t("report.execSummary")}>
+      <Section title={t("report.execSummary")} badge="ai">
         <p className="whitespace-pre-line text-[0.95rem] leading-relaxed text-muted">{report.executive_summary}</p>
         <div className="mt-5 grid gap-4 sm:grid-cols-2">
           <ListCard title={t("report.keyFindings")} items={report.key_findings} tone="brand" icon="spark" />
@@ -121,7 +126,7 @@ export function ReportView({
       </Section>
 
       {/* Financials */}
-      <Section title={t("report.financialAnalysis")} subtitle={t("report.financialAnalysisSubtitle")}>
+      <Section title={t("report.financialAnalysis")} subtitle={t("report.financialAnalysisSubtitle")} badge="calculated">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <tbody className="divide-y divide-border">
@@ -329,12 +334,30 @@ function TabButton({
   );
 }
 
-function Section({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
+function Section({
+  title,
+  subtitle,
+  badge,
+  children,
+}: {
+  title: string;
+  subtitle?: string;
+  badge?: "calculated" | "ai";
+  children: React.ReactNode;
+}) {
+  const t = useT();
   return (
     <section className="card p-5 sm:p-6">
-      <div className="mb-4">
-        <h2 className="font-display text-xl font-semibold tracking-tight">{title}</h2>
-        {subtitle && <p className="mt-0.5 text-sm text-muted">{subtitle}</p>}
+      <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
+        <div>
+          <h2 className="font-display text-xl font-semibold tracking-tight">{title}</h2>
+          {subtitle && <p className="mt-0.5 text-sm text-muted">{subtitle}</p>}
+        </div>
+        {badge && (
+          <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium", badge === "calculated" ? "bg-go/10 text-go" : "bg-brand/10 text-brand")}>
+            {badge === "calculated" ? t("report.badgeCalculated") : t("report.badgeAi")}
+          </span>
+        )}
       </div>
       {children}
     </section>

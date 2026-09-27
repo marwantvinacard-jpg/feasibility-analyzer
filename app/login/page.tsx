@@ -7,17 +7,39 @@ import { AuthShell } from "@/components/AuthShell";
 import { Button } from "@/components/kit";
 import { useSession } from "@/lib/session";
 import { friendlyAuthError } from "@/lib/authErrors";
+import { resolveIdentifierToEmail } from "@/lib/firebase/usernames";
 import { useT } from "@/lib/i18n/LanguageContext";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 
 export default function LoginPage() {
-  const { signInEmail, signInGoogle } = useSession();
+  const { signInEmail, signInGoogle, sendPasswordReset } = useSession();
   const t = useT();
   const router = useRouter();
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [resetStatus, setResetStatus] = useState("");
+
+  async function forgotPassword() {
+    setError("");
+    setResetStatus("");
+    if (!identifier.trim()) {
+      setError("Enter your email or username above first.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const email = await resolveIdentifierToEmail(identifier.trim());
+      await sendPasswordReset(email);
+      setResetStatus(`If an account exists for ${identifier.trim()}, a reset link was just sent.`);
+    } catch {
+      // Same message on failure as success — don't reveal whether the identifier exists.
+      setResetStatus(`If an account exists for ${identifier.trim()}, a reset link was just sent.`);
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function run(fn: () => Promise<void>) {
     setError("");
@@ -49,9 +71,15 @@ export default function LoginPage() {
           <input id="login-identifier" className="input" type="text" placeholder={t("auth.identifierPlaceholder")} value={identifier} onChange={(e) => setIdentifier(e.target.value)} required />
         </div>
         <div>
-          <label htmlFor="login-password" className="mb-1.5 block text-sm font-medium">{t("auth.passwordLabel")}</label>
+          <div className="mb-1.5 flex items-center justify-between">
+            <label htmlFor="login-password" className="block text-sm font-medium">{t("auth.passwordLabel")}</label>
+            <button type="button" onClick={forgotPassword} disabled={busy} className="text-xs font-medium text-brand hover:underline">
+              Forgot password?
+            </button>
+          </div>
           <input id="login-password" className="input" type="password" placeholder={t("auth.passwordPlaceholder")} value={password} onChange={(e) => setPassword(e.target.value)} required />
         </div>
+        {resetStatus && <p className="text-sm text-go">{resetStatus}</p>}
         {error && <p className="text-sm text-stop">{error}</p>}
         <Button type="submit" className="w-full" disabled={busy}>{busy ? t("auth.loggingIn") : t("auth.logIn")}</Button>
       </form>

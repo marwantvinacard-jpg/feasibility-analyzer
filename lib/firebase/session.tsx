@@ -9,6 +9,8 @@ import {
   GoogleAuthProvider,
   createUserWithEmailAndPassword,
   onAuthStateChanged,
+  sendEmailVerification,
+  sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signInWithPopup,
   signOut,
@@ -32,6 +34,8 @@ export interface Account {
   keyMode: "platform" | "byok";
   /** True the very first time this account is ever seen signed in (no prior lastSeenAt). */
   isFirstSession: boolean;
+  /** From Firebase Auth directly, not the Firestore doc — false for Google accounts is unusual but possible. */
+  emailVerified: boolean;
   subscriptionStatus?: string;
   /** UI language preference, synced across devices once signed in. */
   language?: "en" | "ar" | "fr";
@@ -53,6 +57,8 @@ interface SessionCtx {
   setTrainingOptOut: (optOut: boolean) => Promise<void>;
   getIdToken: () => Promise<string>;
   refreshClaims: () => Promise<void>;
+  resendVerificationEmail: () => Promise<void>;
+  sendPasswordReset: (email: string) => Promise<void>;
 }
 
 const Ctx = createContext<SessionCtx | null>(null);
@@ -123,6 +129,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
             credits: d.credits ?? 0,
             keyMode: d.keyMode ?? "platform",
             isFirstSession,
+            emailVerified: u.emailVerified,
             subscriptionStatus: d.subscriptionStatus,
             language: d.language,
             orgId: d.orgId,
@@ -161,6 +168,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         if (name) await updateProfile(cred.user, { displayName: name });
         await cred.user.getIdToken(true); // ensure the auth token is live for the rules check
         await claimUsernameAndCreateProfile(cred.user.uid, username, email, newUserDoc(name, email));
+        // Best-effort — a delivery failure here shouldn't block account creation;
+        // the user can resend from the pending page (resendVerificationEmail).
+        sendEmailVerification(cred.user).catch(() => {});
       },
       async signInEmail(identifier, password) {
         const fb = getFirebase();
@@ -198,6 +208,15 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       },
       async refreshClaims() {
         if (fbUser) await fbUser.getIdToken(true);
+      },
+      async resendVerificationEmail() {
+        if (!fbUser) throw new Error("Not signed in.");
+        await sendEmailVerification(fbUser);
+      },
+      async sendPasswordReset(email) {
+        const fb = getFirebase();
+        if (!fb) throw new Error("Firebase is not configured.");
+        await sendPasswordResetEmail(fb.auth, email);
       },
     }),
     [ready, account, fbUser]
