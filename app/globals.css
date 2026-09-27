@@ -215,10 +215,43 @@ body {
     background: white;
     color: black;
   }
+
+  /* "Export PDF" prints a clean, pre-built copy of the report (.print-root)
+     via the browser's own print engine — real text and real pagination, not
+     a rasterized screenshot. Standard visibility-based print-isolation: an
+     ancestor's `visibility: hidden` doesn't hide a descendant that sets it
+     back to `visible`, so this works regardless of DOM nesting depth. */
+  body.printing-report * {
+    visibility: hidden;
+  }
+  body.printing-report .print-root,
+  body.printing-report .print-root * {
+    visibility: visible;
+  }
+  body.printing-report .print-root {
+    position: static !important;
+    left: auto !important;
+    top: auto !important;
+  }
+  body.printing-report .pdf-export {
+    width: auto;
+  }
+
+  @page {
+    margin: 14mm 12mm;
+  }
 }
 
-/* PDF export (html2pdf) — force the light palette + white ground regardless of
-   the viewer's theme, and keep cards from splitting across pages. */
+/* Keeps the print-only report copy off-screen until printReport() (lib/pdf.ts)
+   flips it into the flow via the .print-root override above. */
+.pdf-offscreen {
+  position: fixed;
+  left: -10000px;
+  top: 0;
+}
+
+/* PDF export — force the light palette + white ground regardless of the
+   viewer's theme, and keep cards from splitting across a page break. */
 .pdf-export {
   --paper: 255 255 255;
   --surface: 255 255 255;

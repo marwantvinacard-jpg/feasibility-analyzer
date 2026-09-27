@@ -1,23 +1,38 @@
 "use client";
 
-// Client-side "download this DOM as a PDF" — no print dialog. Lazy-loads
-// html2pdf.js so it never touches the initial bundle.
+// "Export PDF" — prints the pre-built, off-screen .print-root copy of the
+// report through the browser's own print engine (window.print → "Save as
+// PDF"), instead of rasterizing the DOM with html2canvas. That's a real
+// document render: actual selectable text, the browser's own font shaping,
+// and real page breaks via @page/break-inside — not a screenshot glued into
+// a PDF wrapper. See the `body.printing-report` rules in app/globals.css.
 
 export function slugify(s: string, max = 40): string {
   return (s || "report").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "").slice(0, max) || "report";
 }
 
-export async function downloadElementPdf(node: HTMLElement, filename: string): Promise<void> {
-  const { default: html2pdf } = await import("html2pdf.js");
-  const opts: Record<string, unknown> = {
-    margin: [10, 10, 12, 10],
-    filename,
-    image: { type: "jpeg", quality: 0.96 },
-    html2canvas: { scale: 2, backgroundColor: "#ffffff", useCORS: true, windowWidth: 820 },
-    jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
-    pagebreak: { mode: ["css", "legacy"] },
+/**
+ * Marks `node` as the print target, sets the document title to `filename`
+ * (Chrome/Edge/Safari all suggest the page title as the default "Save as
+ * PDF" filename), opens the print dialog, and restores everything once
+ * printing is dismissed — whether the user saves or cancels.
+ */
+export function printReport(node: HTMLElement, filename: string): void {
+  const previousTitle = document.title;
+  node.classList.add("print-root");
+  document.body.classList.add("printing-report");
+  document.title = filename.replace(/\.pdf$/i, "");
+
+  const restore = () => {
+    document.body.classList.remove("printing-report");
+    node.classList.remove("print-root");
+    document.title = previousTitle;
+    window.removeEventListener("afterprint", restore);
   };
-  // html2pdf.js types omit `pagebreak`; valid at runtime.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  await (html2pdf() as any).set(opts).from(node).save();
+  // `afterprint` fires once the dialog is dismissed either way (saved or
+  // cancelled) in every browser this app supports — a blind setTimeout
+  // fallback would risk reverting the DOM while Chrome's live print preview
+  // is still open, corrupting the very print job it's meant to protect.
+  window.addEventListener("afterprint", restore);
+  window.print();
 }

@@ -10,6 +10,7 @@ import { SensitivityPanel } from "@/components/SensitivityPanel";
 import { money, scoreTone, toneText, verdictTone, cn, type Tone } from "@/lib/ui";
 import type { FullResult } from "@/lib/engine/runFeasibility";
 import type { StageName } from "@/lib/engine/types";
+import type { CrossCheckResult } from "@/lib/engine/crossCheck";
 import { useT } from "@/lib/i18n/LanguageContext";
 
 const ORDER: StageName[] = ["market", "financial", "technical", "competitive", "location", "operational", "legal", "risk"];
@@ -312,6 +313,7 @@ export function ReportView({
           <Section title={t("report.tabProcess")} subtitle={t("report.processSubtitle")}>
             <p className="text-sm leading-relaxed text-muted">{t("report.processIntro")}</p>
           </Section>
+          {result.crossCheck && <CrossCheckCard crossCheck={result.crossCheck} />}
           {ORDER.map((s) => {
             const data = result.stages[s] as Record<string, unknown> | undefined;
             if (!data) return null;
@@ -422,6 +424,43 @@ function Row({ k, v, tone }: { k: string; v: string; tone?: "go" | "stop" | "war
       <td className="py-2.5 text-muted">{k}</td>
       <td className={cn("num py-2.5 text-right font-semibold", tone === "go" ? "text-go" : tone === "stop" ? "text-stop" : tone === "warn" ? "text-warn" : "")}>{v}</td>
     </tr>
+  );
+}
+
+function CrossCheckCard({ crossCheck }: { crossCheck: CrossCheckResult }) {
+  const t = useT();
+  const confirmed = crossCheck.agreement === "confirmed";
+  return (
+    <Section title={t("report.crossCheckTitle")} subtitle={t("report.crossCheckSubtitle")}>
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <Badge tone={confirmed ? "go" : "warn"}>
+          <Icon name={confirmed ? "check" : "risk"} size={13} strokeWidth={2.5} />
+          {confirmed ? t("report.crossCheckConfirmed") : t("report.crossCheckRevised")}
+        </Badge>
+        <span className="text-xs text-faint">{t("report.crossCheckConfidence", { level: crossCheck.confidence })}</span>
+      </div>
+      <p className="text-sm leading-relaxed text-muted">{crossCheck.summary}</p>
+      {crossCheck.flags.length > 0 && (
+        <div className="mt-3">
+          <ListCard title={t("report.crossCheckFlags")} items={crossCheck.flags} tone="warn" icon="risk" />
+        </div>
+      )}
+      {crossCheck.score_opinions.length > 0 && (
+        <div className="mt-4 space-y-2">
+          <div className="label">{t("report.crossCheckOpinions")}</div>
+          {crossCheck.score_opinions.map((o, i) => (
+            <div key={i} className="rounded-xl border border-border bg-surface-2 p-3.5">
+              <div className="flex items-center justify-between text-sm font-medium">
+                <span className="flex items-center gap-2"><Icon name={dimIcon(o.dimension)} size={16} className="text-muted" /> {t(`dim.${o.dimension}`)}</span>
+                <span className="num text-xs text-faint">{t("report.crossCheckReportedVsReviewer", { reported: o.reported_score, reviewer: o.reviewer_score })}</span>
+              </div>
+              <p className="mt-1.5 text-xs text-muted">{o.reason}</p>
+            </div>
+          ))}
+        </div>
+      )}
+      <p className="mt-4 text-xs text-faint">{t("report.crossCheckDisclaimer")}</p>
+    </Section>
   );
 }
 

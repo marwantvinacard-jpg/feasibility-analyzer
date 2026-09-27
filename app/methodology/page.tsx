@@ -38,6 +38,17 @@ export default function MethodologyPage() {
         </div>
 
         <section className="card space-y-3 p-6">
+          <h2 className="font-display text-lg font-semibold">A second, independent AI pass audits the first</h2>
+          <p className="text-sm leading-relaxed text-muted">
+            Before an analysis is marked final, an independent reviewer model — with no visibility into how confident
+            the first pass sounded — checks the same underlying findings for internal inconsistencies, unsupported
+            claims, and anything a diligent investor would push back on. It can flag concerns and note where it would
+            score a dimension differently, but it never rewrites the scorecard: any disagreement is shown to you
+            directly, in the report's "How we got this" tab, rather than resolved silently.
+          </p>
+        </section>
+
+        <section className="card space-y-3 p-6">
           <h2 className="font-display text-lg font-semibold">The financial math never touches the AI</h2>
           <p className="text-sm leading-relaxed text-muted">
             Profit, margin, break-even, NPV, IRR, and capital requirements are computed by deterministic code —

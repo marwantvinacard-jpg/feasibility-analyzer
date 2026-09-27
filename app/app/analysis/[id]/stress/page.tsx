@@ -12,7 +12,7 @@ import { baselineKnobs, stressFields, type StressKnobs } from "@/lib/stress";
 import type { FullResult } from "@/lib/engine/runFeasibility";
 import { money } from "@/lib/ui";
 import { useSession } from "@/lib/session";
-import { downloadElementPdf, slugify } from "@/lib/pdf";
+import { printReport, slugify } from "@/lib/pdf";
 import { useT } from "@/lib/i18n/LanguageContext";
 import { isExportExempt, EXPORT_UNLOCK_PRICE_USD } from "@/lib/exportAccess";
 import { getIdToken } from "@/lib/analyses";
@@ -68,7 +68,6 @@ function Board({
   const fields = useMemo(() => stressFields(result, t), [result, t]);
   const base = useMemo(() => baselineKnobs(result), [result]);
   const [knobs, setKnobs] = useState<StressKnobs>(base);
-  const [downloading, setDownloading] = useState(false);
   const exportRef = useRef<HTMLDivElement>(null);
 
   const dirty = JSON.stringify(knobs) !== JSON.stringify(base);
@@ -132,17 +131,9 @@ function Board({
     return g;
   }, [fields]);
 
-  async function download() {
+  function download() {
     if (!exportRef.current) return;
-    setDownloading(true);
-    try {
-      await downloadElementPdf(
-        exportRef.current,
-        `stress-test-${slugify(result.input.business_idea)}${dirty ? "-adjusted" : ""}.pdf`
-      );
-    } finally {
-      setDownloading(false);
-    }
+    printReport(exportRef.current, `stress-test-${slugify(result.input.business_idea)}${dirty ? "-adjusted" : ""}.pdf`);
   }
 
   return (
@@ -161,8 +152,8 @@ function Board({
             <Icon name="doc" size={14} /> {saving ? t("stress.savingScenario") : t("stress.saveScenario")}
           </button>
           {canExport ? (
-            <button onClick={download} disabled={downloading} className="btn btn-primary text-sm">
-              <Icon name="download" size={16} /> {downloading ? t("stress.preparingPdf") : t("stress.downloadPdf")}
+            <button onClick={download} className="btn btn-primary text-sm">
+              <Icon name="download" size={16} /> {t("stress.downloadPdf")}
             </button>
           ) : (
             <button onClick={unlockExport} disabled={unlocking} className="btn btn-primary text-sm">
@@ -240,22 +231,21 @@ function Board({
         <StressReport result={result} knobs={knobs} />
       </div>
 
-      {/* Off-screen export copy — light palette, full width, for the PDF */}
-      <div style={{ position: "fixed", left: "-10000px", top: 0 }} aria-hidden>
-        <div ref={exportRef} className="pdf-export">
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid rgb(var(--border))", paddingBottom: 12, marginBottom: 18 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 600 }}>
-              <Mark className="h-6 w-6" /> {t("common.appName")}
-            </div>
-            <div style={{ textAlign: "right", fontSize: 11, color: "rgb(var(--faint))" }}>
-              {t("stress.stressReportTitle")}{dirty ? t("stress.adjustedAssumptions") : ""}<br />
-              {new Date(createdAt).toLocaleDateString()}
-            </div>
+      {/* Off-screen export copy — light palette, full width; the print CSS
+          in globals.css un-hides and reflows it for the real browser print. */}
+      <div ref={exportRef} className="pdf-offscreen pdf-export" aria-hidden>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid rgb(var(--border))", paddingBottom: 12, marginBottom: 18 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 600 }}>
+            <Mark className="h-6 w-6" /> {t("common.appName")}
           </div>
-          <h1 className="font-display" style={{ fontSize: 18, fontWeight: 600, marginBottom: 2 }}>{result.input.business_idea}</h1>
-          <p style={{ fontSize: 13, color: "rgb(var(--muted))", marginBottom: 18 }}>{result.input.location}</p>
-          <StressReport result={result} knobs={knobs} print />
+          <div style={{ textAlign: "right", fontSize: 11, color: "rgb(var(--faint))" }}>
+            {t("stress.stressReportTitle")}{dirty ? t("stress.adjustedAssumptions") : ""}<br />
+            {new Date(createdAt).toLocaleDateString()}
+          </div>
         </div>
+        <h1 className="font-display" style={{ fontSize: 18, fontWeight: 600, marginBottom: 2 }}>{result.input.business_idea}</h1>
+        <p style={{ fontSize: 13, color: "rgb(var(--muted))", marginBottom: 18 }}>{result.input.location}</p>
+        <StressReport result={result} knobs={knobs} print />
       </div>
     </div>
   );

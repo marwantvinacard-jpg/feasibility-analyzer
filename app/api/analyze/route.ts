@@ -26,10 +26,11 @@ import { captureServerEvent } from "@/lib/posthog/server";
 
 export const runtime = "nodejs";
 // Worst-case latency: one stage's serial search calls (up to 4 * 12s) plus its
-// own LLM call (2 attempts * 30s), then the report/study pair after all stages
-// finish (another 2 attempts * 30s, run in parallel with each other) — roughly
-// 48 + 60 + 60 = 168s. 240s leaves real margin so the platform-level kill stays
-// well behind the in-code catch/refund logic, not ahead of it.
+// own LLM call (2 attempts * 30s), then report/study/cross-check after all
+// stages finish (another 2 attempts * 30s, all three run in parallel with each
+// other, not serially) — roughly 48 + 60 + 60 = 168s. 240s leaves real margin
+// so the platform-level kill stays well behind the in-code catch/refund logic,
+// not ahead of it.
 export const maxDuration = 240;
 
 // Burst protection on top of the per-run credit cost (see lib/rateLimit.ts).

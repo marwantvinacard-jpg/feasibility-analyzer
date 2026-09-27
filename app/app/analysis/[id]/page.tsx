@@ -7,7 +7,7 @@ import { Icon } from "@/components/icons";
 import { StageProgress } from "@/components/StageProgress";
 import { ReportView } from "@/components/ReportView";
 import { Mark } from "@/components/Brand";
-import { downloadElementPdf, slugify } from "@/lib/pdf";
+import { printReport, slugify } from "@/lib/pdf";
 import { subscribeAnalysis, reviewAnalysis, getIdToken } from "@/lib/analyses";
 import { useSession } from "@/lib/session";
 import type { AnalysisDoc } from "@/lib/analysisTypes";
@@ -23,7 +23,6 @@ export default function AnalysisPage() {
   const router = useRouter();
   const id = String(params.id);
   const exportRef = useRef<HTMLDivElement>(null);
-  const [dl, setDl] = useState(false);
   const { user } = useSession();
   const t = useT();
   const [reviewing, setReviewing] = useState(false);
@@ -59,14 +58,9 @@ export default function AnalysisPage() {
     }
   }
 
-  async function downloadPdf(idea: string) {
+  function downloadPdf(idea: string) {
     if (!exportRef.current) return;
-    setDl(true);
-    try {
-      await downloadElementPdf(exportRef.current, `feasibility-${slugify(idea)}.pdf`);
-    } finally {
-      setDl(false);
-    }
+    printReport(exportRef.current, `feasibility-${slugify(idea)}.pdf`);
   }
 
   const [rec, setRec] = useState<AnalysisDoc | null>(null);
@@ -130,8 +124,8 @@ export default function AnalysisPage() {
               <Button href={`/app/analysis/${id}/edit-model`} variant="ghost" className="text-sm"><Icon name="operational" size={17} /> Edit model</Button>
             )}
             {isExportExempt(user) || rec.exportUnlocked ? (
-              <button onClick={() => downloadPdf(rec.result!.input.business_idea)} disabled={dl} className="btn btn-ghost text-sm">
-                <Icon name="download" size={17} /> {dl ? t("analysis.preparing") : t("analysis.download")}
+              <button onClick={() => downloadPdf(rec.result!.input.business_idea)} className="btn btn-ghost text-sm">
+                <Icon name="download" size={17} /> {t("analysis.download")}
               </button>
             ) : (
               <button onClick={() => unlockExport(id)} disabled={unlocking} className="btn btn-ghost text-sm text-brand">
@@ -155,17 +149,16 @@ export default function AnalysisPage() {
         )}
         <ReportView result={rec.result} analysisId={id} canEditModel={rec.uid === user?.uid || user?.role === "admin"} />
 
-        {/* Off-screen export copy for the PDF (light palette, fixed width) */}
-        <div style={{ position: "fixed", left: "-10000px", top: 0 }} aria-hidden>
-          <div ref={exportRef} className="pdf-export">
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid rgb(var(--border))", paddingBottom: 12, marginBottom: 18 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 600 }}><Mark className="h-6 w-6" /> FeasibilityAI</div>
-              <div style={{ textAlign: "right", fontSize: 11, color: "rgb(var(--faint))" }}>
-                {t("common.appName")}<br />{new Date(rec.createdAt).toLocaleDateString()}
-              </div>
+        {/* Off-screen export copy for printing (light palette, fixed width on
+            screen; the print CSS in globals.css un-hides and reflows it). */}
+        <div ref={exportRef} className="pdf-offscreen pdf-export" aria-hidden>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid rgb(var(--border))", paddingBottom: 12, marginBottom: 18 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 600 }}><Mark className="h-6 w-6" /> FeasibilityAI</div>
+            <div style={{ textAlign: "right", fontSize: 11, color: "rgb(var(--faint))" }}>
+              {t("common.appName")}<br />{new Date(rec.createdAt).toLocaleDateString()}
             </div>
-            <ReportView result={rec.result} print />
           </div>
+          <ReportView result={rec.result} print />
         </div>
       </div>
     );

@@ -13,6 +13,7 @@ import { scoreRisks } from "./risk";
 import { computeCategoryScores, overallAssessment, summarize } from "./scorer";
 import { generateReport, type ReportContent } from "./report";
 import { generateStudy, type FinancialStudy } from "./study";
+import { generateCrossCheck, type CrossCheckResult } from "./crossCheck";
 import type { FinancialModel } from "./financialModel";
 import {
   runCompetitive,
@@ -52,6 +53,13 @@ export interface FullResult extends FeasibilityResult {
    * every consumer must treat it as optional.
    */
   study?: FinancialStudy;
+  /**
+   * An independent second-opinion LLM pass over the same specialist findings
+   * — see lib/engine/crossCheck.ts. Absent only if that call itself failed
+   * (degrades gracefully, same as `study`); never blocks or changes the
+   * scorecard above.
+   */
+  crossCheck?: CrossCheckResult;
 }
 
 /** Rough gpt-4o pricing (USD/1M tokens). Estimate only — real cost logged per run. */
@@ -135,16 +143,17 @@ export async function runFeasibility(
   // failure here would otherwise discard 8 fully-computed, already-paid-for
   // scoring stages over one narrative hiccup. One bounded retry costs little
   // and covers the common transient case; a genuine failure still throws.
-  const [report, studyOut] = await Promise.all([
+  const [report, studyOut, crossCheckOut] = await Promise.all([
     generateReport(llm, { input, stages, financials, riskScoring, scores, overall }).catch(() =>
       generateReport(llm, { input, stages, financials, riskScoring, scores, overall })
     ),
     model
       ? generateStudy(llm, { input, model, stages, riskScoring }).catch(() => null)
       : Promise.resolve(null),
+    generateCrossCheck(llm, { input, stages, financials, riskScoring, scores, overall }).catch(() => null),
   ]);
-  tokensIn += report.tokensIn + (studyOut?.tokensIn ?? 0);
-  tokensOut += report.tokensOut + (studyOut?.tokensOut ?? 0);
+  tokensIn += report.tokensIn + (studyOut?.tokensIn ?? 0) + (crossCheckOut?.tokensIn ?? 0);
+  tokensOut += report.tokensOut + (studyOut?.tokensOut ?? 0) + (crossCheckOut?.tokensOut ?? 0);
 
   const uniqueSources = dedupeSources(sources);
 
@@ -170,6 +179,7 @@ export async function runFeasibility(
     },
     report: report.content,
     ...(studyOut ? { study: studyOut.study } : {}),
+    ...(crossCheckOut ? { crossCheck: crossCheckOut.result } : {}),
   };
 }
 
