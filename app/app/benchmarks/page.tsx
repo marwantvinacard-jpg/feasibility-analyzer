@@ -5,9 +5,9 @@ import { Badge } from "@/components/kit";
 import { Icon } from "@/components/icons";
 import { useSession } from "@/lib/session";
 import { fetchMyOrg } from "@/lib/org";
-import { subscribeOrgAnalyses } from "@/lib/analyses";
+import { useAnalysisSummaries } from "@/lib/analyses";
 import type { Organization } from "@/lib/orgTypes";
-import type { AnalysisDoc } from "@/lib/analysisTypes";
+import type { AnalysisSummary } from "@/lib/analysisTypes";
 import { DIMENSION_META, money, scoreTone, toneStroke } from "@/lib/ui";
 import { VERTICALS } from "@/lib/engine/verticals";
 import type { CategoryScores } from "@/lib/engine/types";
@@ -18,7 +18,6 @@ VERTICAL_LABEL[""] = "General / not specified";
 export default function BenchmarksPage() {
   const { user } = useSession();
   const [org, setOrg] = useState<Organization | null>(null);
-  const [items, setItems] = useState<AnalysisDoc[]>([]);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
@@ -27,16 +26,12 @@ export default function BenchmarksPage() {
       .finally(() => setLoaded(true));
   }, []);
 
-  useEffect(() => {
-    if (!org) return;
-    const unsub = subscribeOrgAnalyses(org.id, setItems);
-    return () => unsub();
-  }, [org]);
+  const { items, loaded: itemsLoaded, truncated } = useAnalysisSummaries("org", !!org);
 
   const completed = useMemo(() => items.filter((a) => a.status === "complete" && a.result), [items]);
 
   const byVertical = useMemo(() => {
-    const groups: Record<string, AnalysisDoc[]> = {};
+    const groups: Record<string, AnalysisSummary[]> = {};
     for (const a of completed) {
       const key = a.input.business_type ?? "";
       (groups[key] ??= []).push(a);
@@ -55,7 +50,7 @@ export default function BenchmarksPage() {
     return avg;
   }, [completed]);
 
-  if (!user || !loaded) return <div className="py-20 text-center text-sm text-muted">Loading…</div>;
+  if (!user || !loaded || (org && !itemsLoaded)) return <div className="py-20 text-center text-sm text-muted">Loading…</div>;
 
   if (!org) {
     return (
@@ -82,7 +77,7 @@ export default function BenchmarksPage() {
       <div>
         <h1 className="font-display text-3xl font-semibold tracking-tight">Benchmarks</h1>
         <p className="mt-1.5 text-sm text-muted">
-          Computed from your own organization's {completed.length} completed {completed.length === 1 ? "study" : "studies"} —
+          Computed from your own organization's {truncated ? "latest " : ""}{completed.length} completed {completed.length === 1 ? "study" : "studies"} —
           not external industry data. This becomes more useful the more you run.
         </p>
       </div>

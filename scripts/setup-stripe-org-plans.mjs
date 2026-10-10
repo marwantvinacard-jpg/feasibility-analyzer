@@ -40,5 +40,5 @@ for (const plan of PLANS) {
   lines.push(`STRIPE_ORG_${plan.key.toUpperCase()}_ANNUAL_PRICE_ID=${annualPrice.id}`);
 }
 
-console.log("\nAdd these to .env.local and Vercel:\n");
+console.log("\nAdd these to .env.local and apphosting.yaml:\n");
 console.log(lines.join("\n"));

@@ -7,14 +7,76 @@ import { useSession } from "@/lib/session";
 import { cn } from "@/lib/ui";
 import { useT } from "@/lib/i18n/LanguageContext";
 import { useToast } from "@/lib/toast";
+import { deleteMyAccount, downloadMyData, removeByokKey, saveByokKey } from "@/lib/analyses";
+import { BYOK_PROVIDER_LABELS, type ByokProvider } from "@/lib/byokProviders";
 
 export default function SettingsPage() {
-  const { user, setKeyMode, setTrainingOptOut } = useSession();
+  const { user, setKeyMode, setTrainingOptOut, logout } = useSession();
   const [trainingSaving, setTrainingSaving] = useState(false);
   const t = useT();
   const toast = useToast();
   const [key, setKey] = useState("");
-  const [saved, setSaved] = useState(false);
+  const [provider, setProvider] = useState<ByokProvider>("openai");
+  const [keyBusy, setKeyBusy] = useState(false);
+  const [keyError, setKeyError] = useState("");
+  const [dataBusy, setDataBusy] = useState(false);
+  const [deleteText, setDeleteText] = useState("");
+  const [dataError, setDataError] = useState("");
+
+  async function exportData() {
+    setDataBusy(true);
+    setDataError("");
+    try {
+      await downloadMyData();
+    } catch (e) {
+      setDataError(e instanceof Error ? e.message : t("settings.dataFailed"));
+    } finally {
+      setDataBusy(false);
+    }
+  }
+
+  async function deleteAccount() {
+    if (!window.confirm(t("settings.deleteConfirm"))) return;
+    setDataBusy(true);
+    setDataError("");
+    try {
+      await deleteMyAccount(deleteText.trim());
+      await logout().catch(() => {});
+      window.location.assign("/");
+    } catch (e) {
+      setDataError(e instanceof Error ? e.message : t("settings.dataFailed"));
+      setDataBusy(false);
+    }
+  }
+
+  // The key is sent once, checked with the provider and encrypted on the
+  // server; the browser only ever gets back the provider and last 4 characters.
+  async function saveKey() {
+    setKeyBusy(true);
+    setKeyError("");
+    try {
+      await saveByokKey(provider, key.trim());
+      setKey("");
+      toast.show(t("settings.keySaved"), "success");
+    } catch (e) {
+      setKeyError(e instanceof Error ? e.message : t("settings.byokSaveFailed"));
+    } finally {
+      setKeyBusy(false);
+    }
+  }
+
+  async function removeKey() {
+    setKeyBusy(true);
+    setKeyError("");
+    try {
+      await removeByokKey();
+      toast.show(t("settings.byokRemoved"), "success");
+    } catch (e) {
+      setKeyError(e instanceof Error ? e.message : t("settings.byokSaveFailed"));
+    } finally {
+      setKeyBusy(false);
+    }
+  }
 
   if (!user) return null;
 
@@ -56,33 +118,48 @@ export default function SettingsPage() {
         </div>
 
         {user.keyMode === "byok" && (
-          <div className="mt-4 rounded-xl border border-border bg-surface-2 p-4">
-            <label className="mb-1.5 block text-sm font-medium">{t("settings.yourApiKey")}</label>
-            <div className="flex gap-2">
+          <div className="mt-4 space-y-3 rounded-xl border border-border bg-surface-2 p-4">
+            {user.byokLast4 ? (
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="inline-flex items-center gap-1.5 text-sm text-go">
+                  <Icon name="check" size={14} strokeWidth={2.5} />
+                  {t("settings.byokSavedAs", {
+                    provider: BYOK_PROVIDER_LABELS[user.byokProvider as ByokProvider] ?? user.byokProvider ?? "",
+                    last4: user.byokLast4,
+                  })}
+                </span>
+                <Button variant="ghost" className="text-sm" onClick={removeKey} disabled={keyBusy}>
+                  {t("settings.byokRemove")}
+                </Button>
+              </div>
+            ) : (
+              <p className="text-sm text-warn">{t("settings.byokNeedsKey")}</p>
+            )}
+            <div className="grid gap-2 sm:grid-cols-[10rem_1fr_auto]">
+              <select
+                className="input"
+                aria-label={t("settings.byokProvider")}
+                value={provider}
+                onChange={(e) => setProvider(e.target.value as ByokProvider)}
+              >
+                {(Object.keys(BYOK_PROVIDER_LABELS) as ByokProvider[]).map((p) => (
+                  <option key={p} value={p}>{BYOK_PROVIDER_LABELS[p]}</option>
+                ))}
+              </select>
               <input
                 className="input font-mono"
                 type="password"
+                autoComplete="off"
+                aria-label={t("settings.yourApiKey")}
                 placeholder={t("settings.keyPlaceholder")}
                 value={key}
-                onChange={(e) => { setKey(e.target.value); setSaved(false); }}
+                onChange={(e) => { setKey(e.target.value); setKeyError(""); }}
               />
-              <Button
-                variant="ghost"
-                onClick={() => { setSaved(true); toast.show(t("settings.keySaved"), "success"); }}
-                disabled={key.length < 8}
-              >
-                {t("common.save")}
+              <Button variant="ghost" onClick={saveKey} disabled={keyBusy || key.trim().length < 20}>
+                {keyBusy ? t("settings.byokChecking") : user.byokLast4 ? t("settings.byokReplace") : t("common.save")}
               </Button>
             </div>
-            <p className="mt-2 text-xs text-faint">
-              {saved ? (
-                <span className="inline-flex items-center gap-1 text-go">
-                  <Icon name="check" size={13} strokeWidth={2.5} /> {t("settings.keySaved")}
-                </span>
-              ) : (
-                t("settings.keyStoredHint")
-              )}
-            </p>
+            <p className={cn("text-xs", keyError ? "text-stop" : "text-faint")}>{keyError || t("settings.keyStoredHint")}</p>
           </div>
         )}
       </section>
@@ -127,6 +204,34 @@ export default function SettingsPage() {
             }}
           />
         </div>
+      </section>
+
+      {/* Your data: access + erasure (Privacy Policy → Your rights) */}
+      <section className="card p-5">
+        <h2 className="label">{t("settings.yourData")}</h2>
+        <p className="mt-1 text-sm text-muted">{t("settings.yourDataHint")}</p>
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <Button variant="ghost" onClick={exportData} disabled={dataBusy}>
+            <Icon name="doc" size={15} /> {t("settings.downloadData")}
+          </Button>
+        </div>
+        <div className="mt-5 rounded-xl border border-stop/30 bg-stop/5 p-4">
+          <div className="text-sm font-semibold text-stop">{t("settings.deleteAccount")}</div>
+          <p className="mt-1 text-xs text-muted">{t("settings.deleteAccountHint")}</p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <input
+              className="input max-w-[12rem]"
+              placeholder="DELETE"
+              aria-label={t("settings.deleteTypeLabel")}
+              value={deleteText}
+              onChange={(e) => setDeleteText(e.target.value)}
+            />
+            <Button onClick={deleteAccount} disabled={dataBusy || deleteText.trim() !== "DELETE"} className="bg-stop">
+              {t("settings.deleteAccount")}
+            </Button>
+          </div>
+        </div>
+        {dataError && <p className="mt-3 text-sm text-stop">{dataError}</p>}
       </section>
 
       <p className="text-center text-xs text-faint">{t("settings.footerNote")}</p>

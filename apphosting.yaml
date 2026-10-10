@@ -1,0 +1,103 @@
+# Firebase App Hosting configuration — see HOSTING.md for the full setup.
+#
+# SECRETS are references to Google Cloud Secret Manager, never values. Create
+# each one before the first rollout (a referenced secret that doesn't exist
+# fails the build):
+#   firebase apphosting:secrets:set <secret-name>
+# and grant the backend access when asked. Values marked REPLACE_ME are plain
+# settings you fill in here.
+
+runConfig:
+  # Headless Chromium (server-side PDFs) needs the memory; analyses are mostly
+  # waiting on AI calls, so several can share an instance.
+  cpu: 2
+  memoryMiB: 2048
+  concurrency: 20
+  minInstances: 0
+  maxInstances: 20
+
+env:
+  # --- deployment ---------------------------------------------------------
+  - variable: APP_ENV # "production" switches on the production-only safety checks
+    value: production
+    availability: [BUILD, RUNTIME]
+  - variable: NEXT_PUBLIC_APP_ENV
+    value: production
+    availability: [BUILD, RUNTIME]
+  - variable: APP_URL # public https URL, no trailing slash (Cloud Tasks calls it)
+    value: REPLACE_ME
+  - variable: NEXT_PUBLIC_APP_URL
+    value: REPLACE_ME
+    availability: [BUILD, RUNTIME]
+
+  # --- Firebase web app config (Console → Project settings → Your apps) ----
+  - variable: NEXT_PUBLIC_FIREBASE_API_KEY
+    value: REPLACE_ME
+    availability: [BUILD, RUNTIME]
+  - variable: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+    value: REPLACE_ME
+    availability: [BUILD, RUNTIME]
+  - variable: NEXT_PUBLIC_FIREBASE_PROJECT_ID
+    value: REPLACE_ME
+    availability: [BUILD, RUNTIME]
+  - variable: NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
+    value: REPLACE_ME
+    availability: [BUILD, RUNTIME]
+  - variable: NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
+    value: REPLACE_ME
+    availability: [BUILD, RUNTIME]
+  - variable: NEXT_PUBLIC_FIREBASE_APP_ID
+    value: REPLACE_ME
+    availability: [BUILD, RUNTIME]
+  # No FIREBASE_SERVICE_ACCOUNT_JSON: on App Hosting the server uses its own
+  # built-in credentials.
+
+  # --- background analysis runs (lib/runDispatch.ts) ---------------------
+  - variable: ANALYSIS_TASKS_QUEUE # created by scripts/setup-firebase-jobs.sh
+    value: projects/REPLACE_ME/locations/REPLACE_ME/queues/analysis-runs
+  - variable: INTERNAL_TASK_SECRET
+    secret: internal-task-secret
+  - variable: CRON_SECRET
+    secret: cron-secret
+
+  # --- AI + web research ---------------------------------------------------
+  - variable: OPENAI_API_KEY
+    secret: openai-api-key
+  - variable: SERPAPI_API_KEY
+    secret: serpapi-api-key
+  - variable: BYOK_ENCRYPTION_KEY # encrypts customers' own AI keys — never change casually
+    secret: byok-encryption-key
+
+  # --- payments ------------------------------------------------------------
+  - variable: STRIPE_SECRET_KEY
+    secret: stripe-secret-key
+  - variable: STRIPE_WEBHOOK_SECRET
+    secret: stripe-webhook-secret
+  - variable: STRIPE_PRO_PRICE_ID
+    value: price_1UP3Yw2N1dJd2OHTPBWILRZm
+  - variable: STRIPE_ORG_STARTER_PRICE_ID
+    value: price_1UP3Yx2N1dJd2OHTURSuWBPK
+  - variable: STRIPE_ORG_STARTER_ANNUAL_PRICE_ID
+    value: price_1UP3Yy2N1dJd2OHTYXzNGvDb
+  - variable: STRIPE_ORG_GROWTH_PRICE_ID
+    value: price_1UP3Yz2N1dJd2OHTAx1FuXTm
+  - variable: STRIPE_ORG_GROWTH_ANNUAL_PRICE_ID
+    value: price_1UP3Yz2N1dJd2OHTpHOvKNFm
+  - variable: STRIPE_ORG_ENTERPRISE_PRICE_ID
+    value: price_1UP3Z02N1dJd2OHTdKuhveug
+  - variable: STRIPE_ORG_ENTERPRISE_ANNUAL_PRICE_ID
+    value: price_1UP3Z12N1dJd2OHTt8EyeDgS
+
+  # --- email -----------------------------------------------------------------
+  - variable: RESEND_API_KEY
+    secret: resend-api-key
+  - variable: EMAIL_FROM # an address on a domain verified in Resend
+    value: REPLACE_ME
+
+  # --- monitoring (optional: delete these lines if you don't use them) -------
+  - variable: NEXT_PUBLIC_SENTRY_DSN
+    value: REPLACE_ME
+    availability: [BUILD, RUNTIME]
+  - variable: NEXT_PUBLIC_POSTHOG_KEY
+    value: REPLACE_ME
+    availability: [BUILD, RUNTIME]

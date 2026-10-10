@@ -2,7 +2,24 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { collection, onSnapshot, orderBy, query, limit } from "firebase/firestore";
+import {
+  collection,
+  doc,
+  documentId,
+  endAt,
+  getCountFromServer,
+  getDoc,
+  getDocs,
+  limit,
+  onSnapshot,
+  orderBy,
+  query,
+  startAfter,
+  startAt,
+  where,
+  type DocumentData,
+  type QueryDocumentSnapshot,
+} from "firebase/firestore";
 import { Button, Badge } from "@/components/kit";
 import { Icon } from "@/components/icons";
 import { useSession } from "@/lib/session";
@@ -32,6 +49,12 @@ interface OrgRow {
   ownerEmail: string;
   status: "pending" | "approved" | "rejected";
 }
+// The admin page used to live-subscribe to EVERY user and org, re-rendering all
+// of them whenever anyone logged in (each visit writes lastSeenAt). Now only the
+// short "needs action" lists are live; the full account list is paged.
+const PAGE_SIZE = 50;
+const PENDING_CAP = 100;
+
 interface ErrorRow {
   id: string;
   context: string;
@@ -43,11 +66,19 @@ export default function AdminPage() {
   const { ready, user, getIdToken } = useSession();
   const t = useT();
   const router = useRouter();
-  const [users, setUsers] = useState<UserRow[]>([]);
+  const [pending, setPending] = useState<UserRow[]>([]);
+  const [accounts, setAccounts] = useState<UserRow[]>([]);
+  const [cursor, setCursor] = useState<QueryDocumentSnapshot<DocumentData> | null>(null);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingAccounts, setLoadingAccounts] = useState(false);
+  const [totalUsers, setTotalUsers] = useState<number | null>(null);
+  const [search, setSearch] = useState("");
+  const [activeSearch, setActiveSearch] = useState("");
   const [audit, setAudit] = useState<AuditRow[]>([]);
-  const [orgs, setOrgs] = useState<OrgRow[]>([]);
+  const [pendingOrgs, setPendingOrgs] = useState<OrgRow[]>([]);
   const [errors, setErrors] = useState<ErrorRow[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
+  const [actionError, setActionError] = useState("");
 
   useEffect(() => {
     if (!ready) return;
@@ -59,30 +90,83 @@ export default function AdminPage() {
     if (!user || user.role !== "admin") return;
     const fb = getFirebase();
     if (!fb) return;
-    const u1 = onSnapshot(collection(fb.db, "users"), (snap) => {
-      setUsers(snap.docs.map((d) => ({ uid: d.id, ...(d.data() as any) })));
-    });
+    const u1 = onSnapshot(
+      query(collection(fb.db, "users"), where("status", "==", "pending"), limit(PENDING_CAP)),
+      (snap) => setPending(snap.docs.map((d) => ({ uid: d.id, ...(d.data() as any) })))
+    );
     const u2 = onSnapshot(query(collection(fb.db, "auditLog"), orderBy("createdAt", "desc"), limit(50)), (snap) => {
       setAudit(snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })));
     });
-    const u3 = onSnapshot(collection(fb.db, "organizations"), (snap) => {
-      setOrgs(snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })));
-    });
+    const u3 = onSnapshot(
+      query(collection(fb.db, "organizations"), where("status", "==", "pending"), limit(PENDING_CAP)),
+      (snap) => setPendingOrgs(snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })))
+    );
     const u4 = onSnapshot(query(collection(fb.db, "errorLog"), orderBy("createdAt", "desc"), limit(20)), (snap) => {
       setErrors(snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })));
     });
+    getCountFromServer(collection(fb.db, "users"))
+      .then((c) => setTotalUsers(c.data().count))
+      .catch(() => setTotalUsers(null));
+    loadAccounts(true, "");
     return () => { u1(); u2(); u3(); u4(); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
+
+  /** One page of accounts. With a search term, pages through emails starting with it. */
+  async function loadAccounts(reset: boolean, term: string) {
+    const fb = getFirebase();
+    if (!fb) return;
+    setLoadingAccounts(true);
+    try {
+      const users = collection(fb.db, "users");
+      const after = reset ? null : cursor;
+      const q = term
+        ? after
+          ? query(users, orderBy("email"), startAfter(after), endAt(term + "\uf8ff"), limit(PAGE_SIZE))
+          : query(users, orderBy("email"), startAt(term), endAt(term + "\uf8ff"), limit(PAGE_SIZE))
+        : after
+          ? query(users, orderBy(documentId()), startAfter(after), limit(PAGE_SIZE))
+          : query(users, orderBy(documentId()), limit(PAGE_SIZE));
+      const snap = await getDocs(q);
+      const rows = snap.docs.map((d) => ({ uid: d.id, ...(d.data() as any) }) as UserRow);
+      setAccounts((prev) => (reset ? rows : [...prev, ...rows]));
+      setCursor(snap.docs[snap.docs.length - 1] ?? null);
+      setHasMore(snap.size === PAGE_SIZE);
+      setActiveSearch(term);
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : "Could not load accounts.");
+    } finally {
+      setLoadingAccounts(false);
+    }
+  }
+
+  /** The paged list isn't live — re-read just the row an action changed. */
+  async function refreshRow(uid: string) {
+    const fb = getFirebase();
+    if (!fb) return;
+    const snap = await getDoc(doc(fb.db, "users", uid)).catch(() => null);
+    if (!snap?.exists()) return;
+    const row = { uid, ...(snap.data() as any) } as UserRow;
+    setAccounts((prev) => prev.map((r) => (r.uid === uid ? row : r)));
+  }
 
   async function act(uid: string, action: "approve" | "reject" | "grant", amount?: number) {
     setBusy(uid + action);
+    setActionError("");
     try {
       const token = await getIdToken();
-      await fetch("/api/admin/user", {
+      const res = await fetch("/api/admin/user", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ uid, action, amount }),
       });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error ?? t("admin.actionFailed"));
+      }
+      await refreshRow(uid);
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : t("admin.actionFailed"));
     } finally {
       setBusy(null);
     }
@@ -90,13 +174,20 @@ export default function AdminPage() {
 
   async function actOrg(orgId: string, action: "approve" | "reject") {
     setBusy(orgId + action);
+    setActionError("");
     try {
       const token = await getIdToken();
-      await fetch("/api/admin/org", {
+      const res = await fetch("/api/admin/org", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ orgId, action }),
       });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error ?? t("admin.actionFailed"));
+      }
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : t("admin.actionFailed"));
     } finally {
       setBusy(null);
     }
@@ -104,9 +195,6 @@ export default function AdminPage() {
 
   if (!ready || !user || user.role !== "admin") return <div className="py-20 text-center text-sm text-muted">{t("common.loading")}</div>;
 
-  const pending = users.filter((u) => u.status === "pending");
-  const others = users.filter((u) => u.status !== "pending");
-  const pendingOrgs = orgs.filter((o) => o.status === "pending");
 
   return (
     <div className="mx-auto max-w-4xl space-y-8">
@@ -114,6 +202,8 @@ export default function AdminPage() {
         <h1 className="font-display text-3xl font-semibold tracking-tight">{t("admin.title")}</h1>
         <p className="mt-1.5 text-sm text-muted">{t("admin.subtitle")}</p>
       </div>
+
+      {actionError && <p className="text-sm text-stop">{actionError}</p>}
 
       {pending.length > 0 && (
         <section>
@@ -156,15 +246,32 @@ export default function AdminPage() {
       )}
 
       <section>
-        <h2 className="label mb-3">{t("admin.allCount", { n: others.length })}</h2>
+        <h2 className="label mb-3">{t("admin.allCount", { n: totalUsers ?? accounts.length })}</h2>
+        <form
+          onSubmit={(e) => { e.preventDefault(); loadAccounts(true, search.trim()); }}
+          className="mb-3 flex gap-2"
+        >
+          <input
+            className="input flex-1"
+            type="search"
+            placeholder={t("admin.searchPlaceholder")}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+          <Button type="submit" variant="ghost" disabled={loadingAccounts}>{t("admin.search")}</Button>
+          {activeSearch && (
+            <Button type="button" variant="ghost" onClick={() => { setSearch(""); loadAccounts(true, ""); }}>{t("admin.clearSearch")}</Button>
+          )}
+        </form>
         <div className="space-y-2">
-          {others.map((u) => (
+          {accounts.length === 0 && !loadingAccounts && <p className="text-sm text-muted">{t("admin.noAccounts")}</p>}
+          {accounts.map((u) => (
             <div key={u.uid} className="card flex items-center justify-between p-4">
               <div className="min-w-0">
                 <div className="flex items-center gap-2 truncate font-medium">
                   {u.name}
                   {u.role === "admin" && <Badge tone="go">{t("admin.adminBadge")}</Badge>}
-                  <Badge tone={u.status === "approved" ? "go" : "stop"}>{u.status}</Badge>
+                  <Badge tone={u.status === "approved" ? "go" : u.status === "pending" ? "warn" : "stop"}>{u.status}</Badge>
                 </div>
                 <div className="truncate text-xs text-faint">{u.email} · <span className="num">{u.credits}</span> {t("admin.creditsSuffix")}</div>
               </div>
@@ -172,6 +279,13 @@ export default function AdminPage() {
             </div>
           ))}
         </div>
+        {hasMore && (
+          <div className="mt-3 text-center">
+            <Button variant="ghost" onClick={() => loadAccounts(false, activeSearch)} disabled={loadingAccounts}>
+              {loadingAccounts ? t("common.loading") : t("admin.loadMore")}
+            </Button>
+          </div>
+        )}
       </section>
 
       <section>

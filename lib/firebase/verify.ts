@@ -1,10 +1,12 @@
 // Server-side auth verification for API routes. Reads the Firebase ID token
 // from the Authorization: Bearer header and verifies it with the Admin SDK.
-import { adminAuth } from "./admin";
+import { adminAuth, adminDb } from "./admin";
 
 export interface Caller {
   uid: string;
   email?: string;
+  /** From the verified ID token, not the user's Firestore doc. */
+  emailVerified: boolean;
   admin: boolean;
 }
 
@@ -25,10 +27,22 @@ export async function requireUser(req: Request): Promise<Caller> {
     // stop working immediately instead of staying valid until its natural
     // ~1h expiry — worth it for an app that gates paid access by approval.
     const decoded = await adminAuth().verifyIdToken(token, true);
-    return { uid: decoded.uid, email: decoded.email, admin: decoded.admin === true };
+    return { uid: decoded.uid, email: decoded.email, emailVerified: decoded.email_verified === true, admin: decoded.admin === true };
   } catch {
     throw new HttpError(401, "Invalid or expired session.");
   }
+}
+
+/**
+ * Signed in AND approved. For routes that spend money (AI calls, document
+ * parsing): a fresh signup — or a throwaway account — must not be able to use
+ * them before its account is approved.
+ */
+export async function requireApprovedUser(req: Request): Promise<Caller> {
+  const caller = await requireUser(req);
+  const snap = await adminDb().collection("users").doc(caller.uid).get();
+  if (snap.data()?.status !== "approved") throw new HttpError(403, "Your account isn't approved yet.");
+  return caller;
 }
 
 export async function requireAdmin(req: Request): Promise<Caller> {

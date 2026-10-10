@@ -358,6 +358,8 @@ function Footer() {
         <div className="flex gap-5 text-sm text-muted">
           <Link href="/methodology" className="hover:text-ink">Methodology</Link>
           <Link href="/sample-report" className="hover:text-ink">Sample report</Link>
+          <Link href="/terms" className="hover:text-ink">Terms</Link>
+          <Link href="/privacy" className="hover:text-ink">Privacy</Link>
           <Link href="/login" className="hover:text-ink">{t("nav.logIn")}</Link>
           <Link href="/signup" className="hover:text-ink">{t("nav.getStarted")}</Link>
         </div>

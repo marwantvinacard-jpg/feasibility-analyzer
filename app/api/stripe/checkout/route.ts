@@ -9,14 +9,26 @@ import { requireUser, HttpError } from "@/lib/firebase/verify";
 import { logAudit } from "@/lib/firebase/audit";
 import type { OrgPlanKey } from "@/lib/orgTypes";
 import { EXPORT_UNLOCK_PRICE_USD, isExportExempt } from "@/lib/exportAccess";
+import { logError } from "@/lib/firebase/errorLog";
 
 export const runtime = "nodejs";
+
+/** Subscription states that count as "already subscribed". */
+const LIVE_SUBSCRIPTION: unknown[] = ["active", "trialing", "past_due", "incomplete"];
 
 async function getOrCreateCustomer(uid: string, email?: string): Promise<string> {
   const ref = adminDb().collection("users").doc(uid);
   const snap = await ref.get();
   const existing = snap.data()?.stripeCustomerId as string | undefined;
-  if (existing) return existing;
+  if (existing) {
+    // A stored customer can stop existing in Stripe (switching test -> live
+    // keys, a deleted customer). That used to make every checkout fail with
+    // "No such customer" — create a fresh one instead.
+    const found = await stripe()
+      .customers.retrieve(existing)
+      .catch((e: { code?: string }) => (e?.code === "resource_missing" ? null : Promise.reject(e)));
+    if (found && !("deleted" in found && found.deleted)) return existing;
+  }
 
   const customer = await stripe().customers.create({ email, metadata: { uid } });
   await ref.set({ stripeCustomerId: customer.id }, { merge: true });
@@ -35,14 +47,15 @@ export async function POST(req: Request) {
     };
 
     const origin = req.headers.get("origin") ?? new URL(req.url).origin;
-    const customerId = await getOrCreateCustomer(caller.uid, caller.email);
+    // Looked up only once a purchase has passed its checks (not for refused ones).
+    const customer = () => getOrCreateCustomer(caller.uid, caller.email);
 
     if (kind === "wallet") {
       if (!amount || !WALLET_TIERS.includes(amount)) throw new HttpError(400, "Invalid top-up amount.");
       const credits = creditsForTopup(amount);
       const session = await stripe().checkout.sessions.create({
         mode: "payment",
-        customer: customerId,
+        customer: await customer(),
         line_items: [
           {
             price_data: {
@@ -62,13 +75,22 @@ export async function POST(req: Request) {
     }
 
     if (kind === "subscription") {
+      // One live subscription per user — a double click (or "upgrading" through
+      // checkout) used to create two, both billed.
+      const status = (await adminDb().collection("users").doc(caller.uid).get()).data()?.subscriptionStatus;
+      if (LIVE_SUBSCRIPTION.includes(status)) {
+        throw new HttpError(409, "You already have an active Pro subscription.");
+      }
       const priceId = process.env.STRIPE_PRO_PRICE_ID;
       if (!priceId) throw new HttpError(500, "Subscription plan is not configured yet.");
       const session = await stripe().checkout.sessions.create({
         mode: "subscription",
-        customer: customerId,
+        customer: await customer(),
         line_items: [{ price: priceId, quantity: 1 }],
         metadata: { uid: caller.uid, kind: "subscription" },
+        // Copied onto the Subscription so invoice webhooks can find the user
+        // even if the customer -> user mapping is ever missing.
+        subscription_data: { metadata: { uid: caller.uid, kind: "subscription" } },
         success_url: `${origin}/app?subscribed=success`,
         cancel_url: `${origin}/app/new?subscribed=cancelled`,
       });
@@ -87,6 +109,9 @@ export async function POST(req: Request) {
       const orgSnap = await db.collection("organizations").doc(orgId).get();
       if (!orgSnap.exists) throw new HttpError(404, "No organization found.");
       if (orgSnap.data()?.ownerUid !== caller.uid) throw new HttpError(403, "Only the owner can change the plan.");
+      if (LIVE_SUBSCRIPTION.includes(orgSnap.data()?.subscriptionStatus)) {
+        throw new HttpError(409, "Your organization already has an active plan. Contact us to change plans.");
+      }
       if (orgSnap.data()?.status !== "approved") {
         throw new HttpError(403, "Your organization must be approved before subscribing to a plan.");
       }
@@ -107,7 +132,7 @@ export async function POST(req: Request) {
 
       const session = await stripe().checkout.sessions.create({
         mode: "subscription",
-        customer: customerId,
+        customer: await customer(),
         line_items: [{ price: priceId, quantity: 1 }],
         metadata: { uid: caller.uid, kind: "org_plan", orgId, planKey: plan.key, cycle: billingCycle },
         // Checkout session metadata isn't reliably copied onto the resulting
@@ -140,7 +165,7 @@ export async function POST(req: Request) {
 
       const session = await stripe().checkout.sessions.create({
         mode: "payment",
-        customer: customerId,
+        customer: await customer(),
         line_items: [
           {
             price_data: {
@@ -162,6 +187,8 @@ export async function POST(req: Request) {
     throw new HttpError(400, "Unknown checkout kind.");
   } catch (err) {
     if (err instanceof HttpError) return NextResponse.json({ error: err.message }, { status: err.status });
-    return NextResponse.json({ error: err instanceof Error ? err.message : "Checkout failed" }, { status: 500 });
+    // Stripe's raw error text (internal ids, config details) stays in our logs.
+    await logError("stripe.checkout", err).catch(() => {});
+    return NextResponse.json({ error: "Checkout couldn't be started. Please try again." }, { status: 500 });
   }
 }

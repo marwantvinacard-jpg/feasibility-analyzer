@@ -11,13 +11,16 @@
 // users are the only reachable audience for that regression.
 
 import { NextResponse } from "next/server";
-import { requireUser, HttpError } from "@/lib/firebase/verify";
+import { requireApprovedUser, HttpError } from "@/lib/firebase/verify";
+import { MAX_UPLOAD_BYTES, TEXT_LIMITS } from "@/lib/engine/inputLimits";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-const MAX_BYTES = 15 * 1024 * 1024; // 15 MB upload cap
-const MAX_CHARS = 20_000; // keep prompt cost sane
+// Vercel rejects bodies over 4.5 MB before this route runs, so the old 15 MB
+// cap could never produce a readable error. 4 MB is the real ceiling.
+const MAX_BYTES = MAX_UPLOAD_BYTES;
+const MAX_CHARS = TEXT_LIMITS.knowledge_base; // keep prompt cost sane
 
 // exceljs cell values can be a primitive, a Date, a formula result object
 // ({ result, formula }), or rich text ({ richText: [{ text }, ...] }).
@@ -36,7 +39,7 @@ function cellToText(v: unknown): string {
 
 export async function POST(req: Request) {
   try {
-    await requireUser(req); // signed-in only — parsing documents isn't free
+    await requireApprovedUser(req); // approved accounts only — parsing documents isn't free
   } catch (err) {
     const e = err as HttpError;
     return NextResponse.json({ error: e.message ?? "Unauthorized" }, { status: e.status ?? 401 });
@@ -45,7 +48,7 @@ export async function POST(req: Request) {
   const form = await req.formData().catch(() => null);
   const file = form?.get("file");
   if (!(file instanceof File)) return NextResponse.json({ error: "No file provided." }, { status: 400 });
-  if (file.size > MAX_BYTES) return NextResponse.json({ error: "File is larger than 15 MB." }, { status: 413 });
+  if (file.size > MAX_BYTES) return NextResponse.json({ error: "File is larger than 4 MB." }, { status: 413 });
 
   const name = file.name || "document";
   const ext = name.toLowerCase().split(".").pop() || "";

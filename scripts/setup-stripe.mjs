@@ -17,4 +17,4 @@ const price = await stripe.prices.create({
 
 console.log(`Product: ${product.id}`);
 console.log(`Price:   ${price.id}`);
-console.log(`\nAdd to .env.local and Vercel:\nSTRIPE_PRO_PRICE_ID=${price.id}`);
+console.log(`\nAdd to .env.local and apphosting.yaml:\nSTRIPE_PRO_PRICE_ID=${price.id}`);

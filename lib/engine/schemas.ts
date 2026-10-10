@@ -304,7 +304,10 @@ export const RiskSchema = z
  * response_format name separately.
  */
 export function jsonSchemaFor(name: string, schema: z.ZodTypeAny) {
-  const js = zodToJsonSchema(schema, { target: "openAi", $refStrategy: "none" }) as Record<string, unknown>;
+  // Typed loosely on purpose: under the test build's "node" module resolution,
+  // zod-to-json-schema's generics recurse into TS2589 ("excessively deep").
+  // Runtime behaviour is identical.
+  const js = zodToJsonSchema(schema as never, { target: "openAi", $refStrategy: "none" }) as Record<string, unknown>;
   delete js.$schema;
   delete js.definitions;
   return { name, strict: true, schema: js };

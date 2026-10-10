@@ -4,13 +4,16 @@ import { useEffect, useState } from "react";
 import { Button, Badge } from "@/components/kit";
 import { Icon } from "@/components/icons";
 import { useSession } from "@/lib/session";
-import { fetchMyOrg, inviteMember, removeMember } from "@/lib/org";
-import type { Organization, OrgMember, OrgRole } from "@/lib/orgTypes";
+import { PendingInvites } from "@/components/PendingInvites";
+import { cancelInvite, fetchMyOrg, inviteMember, removeMember } from "@/lib/org";
+import type { Organization, OrgInvite, OrgMember, OrgRole } from "@/lib/orgTypes";
 
 export default function TeamPage() {
   const { user } = useSession();
   const [org, setOrg] = useState<Organization | null>(null);
   const [members, setMembers] = useState<OrgMember[]>([]);
+  const [invites, setInvites] = useState<OrgInvite[]>([]);
+  const [notice, setNotice] = useState("");
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState("");
 
@@ -24,6 +27,7 @@ export default function TeamPage() {
       const data = await fetchMyOrg();
       setOrg(data.org);
       setMembers(data.members);
+      setInvites(data.invites ?? []);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load team.");
     } finally {
@@ -39,14 +43,28 @@ export default function TeamPage() {
     if (!identifier.trim()) return;
     setInviting(true);
     setError("");
+    setNotice("");
     try {
-      await inviteMember(identifier.trim(), role);
+      const { invite } = await inviteMember(identifier.trim(), role);
       setIdentifier("");
+      setNotice(`Invite sent to ${invite.email || invite.name}. They'll join once they accept it.`);
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not add that person.");
+      setError(e instanceof Error ? e.message : "Could not invite that person.");
     } finally {
       setInviting(false);
+    }
+  }
+
+  async function handleCancelInvite(uid: string) {
+    setBusyUid(uid);
+    try {
+      await cancelInvite(uid);
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not cancel the invite.");
+    } finally {
+      setBusyUid(null);
     }
   }
 
@@ -71,6 +89,9 @@ export default function TeamPage() {
         <h2 className="font-display mt-4 text-lg font-semibold">No organization yet</h2>
         <p className="mt-1 text-sm text-muted">Create one on the Organization page first, then invite your team here.</p>
         <Button href="/app/org" variant="ghost" className="mt-5">Go to Organization</Button>
+        <div className="mt-8 text-start">
+          <PendingInvites onJoined={load} />
+        </div>
       </div>
     );
   }
@@ -85,10 +106,11 @@ export default function TeamPage() {
       </div>
 
       {error && <p className="text-sm text-stop">{error}</p>}
+      {notice && <p className="text-sm text-go">{notice}</p>}
 
       {isOwner && (
         <div className="card p-5">
-          <div className="label mb-3">Add a teammate</div>
+          <div className="label mb-3">Invite a teammate</div>
           <div className="flex flex-wrap items-end gap-2">
             <div className="min-w-[12rem] flex-1">
               <label className="mb-1.5 block text-xs text-faint">Username or email</label>
@@ -102,10 +124,10 @@ export default function TeamPage() {
               </select>
             </div>
             <Button onClick={handleInvite} disabled={inviting || !identifier.trim()}>
-              {inviting ? "Adding…" : "Add"}
+              {inviting ? "Inviting…" : "Invite"}
             </Button>
           </div>
-          <p className="mt-2 text-xs text-faint">They must already have a FeasibilityAI account with no existing organization.</p>
+          <p className="mt-2 text-xs text-faint">They must already have a FeasibilityAI account with no existing organization. They get an invite to accept or decline, and nothing is shared until they accept.</p>
         </div>
       )}
 
@@ -133,6 +155,31 @@ export default function TeamPage() {
           </div>
         ))}
       </div>
+
+      {isOwner && invites.length > 0 && (
+        <div className="space-y-2">
+          <div className="label">Waiting for a reply</div>
+          {invites.map((inv) => (
+            <div key={inv.id} className="card flex items-center justify-between p-4">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 truncate font-medium">
+                  {inv.name}
+                  <Badge tone="warn">Invited</Badge>
+                </div>
+                <div className="truncate text-xs text-faint">{inv.email} · {inv.role}</div>
+              </div>
+              <button
+                onClick={() => handleCancelInvite(inv.uid)}
+                disabled={busyUid === inv.uid}
+                className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-faint hover:text-stop"
+                aria-label={`Cancel invite for ${inv.name}`}
+              >
+                <Icon name="x" size={16} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

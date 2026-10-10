@@ -17,7 +17,10 @@ export function computeFinancials(input: BusinessInput): FinancialCalculations {
     monthly_revenue > 0 ? round1((monthly_profit / monthly_revenue) * 100) : 0;
   const annual_revenue = monthly_revenue * 12;
   const annual_profit = monthly_profit * 12;
-  const revenue_to_cost_ratio = monthly_cost > 0 ? round2(monthly_revenue / monthly_cost) : 0;
+  // No costs at all used to give ratio 0 — the WORST bucket — for the best
+  // possible case. With revenue and zero cost the ratio is capped instead.
+  const revenue_to_cost_ratio =
+    monthly_cost > 0 ? round2(monthly_revenue / monthly_cost) : monthly_revenue > 0 ? RATIO_CAP : 0;
 
   // Startup costs assumed 3× monthly cost when not otherwise specified.
   const startupCosts = monthly_cost * 3;
@@ -32,6 +35,7 @@ export function computeFinancials(input: BusinessInput): FinancialCalculations {
 
   const financial_feasibility_score = scoreFinancials({
     monthly_profit,
+    monthly_cost,
     profit_margin_percent,
     revenue_to_cost_ratio,
     break_even_months,
@@ -53,18 +57,26 @@ export function computeFinancials(input: BusinessInput): FinancialCalculations {
   };
 }
 
+/** Shown (and scored) as the revenue/cost ratio when there are no costs. */
+const RATIO_CAP = 10;
+
 function scoreFinancials(m: {
   monthly_profit: number;
+  monthly_cost: number;
   profit_margin_percent: number;
   revenue_to_cost_ratio: number;
   break_even_months: number | null;
 }): number {
-  // Profitability (40)
+  // Profitability (40), measured against the business's own monthly costs so it
+  // means the same in every currency. It used to be absolute amounts (profit
+  // over 5,000 = full marks) whatever the currency: 5,000 IDR (~$0.30) scored
+  // like a thriving business, while in KWD it took a very large one.
+  const profitToCost = m.monthly_cost > 0 ? m.monthly_profit / m.monthly_cost : m.monthly_profit > 0 ? Infinity : 0;
   let profitability: number;
-  if (m.monthly_profit > 5000) profitability = 40;
-  else if (m.monthly_profit >= 1000) profitability = 30;
-  else if (m.monthly_profit >= 0) profitability = 20;
-  else profitability = 0;
+  if (m.monthly_profit < 0) profitability = 0;
+  else if (profitToCost >= 0.5) profitability = 40;
+  else if (profitToCost >= 0.1) profitability = 30;
+  else profitability = 20;
 
   // Profit margin (30)
   let margin: number;

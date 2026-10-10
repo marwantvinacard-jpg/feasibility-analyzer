@@ -14,7 +14,9 @@ jobs:
         with:
           node-version: 20
           cache: npm
-      - run: npm install
+      # npm ci installs exactly what package-lock.json pins and fails if it has
+      # drifted from package.json, so every build uses the same versions.
+      - run: npm ci
       - run: npm run typecheck
       - run: npm run lint
       - run: npm test

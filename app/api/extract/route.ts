@@ -5,11 +5,19 @@
 import { NextResponse } from "next/server";
 import { extractFromText } from "@/lib/engine/extractor";
 import { createLlm } from "@/lib/engine/factory";
-import { requireUser, HttpError } from "@/lib/firebase/verify";
+import { requireApprovedUser, HttpError } from "@/lib/firebase/verify";
 import { checkRateLimit } from "@/lib/rateLimit";
 import type { BusinessInput } from "@/lib/engine/types";
+import { MAX_DESCRIBE_CHARS, TEXT_LIMITS } from "@/lib/engine/inputLimits";
+import { readJsonBody } from "@/lib/engine/validateInput";
 
 export const runtime = "nodejs";
+
+// The already-filled form fields sent along for context. Uploaded documents
+// aren't part of it, so the sum of the plain field limits is plenty.
+const MAX_PREVIOUS_CHARS = Object.entries(TEXT_LIMITS)
+  .filter(([k]) => k !== "knowledge_base")
+  .reduce((sum, [, n]) => sum + n, 1000);
 
 const RATE_LIMIT = 20;
 const RATE_WINDOW_MS = 60_000;
@@ -20,20 +28,32 @@ function makeProvider() {
 
 export async function POST(req: Request) {
   try {
-    const caller = await requireUser(req); // signed-in only — don't let anyone burn our AI key
-    const rl = checkRateLimit(caller.uid, RATE_LIMIT, RATE_WINDOW_MS);
+    const caller = await requireApprovedUser(req); // approved accounts only — this spends our AI budget
+    const rl = await checkRateLimit(`extract:${caller.uid}`, RATE_LIMIT, RATE_WINDOW_MS);
     if (!rl.allowed) {
       return NextResponse.json(
         { error: `Too many requests. Try again in ${Math.ceil(rl.retryAfterMs / 1000)}s.` },
         { status: 429 }
       );
     }
-    const { text, previous } = (await req.json()) as {
+    const body = await readJsonBody(req);
+    if (!body.ok) return NextResponse.json({ error: body.error }, { status: body.status });
+    const { text, previous } = body.body as {
       text: string;
       previous?: Partial<BusinessInput>;
     };
-    if (!text || text.trim().length < 8) {
+    if (typeof text !== "string" || text.trim().length < 8) {
       return NextResponse.json({ error: "Please describe your business in a sentence or two." }, { status: 400 });
+    }
+    // Both go into the prompt, so both are capped before the model is called.
+    if (text.length > MAX_DESCRIBE_CHARS) {
+      return NextResponse.json(
+        { error: `Description is too long (max ${MAX_DESCRIBE_CHARS.toLocaleString("en-US")} characters).` },
+        { status: 400 }
+      );
+    }
+    if (previous != null && (typeof previous !== "object" || JSON.stringify(previous).length > MAX_PREVIOUS_CHARS)) {
+      return NextResponse.json({ error: "Form data is too large." }, { status: 400 });
     }
     const result = await extractFromText(makeProvider(), text, previous ?? {});
     return NextResponse.json(result);

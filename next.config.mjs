@@ -7,7 +7,7 @@ const nextConfig = {
   // their real (nested) dependencies at runtime. firebase-admin in particular
   // must be external, or bundling flattens jwks-rsa→jose into an ESM/CJS clash
   // (ERR_REQUIRE_ESM) that crashes the API routes.
-  serverExternalPackages: ["openai", "pdf-parse", "firebase-admin"],
+  serverExternalPackages: ["openai", "pdf-parse", "firebase-admin", "puppeteer-core", "@sparticuz/chromium"],
   // A strict script-src CSP isn't included here: Firebase Auth, Stripe
   // Checkout, PostHog and Sentry all need their own allowlisted origins, and
   // getting that wrong silently breaks sign-in or payment rather than failing

@@ -11,9 +11,10 @@ import { friendlyAuthError } from "@/lib/authErrors";
 import { USERNAME_RE } from "@/lib/firebase/usernames";
 import { useT } from "@/lib/i18n/LanguageContext";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
+import { LEGAL } from "@/lib/legal";
 
 export default function SignupPage() {
-  const { signUpEmail, signInGoogle } = useSession();
+  const { signUpEmail, signInGoogle, acceptTerms } = useSession();
   const t = useT();
   const router = useRouter();
   const [name, setName] = useState("");
@@ -22,6 +23,8 @@ export default function SignupPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  // Required before creating an account either way (email or Google).
+  const [agreed, setAgreed] = useState(false);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -32,7 +35,7 @@ export default function SignupPage() {
     }
     setBusy(true);
     try {
-      await signUpEmail(name, username, email, password);
+      await signUpEmail(name, username, email, password, LEGAL.version);
       router.push("/pending");
     } catch (err) {
       setError(friendlyAuthError(err));
@@ -45,6 +48,7 @@ export default function SignupPage() {
     setBusy(true);
     try {
       await signInGoogle();
+      await acceptTerms(LEGAL.version);
       router.push("/pending");
     } catch (err) {
       setError(friendlyAuthError(err));
@@ -81,8 +85,16 @@ export default function SignupPage() {
           <label className="mb-1.5 block text-sm font-medium">{t("auth.passwordLabel")}</label>
           <input className="input" type="password" placeholder={t("auth.minChars")} value={password} onChange={(e) => setPassword(e.target.value)} minLength={6} required />
         </div>
+        <label className="flex items-start gap-2 text-sm text-muted">
+          <input type="checkbox" className="mt-0.5" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} required />
+          <span>
+            {t("auth.agreePrefix")}{" "}
+            <Link href="/terms" target="_blank" className="text-brand underline">{t("auth.terms")}</Link> {t("auth.and")}{" "}
+            <Link href="/privacy" target="_blank" className="text-brand underline">{t("auth.privacy")}</Link>.
+          </span>
+        </label>
         {error && <p className="text-sm text-stop">{error}</p>}
-        <Button type="submit" className="w-full" disabled={busy}>
+        <Button type="submit" className="w-full" disabled={busy || !agreed}>
           {busy ? t("auth.creatingAccount") : <>{t("auth.createAccount")} <Icon name="arrow" size={17} /></>}
         </Button>
       </form>
@@ -90,7 +102,7 @@ export default function SignupPage() {
       <div className="my-4 flex items-center gap-3 text-xs text-faint">
         <span className="h-px flex-1 bg-border" /> {t("auth.orContinueWith")} <span className="h-px flex-1 bg-border" />
       </div>
-      <Button variant="ghost" className="w-full" onClick={google} disabled={busy}>{t("auth.continueWithGoogle")}</Button>
+      <Button variant="ghost" className="w-full" onClick={google} disabled={busy || !agreed}>{t("auth.continueWithGoogle")}</Button>
 
       <p className="mt-4 text-center text-xs text-faint">{t("auth.reviewNotice")}</p>
     </AuthShell>

@@ -1,16 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button, Badge } from "@/components/kit";
 import { Icon, type IconName } from "@/components/icons";
 import { useSession } from "@/lib/session";
-import { subscribeAnalyses, deleteAnalysis } from "@/lib/analyses";
-import type { AnalysisDoc } from "@/lib/analysisTypes";
+import { useAnalysisSummaries, deleteAnalysis } from "@/lib/analyses";
+import type { AnalysisSummary } from "@/lib/analysisTypes";
 import { scoreTone, toneText, verdictTone, cn, type Tone } from "@/lib/ui";
 import { dashboardGreeting } from "@/lib/greeting";
 import { DashboardInsights } from "@/components/DashboardInsights";
+import { PendingInvites } from "@/components/PendingInvites";
 import { useT } from "@/lib/i18n/LanguageContext";
 import { useToast } from "@/lib/toast";
 
@@ -34,18 +35,12 @@ export default function Dashboard() {
   const t = useT();
   const toast = useToast();
   const router = useRouter();
-  const [items, setItems] = useState<AnalysisDoc[]>([]);
+  const { items, loaded, truncated, reload } = useAnalysisSummaries("mine", !!user);
   const [filter, setFilter] = useState<Filter>("all");
   const [sort, setSort] = useState<Sort>("newest");
   const [range, setRange] = useState<Range>("all");
   const [client, setClient] = useState<string>("all");
   const [selected, setSelected] = useState<Set<string>>(new Set());
-
-  useEffect(() => {
-    if (!user) return;
-    const unsub = subscribeAnalyses(user.uid, setItems);
-    return () => unsub();
-  }, [user]);
 
   if (!user) return null;
 
@@ -82,6 +77,8 @@ export default function Dashboard() {
         <Button href="/app/new"><Icon name="plus" size={18} /> {t("nav.newAnalysis")}</Button>
       </div>
 
+      {!user.orgId && <PendingInvites />}
+
       <div className="grid gap-4 sm:grid-cols-4">
         <StatCard label={t("dashboard.creditsRemaining")} value={String(user.credits)} icon="spark" tone />
         <StatCard label={t("dashboard.reportsRun")} value={String(items.filter((i) => i.status === "complete").length)} icon="doc" />
@@ -90,6 +87,7 @@ export default function Dashboard() {
       </div>
 
       <DashboardInsights items={items} />
+      {truncated && <p className="text-xs text-faint">{t("dashboard.truncated")}</p>}
 
       <div>
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
@@ -148,7 +146,9 @@ export default function Dashboard() {
             </div>
           </div>
         )}
-        {items.length === 0 ? (
+        {!loaded ? (
+          <div className="card grid place-items-center py-16 text-sm text-muted">{t("common.loading")}</div>
+        ) : items.length === 0 ? (
           <div className="card grid place-items-center py-16 text-center">
             <span className="grid h-14 w-14 place-items-center rounded-2xl bg-brand/10 text-brand"><Icon name="doc" size={26} /></span>
             <h3 className="font-display mt-4 text-lg font-semibold">{t("dashboard.emptyTitle")}</h3>
@@ -174,11 +174,16 @@ export default function Dashboard() {
                     return next;
                   })
                 }
-                onDelete={() =>
+                onDelete={() => {
+                  // Deleting is permanent — and a paid export unlock goes with it.
+                  const question = a.exportUnlocked
+                    ? t("dashboard.confirmDeletePaid", { title: a.input.business_idea })
+                    : t("dashboard.confirmDelete", { title: a.input.business_idea });
+                  if (!window.confirm(question)) return;
                   deleteAnalysis(a.id)
-                    .then(() => toast.show(t("dashboard.deleted"), "success"))
-                    .catch(() => toast.show(t("dashboard.deleteFailed"), "error"))
-                }
+                    .then(() => { toast.show(t("dashboard.deleted"), "success"); reload(); })
+                    .catch((e) => toast.show(e instanceof Error && e.message ? e.message : t("dashboard.deleteFailed"), "error"));
+                }}
               />
             ))}
           </div>
@@ -234,7 +239,7 @@ function AnalysisRow({
   selected,
   onToggleSelect,
 }: {
-  a: AnalysisDoc;
+  a: AnalysisSummary;
   onDelete: () => void;
   selected: boolean;
   onToggleSelect: () => void;

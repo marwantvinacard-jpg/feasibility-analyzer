@@ -57,7 +57,7 @@ function list(items: string[], color: string, numbered = false) {
       (it, i) =>
         `<li style="display:flex;gap:8px;margin:5px 0;font-size:12.5px;color:${C.muted}">
         <span style="color:${color};font-weight:700;font-family:monospace">${numbered ? i + 1 : "·"}</span>
-        <span>${esc(it)}</span></li>`
+        <span dir="auto">${esc(it)}</span></li>`
     )
     .join("")}</ul>`;
 }
@@ -112,7 +112,7 @@ export function renderReportHtml(result: FullResult, opts: { date?: string } = {
     (s) => `<div style="margin:9px 0;break-inside:avoid">
       <div style="display:flex;justify-content:space-between;font-weight:600;font-size:12.5px">
         <span>${DIM_LABEL[s]}</span><span style="font-family:monospace;color:${tone(cs[s])}">${cs[s]}/100</span></div>
-      <p style="margin:3px 0 0;font-size:12px;color:${C.muted};line-height:1.5">${esc(report.dimension_narratives[s])}</p></div>`
+      <p dir="auto" style="margin:3px 0 0;font-size:12px;color:${C.muted};line-height:1.5">${esc(report.dimension_narratives[s])}</p></div>`
   ).join("");
 
   const metric = (label: string, value: string, color = C.ink) =>
@@ -127,7 +127,7 @@ export function renderReportHtml(result: FullResult, opts: { date?: string } = {
         .join("")}</div>`
     : "";
 
-  return `<!doctype html><html><head><meta charset="utf-8"><style>
+  return `<!doctype html><html lang="${input.report_language ?? "en"}"><head><meta charset="utf-8"><style>
     @page { size: A4; margin: 14mm 13mm; }
     * { box-sizing: border-box; }
     body { font-family: -apple-system, "Segoe UI", Roboto, sans-serif; color:${C.ink}; background:${C.surface}; margin:0; font-size:13px; line-height:1.5; }
@@ -171,7 +171,7 @@ export function renderReportHtml(result: FullResult, opts: { date?: string } = {
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:9px">${scorecard}</div></div>
 
   <div class="card"><h2>Executive summary</h2>
-    <p style="margin:0;color:${C.muted};font-size:12.5px">${esc(report.executive_summary)}</p>
+    <p dir="auto" style="margin:0;color:${C.muted};font-size:12.5px">${esc(report.executive_summary)}</p>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:12px">
       <div><div class="label" style="margin-bottom:5px">Key findings</div>${list(report.key_findings, C.brand)}</div>
       <div><div class="label" style="margin-bottom:5px">Critical success factors</div>${list(report.critical_success_factors, C.go)}</div>
@@ -180,13 +180,13 @@ export function renderReportHtml(result: FullResult, opts: { date?: string } = {
   <div class="card"><h2>Financial analysis</h2>
     <table style="width:100%;border-collapse:collapse">${finRows}</table></div>
 
-  <div class="card"><h2>Risk register <span style="font-weight:400;font-size:11px;color:${C.muted}">— overall ${riskScoring.overallRiskScore}/100 · ${esc(riskScoring.riskLevel)}</span></h2>
+  <div class="card"><h2>Risk register <span style="font-weight:400;font-size:11px;color:${C.muted}">— ${riskScoring.assessed === false ? "not assessed (no risk register was produced)" : `overall ${riskScoring.overallRiskScore}/100 · ${esc(riskScoring.riskLevel)}`}</span></h2>
     ${risks}</div>
 
   <div class="card"><h2>Detailed analysis</h2>${narratives}</div>
 
   <div class="card"><h2>Recommendation &amp; next steps</h2>
-    <p style="margin:0 0 10px;color:${C.muted};font-size:12.5px">${esc(report.conclusion)}</p>
+    <p dir="auto" style="margin:0 0 10px;color:${C.muted};font-size:12.5px">${esc(report.conclusion)}</p>
     ${result.conditions.length ? `<div class="label" style="margin-bottom:4px">Conditions to address first</div>${list(result.conditions, C.warn)}` : ""}
     <div class="label" style="margin:10px 0 4px">Next steps</div>${list(result.nextSteps, C.brand, true)}</div>
 
@@ -213,7 +213,8 @@ function sec(n: number, title: string, body: string, subtitle = ""): string {
 const signedPct = (n: number) => `${n > 0 ? "+" : ""}${n}%`;
 
 function p(text: string): string {
-  return `<p style="margin:0 0 8px;color:${C.muted};font-size:12px;line-height:1.55">${esc(text)}</p>`;
+  // dir="auto": Arabic narrative paragraphs render right-to-left inside the LTR layout.
+  return `<p dir="auto" style="margin:0 0 8px;color:${C.muted};font-size:12px;line-height:1.55">${esc(text)}</p>`;
 }
 
 function table(head: string[], rows: string[][], rightFrom = 1): string {
@@ -522,9 +523,10 @@ function renderStudy(result: FullResult): string {
       table(
         ["Source", "Amount", "Share"],
         [
-          ["Equity", f(pr.funding.equity), `${model.funding.equity_percent}%`],
-          ["Debt", f(pr.funding.debt), `${model.funding.debt_percent}%`],
-          ["Owner capital", f(pr.funding.ownerCapital), `${model.funding.owner_capital_percent}%`],
+          // Shares of the actual total (the model's own percentages may not sum to 100).
+          ["Equity", f(pr.funding.equity), `${sharePct(pr.funding.equity, pr.funding.total)}%`],
+          ["Debt", f(pr.funding.debt), `${sharePct(pr.funding.debt, pr.funding.total)}%`],
+          ["Owner capital", f(pr.funding.ownerCapital), `${sharePct(pr.funding.ownerCapital, pr.funding.total)}%`],
         ]
       ) +
       table(
@@ -600,3 +602,5 @@ function renderStudy(result: FullResult): string {
      }`
   )}`;
 }
+
+const sharePct = (part: number, total: number) => (total > 0 ? Math.round((part / total) * 100) : 0);

@@ -7,6 +7,7 @@ import { useSession } from "@/lib/session";
 import { fetchMyOrg, createOrg, updateOrgBranding } from "@/lib/org";
 import type { Organization } from "@/lib/orgTypes";
 import { OrgPlans, PLAN_LABEL } from "@/components/OrgPlans";
+import { PendingInvites } from "@/components/PendingInvites";
 
 export default function OrgPage() {
   const { user } = useSession();
@@ -86,6 +87,8 @@ export default function OrgPage() {
       </div>
 
       {error && <p className="text-sm text-stop">{error}</p>}
+
+      {!org && <PendingInvites onJoined={load} />}
 
       {!org ? (
         <div className="card space-y-4 p-6">

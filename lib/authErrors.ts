@@ -9,5 +9,6 @@ export function friendlyAuthError(err: unknown): string {
     return "Wrong email or password.";
   if (code.includes("popup-closed")) return "Google sign-in was cancelled.";
   if (code.includes("network")) return "Network error — check your connection.";
+  if (code.includes("too-many-requests")) return "Too many attempts. Please wait a few minutes and try again.";
   return (err as Error)?.message ?? "Something went wrong. Please try again.";
 }

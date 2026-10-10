@@ -188,6 +188,22 @@ function normalizedSeasonality(raw: number[]): number[] {
   return mean > 0 ? twelve.map((v) => v / mean) : twelve.map(() => 1);
 }
 
+/**
+ * The funding mix scaled to exactly 100%, keeping its proportions. The model's
+ * equity/debt/owner percentages are each validated 0–100 but never as a SET,
+ * so e.g. 60/60/0 used to fund 120% of the requirement — and size the debt
+ * (and its interest) off 60%. All zero → the owner funds everything.
+ */
+export function normalizeFundingMix(f: FinancialModel["funding"]): { equity: number; debt: number; owner: number } {
+  const total = f.equity_percent + f.debt_percent + f.owner_capital_percent;
+  if (!(total > 0)) return { equity: 0, debt: 0, owner: 100 };
+  return {
+    equity: (f.equity_percent / total) * 100,
+    debt: (f.debt_percent / total) * 100,
+    owner: (f.owner_capital_percent / total) * 100,
+  };
+}
+
 function project(model: FinancialModel, flex: Flex): CoreResult {
   const a = model.assumptions;
   const years = clamp(Math.round(a.projection_years), 3, 5);
@@ -281,7 +297,7 @@ function project(model: FinancialModel, flex: Flex): CoreResult {
   const totalInvestment = totalCapex + Math.max(peakOperatingDeficit, workingCapitalBuffer);
 
   // Debt service on the portion of that requirement funded by debt.
-  const debtPrincipal = totalInvestment * (model.funding.debt_percent / 100);
+  const debtPrincipal = totalInvestment * (normalizeFundingMix(model.funding).debt / 100);
   const debtMonths = Math.round(model.funding.debt_term_years * 12);
   const monthlyPrincipal = debtMonths > 0 ? debtPrincipal / debtMonths : 0;
   const monthlyRate = model.funding.debt_interest_percent / 100 / 12;
@@ -526,7 +542,7 @@ function computeBreakEven(model: FinancialModel, base: CoreResult): BreakEven {
 }
 
 function computeFunding(model: FinancialModel, base: CoreResult): FundingRequirement {
-  const f = model.funding;
+  const mix = normalizeFundingMix(model.funding);
   const workingCapitalBuffer =
     model.assumptions.working_capital_months * (base.monthly[0]?.opex ?? 0);
   const total = base.totalInvestment;
@@ -549,9 +565,9 @@ function computeFunding(model: FinancialModel, base: CoreResult): FundingRequire
     peakOperatingDeficit: base.peakOperatingDeficit,
     workingCapitalBuffer,
     total,
-    equity: split(f.equity_percent),
-    debt: split(f.debt_percent),
-    ownerCapital: split(f.owner_capital_percent),
+    equity: split(mix.equity),
+    debt: split(mix.debt),
+    ownerCapital: split(mix.owner),
     useOfFunds,
     minimumCashBalance: base.minimumCashBalance,
     fundingGap: base.minimumCashBalance < 0 ? -base.minimumCashBalance : 0,

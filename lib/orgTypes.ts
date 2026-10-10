@@ -36,6 +36,27 @@ export interface OrgMember {
   addedAt: number;
 }
 
+/**
+ * A pending invitation. Nobody joins an org without accepting one: joining
+ * shares every analysis they run with the whole org, so it has to be their
+ * choice, not the owner's. Stored at orgInvites/{inviteId(orgId, uid)},
+ * server-only (read and written through /api/org/invites and /api/org/members).
+ */
+export interface OrgInvite {
+  id: string;
+  orgId: string;
+  orgName: string;
+  uid: string;
+  email: string;
+  name: string;
+  role: Exclude<OrgRole, "owner">;
+  invitedByEmail: string;
+  createdAt: number;
+}
+
+/** One invite per (org, person) — re-inviting just updates it. */
+export const inviteId = (orgId: string, uid: string) => `${orgId}__${uid}`;
+
 /** Metadata only — the raw key is shown once at creation and never stored. */
 export interface ApiKeyDoc {
   id: string;

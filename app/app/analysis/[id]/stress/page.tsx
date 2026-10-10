@@ -12,7 +12,6 @@ import { baselineKnobs, stressFields, type StressKnobs } from "@/lib/stress";
 import type { FullResult } from "@/lib/engine/runFeasibility";
 import { money } from "@/lib/ui";
 import { useSession } from "@/lib/session";
-import { downloadElementPdf, slugify } from "@/lib/pdf";
 import { useT } from "@/lib/i18n/LanguageContext";
 import { isExportExempt, EXPORT_UNLOCK_PRICE_USD } from "@/lib/exportAccess";
 import { getIdToken } from "@/lib/analyses";
@@ -118,7 +117,12 @@ function Board({
     setKnobs({ ...base, ...(s.knobs as unknown as StressKnobs) });
   }
   async function removeScenario(scenarioId: string) {
-    await deleteScenario(id, scenarioId);
+    if (!window.confirm(t("stress.confirmDeleteScenario"))) return;
+    try {
+      await deleteScenario(id, scenarioId);
+    } catch (e) {
+      window.alert(e instanceof Error ? e.message : t("dashboard.deleteFailed"));
+    }
   }
 
   const grouped = useMemo(() => {
@@ -127,17 +131,23 @@ function Board({
     return g;
   }, [fields]);
 
-  async function download() {
+  // Uses the browser's own print-to-PDF on the export copy below. The old
+  // html2pdf.js route drew the whole report into one canvas image, which comes
+  // out blank or cut off once the report is long.
+  function download() {
     if (!exportRef.current) return;
     setDownloading(true);
-    try {
-      await downloadElementPdf(
-        exportRef.current,
-        `stress-test-${slugify(result.input.business_idea)}${dirty ? "-adjusted" : ""}.pdf`
-      );
-    } finally {
+    const title = document.title;
+    document.title = `stress-test-${result.input.business_idea}${dirty ? "-adjusted" : ""}`.slice(0, 80);
+    document.body.classList.add("printing-export");
+    const done = () => {
+      document.body.classList.remove("printing-export");
+      document.title = title;
       setDownloading(false);
-    }
+      window.removeEventListener("afterprint", done);
+    };
+    window.addEventListener("afterprint", done);
+    window.print();
   }
 
   return (
@@ -236,8 +246,8 @@ function Board({
       </div>
 
       {/* Off-screen export copy — light palette, full width, for the PDF */}
-      <div style={{ position: "fixed", left: "-10000px", top: 0 }} aria-hidden>
-        <div ref={exportRef} className="pdf-export">
+      <div className="export-offscreen" aria-hidden>
+        <div ref={exportRef} className="pdf-export print-export-root">
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid rgb(var(--border))", paddingBottom: 12, marginBottom: 18 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 600 }}>
               <Mark className="h-6 w-6" /> {t("common.appName")}

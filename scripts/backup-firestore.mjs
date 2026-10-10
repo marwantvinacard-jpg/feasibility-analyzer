@@ -1,7 +1,9 @@
-// Exports every collection to timestamped JSON files under backups/. Run
-// manually, or schedule as a daily cron/Cloud Scheduler job — there's no
-// managed backup for this project yet, so this is the disaster-recovery
-// baseline until one is set up.
+// NOT the backup system — see BACKUPS.md (managed daily backups + point-in-time
+// recovery, set up once with scripts/setup-backups.sh). This only dumps some
+// collections to local JSON for one-off inspection: it loads whole collections
+// into memory, skips several subcollections, and writes personal data to disk.
+//
+// Exports every collection to timestamped JSON files under backups/.
 //   node scripts/backup-firestore.mjs
 import { readFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { initializeApp, cert } from "firebase-admin/app";

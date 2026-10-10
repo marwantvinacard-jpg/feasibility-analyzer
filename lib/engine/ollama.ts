@@ -6,6 +6,7 @@
 
 import { zodToJsonSchema } from "zod-to-json-schema";
 import type { LlmProvider, StructuredCall, StructuredResult } from "./provider";
+import { UNTRUSTED_DATA_RULE } from "./untrusted";
 
 export class OllamaProvider implements LlmProvider {
   readonly mock = false;
@@ -23,7 +24,7 @@ export class OllamaProvider implements LlmProvider {
     const res = await client.chat({
       model: call.model ?? this.model,
       messages: [
-        { role: "system", content: call.system },
+        { role: "system", content: call.system + UNTRUSTED_DATA_RULE },
         { role: "user", content: call.user },
       ],
       // Grammar-constrained JSON — guarantees a parseable object matching the schema.

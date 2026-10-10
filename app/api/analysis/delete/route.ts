@@ -18,8 +18,15 @@ export async function POST(req: Request) {
     const snap = await ref.get();
     if (!snap.exists) return NextResponse.json({ ok: true });
     if (snap.data()?.uid !== caller.uid && !caller.admin) throw new HttpError(403, "Not your analysis.");
+    // Deleting mid-run used to "fail" the run — refunding the credit while the
+    // AI calls carried on and were still paid for.
+    if (snap.data()?.status === "running") {
+      throw new HttpError(409, "This analysis is still running. Wait for it to finish, then delete it.");
+    }
 
-    await ref.delete();
+    // recursiveDelete also removes its subcollections (saved scenarios, stage
+    // outputs), which a plain delete() leaves orphaned.
+    await adminDb().recursiveDelete(ref);
     await logAudit({ uid: caller.uid, email: caller.email, action: "analysis.delete", target: id });
     return NextResponse.json({ ok: true });
   } catch (err) {

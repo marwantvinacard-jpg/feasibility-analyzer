@@ -7,6 +7,7 @@
 import type { LlmProvider } from "./provider";
 import { ExtractionSchema } from "./schemas";
 import { EXTRACTOR_PROMPT } from "./prompts";
+import { fence } from "./untrusted";
 import {
   ALL_FIELDS,
   FIELD_LABELS,
@@ -81,7 +82,7 @@ export async function extractFromText(
 ): Promise<ExtractionResult> {
   const { data } = await provider.structured({
     system: EXTRACTOR_PROMPT,
-    user: `Extract the 10 business data points from this input:\n\n${text}`,
+    user: `Extract the 10 business data points from this input:\n\n${fence("applicant description", text)}`,
     schema: ExtractionSchema,
     schemaName: "extraction",
     model: process.env.FEASIBILITY_EXTRACT_MODEL,

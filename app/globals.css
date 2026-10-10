@@ -207,9 +207,40 @@ body {
 }
 
 /* Print: only the report body prints. */
+.print-locked-note {
+  display: none;
+}
+.export-offscreen {
+  position: fixed;
+  left: -10000px;
+  top: 0;
+}
 @media print {
   .no-print {
     display: none !important;
+  }
+  /* A study whose export isn't unlocked doesn't print; a note says why. */
+  .print-locked {
+    display: none !important;
+  }
+  .print-locked-note {
+    display: block !important;
+    padding: 2rem;
+    text-align: center;
+  }
+  /* Stress-test export: print only its export copy. */
+  body.printing-export * {
+    visibility: hidden;
+  }
+  body.printing-export .print-export-root,
+  body.printing-export .print-export-root * {
+    visibility: visible;
+  }
+  body.printing-export .export-offscreen {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
   }
   body {
     background: white;

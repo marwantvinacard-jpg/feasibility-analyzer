@@ -9,7 +9,7 @@ import {
   GoogleAuthProvider,
   createUserWithEmailAndPassword,
   onAuthStateChanged,
-  signInWithEmailAndPassword,
+  sendEmailVerification,
   signInWithPopup,
   signOut,
   updateProfile,
@@ -17,7 +17,7 @@ import {
 } from "firebase/auth";
 import { doc, onSnapshot, setDoc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { getFirebase } from "./client";
-import { claimUsernameAndCreateProfile, resolveIdentifierToEmail } from "./usernames";
+import { claimUsernameAndCreateProfile, sendPasswordResetFor, signInWithIdentifier } from "./usernames";
 
 export type UserStatus = "pending" | "approved" | "rejected";
 export type UserRole = "user" | "admin";
@@ -39,12 +39,21 @@ export interface Account {
   orgId?: string;
   /** True if this account has opted out of having its analyses used for model training. */
   trainingOptOut?: boolean;
+  /** Firebase Auth's own verified flag (Google sign-ins are verified from the start). */
+  emailVerified: boolean;
+  /** Set (server-side) when a bring-your-own-key is stored — the key itself never reaches the browser. */
+  byokProvider?: string;
+  byokLast4?: string;
 }
+
+/** Outcome of asking the server to activate a pending account (see /api/account/activate). */
+export type ActivationResult = "approved" | "needs-verification" | "manual" | "rejected";
 
 interface SessionCtx {
   ready: boolean;
   user: Account | null;
-  signUpEmail: (name: string, username: string, email: string, password: string) => Promise<void>;
+  /** `termsVersion`: the Terms/Privacy version the user accepted (LEGAL.version). */
+  signUpEmail: (name: string, username: string, email: string, password: string, termsVersion: string) => Promise<void>;
   signInEmail: (identifier: string, password: string) => Promise<void>;
   signInGoogle: () => Promise<void>;
   logout: () => Promise<void>;
@@ -53,6 +62,13 @@ interface SessionCtx {
   setTrainingOptOut: (optOut: boolean) => Promise<void>;
   getIdToken: () => Promise<string>;
   refreshClaims: () => Promise<void>;
+  /** Emails a password-reset link. Resolves quietly when no such account exists. */
+  sendPasswordReset: (identifier: string) => Promise<void>;
+  resendVerification: () => Promise<void>;
+  /** Records that the signed-in user accepted the Terms/Privacy (set once; used after Google signup). */
+  acceptTerms: (termsVersion: string) => Promise<void>;
+  /** Re-checks email verification and, if verified, auto-approves the account. */
+  activateAccount: () => Promise<ActivationResult>;
 }
 
 const Ctx = createContext<SessionCtx | null>(null);
@@ -126,7 +142,11 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
             subscriptionStatus: d.subscriptionStatus,
             language: d.language,
             orgId: d.orgId,
-            trainingOptOut: d.trainingOptOut ?? false,
+            // Opt-in: "never chose" shows (and behaves) as opted out.
+            trainingOptOut: d.trainingOptOut !== false,
+            emailVerified: u.emailVerified,
+            byokProvider: d.byokProvider,
+            byokLast4: d.byokLast4,
           });
           setReady(true);
 
@@ -154,19 +174,28 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     () => ({
       ready,
       user: account,
-      async signUpEmail(name, username, email, password) {
+      async signUpEmail(name, username, email, password, termsVersion) {
         const fb = getFirebase();
         if (!fb) throw new Error("Firebase is not configured.");
         const cred = await createUserWithEmailAndPassword(fb.auth, email, password);
         if (name) await updateProfile(cred.user, { displayName: name });
         await cred.user.getIdToken(true); // ensure the auth token is live for the rules check
-        await claimUsernameAndCreateProfile(cred.user.uid, username, email, newUserDoc(name, email));
+        // The profile email is the one Firebase Auth holds for this account (the
+        // rules require it to match the signed-in token), and the terms the user
+        // ticked are recorded with the version they accepted.
+        await claimUsernameAndCreateProfile(cred.user.uid, username, {
+          ...newUserDoc(name, cred.user.email ?? email),
+          termsAcceptedAt: serverTimestamp(),
+          termsVersion,
+        });
+        // Verifying the email is what activates the account (see /api/account/activate).
+        await sendEmailVerification(cred.user).catch(() => {});
       },
       async signInEmail(identifier, password) {
         const fb = getFirebase();
         if (!fb) throw new Error("Firebase is not configured.");
-        const email = await resolveIdentifierToEmail(identifier);
-        await signInWithEmailAndPassword(fb.auth, email, password);
+        // A username is checked server-side, so its email never reaches the browser.
+        await signInWithIdentifier(fb.auth, identifier, password);
       },
       async signInGoogle() {
         const fb = getFirebase();
@@ -198,6 +227,33 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       },
       async refreshClaims() {
         if (fbUser) await fbUser.getIdToken(true);
+      },
+      async sendPasswordReset(identifier) {
+        const fb = getFirebase();
+        if (!fb) throw new Error("Firebase is not configured.");
+        await sendPasswordResetFor(fb.auth, identifier);
+      },
+      async acceptTerms(termsVersion) {
+        const fb = getFirebase();
+        if (!fb || !fbUser) return;
+        await updateDoc(doc(fb.db, "users", fbUser.uid), { termsAcceptedAt: serverTimestamp(), termsVersion }).catch(() => {
+          /* already recorded (the rules allow it once) */
+        });
+      },
+      async resendVerification() {
+        if (!fbUser) throw new Error("Not signed in.");
+        await sendEmailVerification(fbUser);
+      },
+      async activateAccount() {
+        if (!fbUser) throw new Error("Not signed in.");
+        // Pick up a verification done in another tab/device, and get a token
+        // whose email_verified claim reflects it.
+        await fbUser.reload();
+        const token = await fbUser.getIdToken(true);
+        const res = await fetch("/api/account/activate", { method: "POST", headers: { Authorization: `Bearer ${token}` } });
+        const data = (await res.json().catch(() => ({}))) as { result?: ActivationResult; error?: string };
+        if (!data.result) throw new Error(data.error ?? `Request failed (${res.status})`);
+        return data.result;
       },
     }),
     [ready, account, fbUser]

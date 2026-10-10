@@ -4,16 +4,15 @@ import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button, Badge } from "@/components/kit";
 import { Icon } from "@/components/icons";
-import { StageProgress } from "@/components/StageProgress";
 import { Paywall } from "@/components/Paywall";
 import { VERTICALS } from "@/lib/engine/verticals";
 import { useSession } from "@/lib/session";
-import { getIdToken } from "@/lib/analyses";
-import { streamAnalyze } from "@/lib/sse";
-import { SIX_STAGES, type BusinessInput, type StageName, type StageStatus } from "@/lib/engine/types";
+import { getIdToken, startAnalysis } from "@/lib/analyses";
+import type { BusinessInput } from "@/lib/engine/types";
 import { cn } from "@/lib/ui";
 import { useT, useLanguage } from "@/lib/i18n/LanguageContext";
 import { CURRENCIES, currencySymbol } from "@/lib/currencies";
+import { MAX_DESCRIBE_CHARS, MAX_UPLOAD_BYTES, TEXT_LIMITS } from "@/lib/engine/inputLimits";
 
 type FieldKey = keyof BusinessInput;
 
@@ -42,7 +41,6 @@ const emptyInput: BusinessInput = {
 
 const FILLED = (v: unknown) => (typeof v === "number" ? v > 0 : String(v ?? "").trim().length > 2);
 const KEYS: FieldKey[] = [...TEXT_FIELDS_KEYS, "monthly_cost", "monthly_revenue"];
-const initialStages = () => Object.fromEntries(SIX_STAGES.map((s) => [s, "pending"])) as Record<StageName, StageStatus>;
 
 export default function NewAnalysis() {
   const { user } = useSession();
@@ -52,12 +50,13 @@ export default function NewAnalysis() {
   const TEXT_FIELDS = useTextFields(t);
 
   const [input, setInput] = useState<BusinessInput>(emptyInput);
+  // Runs on the customer's own AI key don't need credits (see /api/account/byok).
+  const usesOwnKey = user?.keyMode === "byok" && !!user.byokLast4;
   const [describe, setDescribe] = useState("");
   const [prefilling, setPrefilling] = useState(false);
   const [prefillNote, setPrefillNote] = useState("");
   const [error, setError] = useState("");
   const [phase, setPhase] = useState<"form" | "running">("form");
-  const [stageStatus, setStageStatus] = useState<Record<StageName, StageStatus>>(initialStages);
 
   type Doc = { name: string; chars: number; truncated: boolean; text: string };
   const [docs, setDocs] = useState<Doc[]>([]);
@@ -65,7 +64,7 @@ export default function NewAnalysis() {
   const [ingestNote, setIngestNote] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
   const knowledgeBase = useMemo(
-    () => docs.map((d) => `### ${d.name}\n${d.text}`).join("\n\n").slice(0, 20000),
+    () => docs.map((d) => `### ${d.name}\n${d.text}`).join("\n\n").slice(0, TEXT_LIMITS.knowledge_base),
     [docs]
   );
 
@@ -74,6 +73,12 @@ export default function NewAnalysis() {
     setIngesting(true);
     setIngestNote("");
     for (const file of Array.from(list)) {
+      // Checked here too: an oversized body is rejected by the host before the
+      // route runs, with a non-JSON error the catch below couldn't read.
+      if (file.size > MAX_UPLOAD_BYTES) {
+        setIngestNote(`${file.name} is larger than 4 MB.`);
+        continue;
+      }
       try {
         const token = await getIdToken();
         const fd = new FormData();
@@ -129,16 +134,16 @@ export default function NewAnalysis() {
       setError(t("newA.errMissing", { n: missing.length }));
       return;
     }
-    if (user!.credits < 1) {
+    if (user!.credits < 1 && !usesOwnKey) {
       setError(t("newA.errNoCredits"));
       return;
     }
     setPhase("running");
-    setStageStatus(initialStages());
     try {
-      const token = await getIdToken();
-      await streamAnalyze(
-        {
+      // The run happens on the server in the background: this only starts it,
+      // then the report page shows progress live — closing the tab or losing
+      // signal no longer cancels anything.
+      const analysisId = await startAnalysis({
           ...input,
           monthly_cost: Number(input.monthly_cost),
           monthly_revenue: Number(input.monthly_revenue),
@@ -148,15 +153,8 @@ export default function NewAnalysis() {
           funding_preference: input.funding_preference?.trim() || undefined,
           knowledge_base: knowledgeBase || undefined,
           report_language: lang,
-        },
-        token,
-        {
-          onProgress: ({ stage, status }) =>
-            setStageStatus((prev) => ({ ...prev, [stage as StageName]: status as StageStatus })),
-          onDone: ({ analysisId }) => router.push(`/app/analysis/${analysisId}`),
-          onError: (message) => { setError(message); setPhase("form"); },
-        }
-      );
+      });
+      router.push(`/app/analysis/${analysisId}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not start analysis.");
       setPhase("form");
@@ -165,16 +163,12 @@ export default function NewAnalysis() {
 
   if (!user) return null;
 
-  if (user.credits < 1) {
+  if (user.credits < 1 && !usesOwnKey) {
     return <Paywall credits={user.credits} />;
   }
 
   if (phase === "running") {
-    return (
-      <div className="py-6">
-        <StageProgress status={stageStatus} />
-      </div>
-    );
+    return <div className="py-20 text-center text-sm text-muted">{t("newA.starting")}</div>;
   }
 
   return (
@@ -190,6 +184,7 @@ export default function NewAnalysis() {
           <input
             className="input"
             placeholder={t("newA.clientNamePh")}
+            maxLength={TEXT_LIMITS.client_name}
             value={input.client_name ?? ""}
             onChange={(e) => set("client_name", e.target.value)}
           />
@@ -205,6 +200,7 @@ export default function NewAnalysis() {
         <textarea
           className="input mt-3 min-h-[90px] resize-y"
           placeholder={t("newA.describePlaceholder")}
+          maxLength={MAX_DESCRIBE_CHARS}
           value={describe}
           onChange={(e) => setDescribe(e.target.value)}
         />
@@ -285,9 +281,9 @@ export default function NewAnalysis() {
                 {FILLED(input[f.key]) && <Icon name="check" size={14} className="text-go" strokeWidth={2.5} />}
               </label>
               {f.long ? (
-                <textarea className="input min-h-[70px] resize-y" placeholder={f.placeholder} value={String(input[f.key] ?? "")} onChange={(e) => set(f.key, e.target.value as never)} />
+                <textarea className="input min-h-[70px] resize-y" placeholder={f.placeholder} maxLength={TEXT_LIMITS[f.key as keyof typeof TEXT_LIMITS]} value={String(input[f.key] ?? "")} onChange={(e) => set(f.key, e.target.value as never)} />
               ) : (
-                <input className="input" placeholder={f.placeholder} value={String(input[f.key] ?? "")} onChange={(e) => set(f.key, e.target.value as never)} />
+                <input className="input" placeholder={f.placeholder} maxLength={TEXT_LIMITS[f.key as keyof typeof TEXT_LIMITS]} value={String(input[f.key] ?? "")} onChange={(e) => set(f.key, e.target.value as never)} />
               )}
             </div>
           ))}
@@ -352,6 +348,7 @@ export default function NewAnalysis() {
             <input
               className="input"
               placeholder={t("newA.fundingMixPlaceholder")}
+              maxLength={TEXT_LIMITS.funding_preference}
               value={input.funding_preference ?? ""}
               onChange={(e) => set("funding_preference", e.target.value)}
             />
@@ -361,6 +358,7 @@ export default function NewAnalysis() {
             <textarea
               className="input min-h-[70px] resize-y"
               placeholder={t("newA.protocolPlaceholder")}
+              maxLength={TEXT_LIMITS.study_protocol}
               value={input.study_protocol ?? ""}
               onChange={(e) => set("study_protocol", e.target.value)}
             />

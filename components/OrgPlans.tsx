@@ -48,7 +48,7 @@ export function OrgPlans({ currentPlan, trialUsed }: { currentPlan?: OrgPlan["ke
       </p>
       {!trialUsed && !currentPlan && (
         <div className="mt-3 flex items-center gap-2 rounded-lg border border-go/30 bg-go/8 px-3 py-2 text-sm text-go">
-          <Icon name="spark" size={15} /> <strong>First plan starts with a 14-day free trial</strong> — cancel anytime before it ends and you won't be charged.
+          <Icon name="spark" size={15} /> <strong>First plan starts with a 14-day free trial</strong> — it includes 10% of the plan's monthly credits to try it out. Cancel anytime before it ends and you won't be charged; otherwise the full monthly credits arrive with your first payment.
         </div>
       )}
       <div className="mt-4 inline-flex items-center gap-1 rounded-lg border border-border bg-surface-2 p-1">

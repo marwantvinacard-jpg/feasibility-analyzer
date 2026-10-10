@@ -49,7 +49,10 @@ export default function LoginPage() {
           <input className="input" type="text" placeholder={t("auth.identifierPlaceholder")} value={identifier} onChange={(e) => setIdentifier(e.target.value)} required />
         </div>
         <div>
-          <label className="mb-1.5 block text-sm font-medium">{t("auth.passwordLabel")}</label>
+          <div className="mb-1.5 flex items-center justify-between">
+            <label className="block text-sm font-medium">{t("auth.passwordLabel")}</label>
+            <Link href="/forgot-password" className="text-xs text-brand hover:underline">{t("auth.forgotLink")}</Link>
+          </div>
           <input className="input" type="password" placeholder={t("auth.passwordPlaceholder")} value={password} onChange={(e) => setPassword(e.target.value)} required />
         </div>
         {error && <p className="text-sm text-stop">{error}</p>}
@@ -60,6 +63,11 @@ export default function LoginPage() {
         <span className="h-px flex-1 bg-border" /> {t("auth.orContinueWith")} <span className="h-px flex-1 bg-border" />
       </div>
       <Button variant="ghost" className="w-full" onClick={() => run(signInGoogle)} disabled={busy}>{t("auth.continueWithGoogle")}</Button>
+      <p className="mt-3 text-center text-xs text-faint">
+        {t("auth.continuingAgrees")}{" "}
+        <Link href="/terms" className="underline">{t("auth.terms")}</Link> {t("auth.and")}{" "}
+        <Link href="/privacy" className="underline">{t("auth.privacy")}</Link>.
+      </p>
     </AuthShell>
   );
 }

@@ -202,9 +202,13 @@ export function StressReport({
       <section className="card p-5">
         <div className="mb-3 flex items-center justify-between">
           <span className="label">{t("stress.riskAssessment")}</span>
-          <Badge tone={result.riskScoring.riskLevel === "Low" ? "go" : result.riskScoring.riskLevel === "Medium" ? "warn" : "stop"}>
-            {t("stress.riskLevel", { level: result.riskScoring.riskLevel, score: result.riskScoring.overallRiskScore })}
-          </Badge>
+          {result.riskScoring.assessed === false ? (
+            <Badge tone="warn">{t("report.riskNotAssessed")}</Badge>
+          ) : (
+            <Badge tone={result.riskScoring.riskLevel === "Low" ? "go" : result.riskScoring.riskLevel === "Medium" ? "warn" : "stop"}>
+              {t("stress.riskLevel", { level: result.riskScoring.riskLevel, score: result.riskScoring.overallRiskScore })}
+            </Badge>
+          )}
         </div>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[560px] text-sm">

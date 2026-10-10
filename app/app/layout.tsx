@@ -29,7 +29,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     { href: "/app/team", label: t("nav.team"), icon: "user" },
     { href: "/app/benchmarks", label: t("nav.benchmarks"), icon: "chart" },
     { href: "/app/api-access", label: t("nav.apiAccess"), icon: "key" },
-    { href: "/app/legal", label: t("nav.legal"), icon: "legal" },
+    { href: "/terms", label: t("nav.legal"), icon: "legal" },
   ];
 
   useEffect(() => {

@@ -13,6 +13,20 @@ service cloud.firestore {
     function signedIn() { return request.auth != null; }
     function isOwner(uid) { return signedIn() && request.auth.uid == uid; }
     function isAdmin() { return signedIn() && request.auth.token.admin == true; }
+    function userChangedKeys() {
+      return request.resource.data.diff(resource.data).affectedKeys();
+    }
+    // True when usernames/{name} points at the caller once this write (or the
+    // transaction it's part of) lands — getAfter sees the claim made alongside it.
+    function ownsUsername(name) {
+      return name is string
+        && getAfter(/databases/$(database)/documents/usernames/$(name)).data.uid == request.auth.uid;
+    }
+    function validTermsAcceptance() {
+      return request.resource.data.termsAcceptedAt == request.time
+        && request.resource.data.termsVersion is string
+        && request.resource.data.termsVersion.size() <= 20;
+    }
     function isOrgMember(orgId) {
       return signedIn() &&
         exists(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid));
@@ -23,17 +37,49 @@ service cloud.firestore {
       allow read: if isOwner(uid) || isAdmin();
 
       // A new signup may create ONLY their own doc, pending, as a normal user,
-      // and may not grant themselves credits/role.
+      // with exactly the fields newUserDoc() writes — no orgId, stripeCustomerId,
+      // subscriptionStatus or anything else the server relies on.
       allow create: if isOwner(uid)
+        && request.resource.data.keys().hasOnly(
+             ['email', 'name', 'status', 'role', 'credits', 'keyMode', 'createdAt', 'username', 'termsAcceptedAt', 'termsVersion'])
         && request.resource.data.status == 'pending'
         && request.resource.data.role == 'user'
-        && request.resource.data.credits == 0;
+        && request.resource.data.credits == 0
+        && request.resource.data.keyMode == 'platform'
+        // The profile email must be the account's real (Auth) email — so nobody
+        // shows up on the admin screen as someone else.
+        && request.resource.data.email == request.auth.token.email
+        && (!('username' in request.resource.data) || ownsUsername(request.resource.data.username))
+        && (!('termsAcceptedAt' in request.resource.data) || validTermsAcceptance());
 
-      // Users may edit profile fields only — never status, role or credits.
+      // Users may change ONLY their own preferences. Everything else — status,
+      // role, credits, orgId, stripeCustomerId, subscriptionStatus, email — is
+      // written by the server (Admin SDK) or an admin. An allowlist, not a
+      // denylist, so a field added server-side later is protected by default.
       allow update: if isOwner(uid)
-        && request.resource.data.status == resource.data.status
-        && request.resource.data.role == resource.data.role
-        && request.resource.data.credits == resource.data.credits;
+        && userChangedKeys().hasOnly(
+             ['keyMode', 'language', 'trainingOptOut', 'lastSeenAt', 'firstSeenAt', 'username', 'name',
+              'termsAcceptedAt', 'termsVersion'])
+        && (!userChangedKeys().hasAny(['keyMode'])
+            || request.resource.data.keyMode in ['platform', 'byok'])
+        && (!userChangedKeys().hasAny(['language'])
+            || request.resource.data.language in ['en', 'ar', 'fr'])
+        && (!userChangedKeys().hasAny(['trainingOptOut'])
+            || request.resource.data.trainingOptOut is bool)
+        && (!userChangedKeys().hasAny(['lastSeenAt'])
+            || request.resource.data.lastSeenAt == request.time)
+        && (!userChangedKeys().hasAny(['firstSeenAt'])
+            || request.resource.data.firstSeenAt == request.time)
+        // username + display name are set once, at signup, together with the
+        // usernames/{name} claim in the same transaction.
+        && (!userChangedKeys().hasAny(['username', 'name'])
+            || (!('username' in resource.data)
+                && ownsUsername(request.resource.data.username)
+                && request.resource.data.name is string
+                && request.resource.data.name.size() <= 100))
+        // Terms acceptance is recorded once (at signup), with the server's time.
+        && (!userChangedKeys().hasAny(['termsAcceptedAt', 'termsVersion'])
+            || (!('termsAcceptedAt' in resource.data) && validTermsAcceptance()));
 
       // Approvals, role changes and credit grants are admin-only.
       allow update, delete: if isAdmin();
@@ -44,13 +90,16 @@ service cloud.firestore {
       }
     }
 
-    // --- usernames: username -> {uid,email}, needed pre-auth for login lookup ---
+    // --- usernames: username -> { uid } only. Readable so signup can check a
+    // name is free. Emails are no longer stored here (anyone could read them);
+    // username login/reset happens server-side. Docs from before that change
+    // still hold an email, so those stay unreadable until migrated. ---
     match /usernames/{username} {
-      allow get: if true;   // resolve username -> email before sign-in
+      allow get: if resource == null || !('email' in resource.data);
       allow list: if false; // no enumeration
       allow create: if signedIn()
         && request.resource.data.uid == request.auth.uid
-        && request.resource.data.keys().hasOnly(['uid', 'email']);
+        && request.resource.data.keys().hasOnly(['uid']);
       allow update, delete: if false; // immutable from the client (Admin SDK can override)
     }
 
@@ -91,6 +140,17 @@ service cloud.firestore {
         allow read: if isAdmin() || isOrgMember(orgId);
         allow write: if false; // server only, via /api/org/keys
       }
+    }
+
+    // --- pending org invites — server only, via /api/org/invites and /api/org/members.
+    // Membership starts only when the invitee accepts. ---
+    match /orgInvites/{inviteId} {
+      allow read, write: if false;
+    }
+
+    // --- shared rate-limit counters — server only (lib/rateLimit.ts) ---
+    match /rateLimits/{doc} {
+      allow read, write: if false;
     }
 
     // --- reports ---

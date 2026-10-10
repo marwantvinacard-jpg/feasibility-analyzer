@@ -1,14 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Button, Badge } from "@/components/kit";
 import { Icon } from "@/components/icons";
 import { StageProgress } from "@/components/StageProgress";
 import { ReportView } from "@/components/ReportView";
-import { Mark } from "@/components/Brand";
-import { downloadElementPdf, slugify } from "@/lib/pdf";
-import { subscribeAnalysis, reviewAnalysis, getIdToken } from "@/lib/analyses";
+import { subscribeAnalysis, reviewAnalysis, getIdToken, checkAnalysis, downloadAnalysisPdf } from "@/lib/analyses";
+import { isStale } from "@/lib/runLimits";
 import { useSession } from "@/lib/session";
 import type { AnalysisDoc } from "@/lib/analysisTypes";
 import { SIX_STAGES, type StageName, type StageStatus } from "@/lib/engine/types";
@@ -22,7 +21,6 @@ export default function AnalysisPage() {
   const params = useParams();
   const router = useRouter();
   const id = String(params.id);
-  const exportRef = useRef<HTMLDivElement>(null);
   const [dl, setDl] = useState(false);
   const { user } = useSession();
   const t = useT();
@@ -59,11 +57,15 @@ export default function AnalysisPage() {
     }
   }
 
-  async function downloadPdf(idea: string) {
-    if (!exportRef.current) return;
+  // The PDF is rendered on the server, which also checks the export is
+  // unlocked — it used to be built in the browser from a hidden copy of the page.
+  async function downloadPdf() {
     setDl(true);
+    setUnlockError("");
     try {
-      await downloadElementPdf(exportRef.current, `feasibility-${slugify(idea)}.pdf`);
+      await downloadAnalysisPdf(id);
+    } catch (e) {
+      setUnlockError(e instanceof Error ? e.message : "Download failed.");
     } finally {
       setDl(false);
     }
@@ -80,6 +82,18 @@ export default function AnalysisPage() {
     return () => unsub();
   }, [id]);
 
+  // A run still "running" past the time limit can't finish (its server was
+  // stopped). Ask the server to settle it — failed + refunded — rather than
+  // leave the progress bar up forever. Re-checks while the page stays open.
+  const runningSince = rec?.status === "running" ? rec.createdAt : null;
+  useEffect(() => {
+    if (runningSince === null) return;
+    const settle = () => { if (isStale(runningSince)) checkAnalysis(id).catch(() => {}); };
+    settle();
+    const timer = setInterval(settle, 30_000);
+    return () => clearInterval(timer);
+  }, [id, runningSince]);
+
   if (!loaded) return <div className="py-20 text-center text-sm text-muted">{t("common.loading")}</div>;
 
   if (!rec)
@@ -92,7 +106,12 @@ export default function AnalysisPage() {
     );
 
   if (rec.status === "running")
-    return <div className="py-8"><StageProgress status={rec.stageStatus ?? fallbackStages()} /></div>;
+    return (
+      <div className="py-8">
+        <StageProgress status={rec.stageStatus ?? fallbackStages()} />
+        <p className="mt-4 text-center text-sm text-muted">{t("analysis.runningCanLeave")}</p>
+      </div>
+    );
 
   if (rec.status === "failed")
     return (
@@ -130,7 +149,7 @@ export default function AnalysisPage() {
               <Button href={`/app/analysis/${id}/edit-model`} variant="ghost" className="text-sm"><Icon name="operational" size={17} /> Edit model</Button>
             )}
             {isExportExempt(user) || rec.exportUnlocked ? (
-              <button onClick={() => downloadPdf(rec.result!.input.business_idea)} disabled={dl} className="btn btn-ghost text-sm">
+              <button onClick={downloadPdf} disabled={dl} className="btn btn-ghost text-sm">
                 <Icon name="download" size={17} /> {dl ? t("analysis.preparing") : t("analysis.download")}
               </button>
             ) : (
@@ -153,22 +172,26 @@ export default function AnalysisPage() {
             <span className="font-medium text-go">{t("analysis.reviewerNotes")}</span> <span className="text-muted">{rec.reviewNotes}</span>
           </div>
         )}
-        <ReportView result={rec.result} analysisId={id} canEditModel={rec.uid === user?.uid || user?.role === "admin"} />
-
-        {/* Off-screen export copy for the PDF (light palette, fixed width) */}
-        <div style={{ position: "fixed", left: "-10000px", top: 0 }} aria-hidden>
-          <div ref={exportRef} className="pdf-export">
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid rgb(var(--border))", paddingBottom: 12, marginBottom: 18 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 600 }}><Mark className="h-6 w-6" /> FeasibilityAI</div>
-              <div style={{ textAlign: "right", fontSize: 11, color: "rgb(var(--faint))" }}>
-                {t("common.appName")}<br />{new Date(rec.createdAt).toLocaleDateString()}
-              </div>
-            </div>
-            <ReportView result={rec.result} print />
-          </div>
+        {/* A locked study doesn't print (the paid PDF is the export). Only a
+            deterrent — anything on screen can still be copied. */}
+        <div className={isExportExempt(user) || rec.exportUnlocked ? "" : "print-locked"}>
+          <ReportView result={rec.result} analysisId={id} canEditModel={rec.uid === user?.uid || user?.role === "admin"} />
         </div>
+        <p className="print-locked-note">{t("analysis.printLocked")}</p>
       </div>
     );
 
-  return <div className="py-20 text-center text-sm text-muted">{t("common.loading")}</div>;
+  // "complete" with no result (or an unknown status) used to fall through to
+  // "Loading…" forever. Say what happened and offer a way out instead.
+  return (
+    <div className="mx-auto max-w-md py-20 text-center">
+      <span className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-surface-2 text-faint"><Icon name="doc" size={26} /></span>
+      <h2 className="font-display mt-4 text-lg font-semibold">{t("analysis.noResult")}</h2>
+      <p className="mt-1 text-sm text-muted">{t("analysis.noResultBody")}</p>
+      <div className="mt-5 flex justify-center gap-2">
+        <Button variant="ghost" href="/app">{t("nav.dashboard")}</Button>
+        <Button href="/app/new">{t("analysis.tryAgain")}</Button>
+      </div>
+    </div>
+  );
 }

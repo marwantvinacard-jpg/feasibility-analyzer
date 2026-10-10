@@ -6,7 +6,24 @@
 
 import type { RiskAnalysis, RiskRow, RiskScoring } from "./types";
 
+/**
+ * Used when there is no risk register to score. An empty register used to
+ * score as ZERO risk — 100/100 "Low" — so a failed risk specialist made a
+ * business look safe. No register means "not assessed", scored neutrally like
+ * any other failed section (see FAILED_STAGE_SCORE in scorer.ts).
+ */
+export const UNASSESSED_RISK_SCORE = 50;
+
 export function scoreRisks(analysis: RiskAnalysis): RiskScoring {
+  if (analysis.risks.length === 0) {
+    return {
+      rankedRisks: [],
+      overallRiskScore: UNASSESSED_RISK_SCORE,
+      riskLevel: "Medium",
+      riskFeasibilityScore: 100 - UNASSESSED_RISK_SCORE,
+      assessed: false,
+    };
+  }
   const withPriority: RiskRow[] = analysis.risks.map((r) => ({
     ...r,
     priority: round1((r.impact * r.probability) / 100),
@@ -17,9 +34,7 @@ export function scoreRisks(analysis: RiskAnalysis): RiskScoring {
   // Overall risk = average of the top-5 risk priorities.
   const top = rankedRisks.slice(0, 5);
   const overallRiskScore =
-    top.length > 0
-      ? Math.round(top.reduce((sum, r) => sum + (r.priority ?? 0), 0) / top.length)
-      : 0;
+    Math.round(top.reduce((sum, r) => sum + (r.priority ?? 0), 0) / top.length);
 
   const riskLevel: RiskScoring["riskLevel"] =
     overallRiskScore <= 25
@@ -33,7 +48,7 @@ export function scoreRisks(analysis: RiskAnalysis): RiskScoring {
   // Feeds the weighted score: higher = safer, so invert.
   const riskFeasibilityScore = 100 - overallRiskScore;
 
-  return { rankedRisks, overallRiskScore, riskLevel, riskFeasibilityScore };
+  return { rankedRisks, overallRiskScore, riskLevel, riskFeasibilityScore, assessed: true };
 }
 
 const round1 = (n: number) => Math.round(n * 10) / 10;
