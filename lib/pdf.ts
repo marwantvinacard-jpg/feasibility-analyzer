@@ -1,11 +1,13 @@
 "use client";
 
-// "Export PDF" — prints the pre-built, off-screen .print-root copy of the
-// report through the browser's own print engine (window.print → "Save as
-// PDF"), instead of rasterizing the DOM with html2canvas. That's a real
-// document render: actual selectable text, the browser's own font shaping,
-// and real page breaks via @page/break-inside — not a screenshot glued into
-// a PDF wrapper. See the `body.printing-report` rules in app/globals.css.
+// The stress test's "Download PDF" — prints the pre-built, off-screen
+// .print-root copy of the stress report through the browser's own print engine
+// (window.print → "Save as PDF"), instead of rasterizing the DOM with
+// html2canvas. That's a real document render: actual selectable text, the
+// browser's own font shaping, and real page breaks via @page/break-inside —
+// not a screenshot glued into a PDF wrapper. See the `body.printing-report`
+// rules in app/globals.css. (The study PDF itself is rendered on the server,
+// which also checks the export is paid for: app/api/analysis/[id]/pdf.)
 
 export function slugify(s: string, max = 40): string {
   return (s || "report").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "").slice(0, max) || "report";

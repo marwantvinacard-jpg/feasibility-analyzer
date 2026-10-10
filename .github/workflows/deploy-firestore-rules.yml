@@ -1,15 +1,23 @@
 name: Deploy Firestore rules
 
-# Runs only when firestore.rules actually changes on main, so a rules edit
-# can never again sit committed-but-not-live the way it did before this
-# workflow existed. Needs a FIREBASE_TOKEN repo secret: generate one with
+# Deploys firestore.rules AND firestore.indexes.json together, so a rules edit
+# never sits committed-but-not-live. Run it by hand (Actions -> Deploy Firestore
+# rules -> Run workflow) once the matching app version has finished rolling out:
+# rules that go live before the code that expects them can break sign-up or
+# saving for users still on the old version. Pushing to main no longer deploys
+# them automatically.
+#
+# Needs a FIREBASE_TOKEN repo secret: generate one with
 # `npx firebase-tools login:ci` (run locally, once) and add it under
-# Settings -> Secrets and variables -> Actions.
+# Settings -> Secrets and variables -> Actions. .firebaserc is gitignored, so
+# the Firebase project ID is asked for on each run.
 on:
-  push:
-    branches: [main]
-    paths:
-      - "firestore.rules"
+  workflow_dispatch:
+    inputs:
+      project:
+        description: "Firebase project ID to deploy to"
+        required: true
+        type: string
 
 jobs:
   deploy-rules:
@@ -19,6 +27,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - run: npx firebase-tools deploy --only firestore:rules --token "$FIREBASE_TOKEN"
+      - run: npx firebase-tools deploy --only firestore:rules,firestore:indexes --project "$PROJECT" --token "$FIREBASE_TOKEN" --non-interactive
         env:
+          PROJECT: ${{ inputs.project }}
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}

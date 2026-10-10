@@ -25,6 +25,9 @@ export interface Organization {
   subscriptionStatus?: string; // mirrors Stripe subscription.status
   /** True once this org has ever started a plan checkout — gates the one-time 14-day trial. */
   trialUsed?: boolean;
+  /** Set when the owner has saved a shared AI key (server-written; the key itself
+   *  is never on this doc). Members' runs then use it instead of credits. */
+  sharedAiKey?: { provider: string; last4: string };
   createdAt: number;
 }
 
@@ -35,6 +38,27 @@ export interface OrgMember {
   role: OrgRole;
   addedAt: number;
 }
+
+/**
+ * A pending invitation. Nobody joins an org without accepting one: joining
+ * shares every analysis they run with the whole org, so it has to be their
+ * choice, not the owner's. Stored at orgInvites/{inviteId(orgId, uid)},
+ * server-only (read and written through /api/org/invites and /api/org/members).
+ */
+export interface OrgInvite {
+  id: string;
+  orgId: string;
+  orgName: string;
+  uid: string;
+  email: string;
+  name: string;
+  role: Exclude<OrgRole, "owner">;
+  invitedByEmail: string;
+  createdAt: number;
+}
+
+/** One invite per (org, person) — re-inviting just updates it. */
+export const inviteId = (orgId: string, uid: string) => `${orgId}__${uid}`;
 
 /** Metadata only — the raw key is shown once at creation and never stored. */
 export interface ApiKeyDoc {

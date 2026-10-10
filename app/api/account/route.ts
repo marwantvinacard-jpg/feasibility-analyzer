@@ -1,10 +1,12 @@
-// GET    /api/account?export=1 — dump everything Firestore holds about the
-//        caller as JSON (GDPR-style data-portability request).
-// DELETE /api/account — permanently delete the caller's own account: their
-//        Firestore user doc, every analysis + its scenarios, and the
-//        Firebase Auth user itself. Blocked if they own an organization —
-//        that needs an ownership transfer first, not a silent cascade
-//        through an org's shared billing/API keys.
+// DELETE /api/account — { confirm: "DELETE" }. Permanently deletes the caller's
+// account and everything that belongs to it (see the Privacy Policy):
+// analyses (with their saved scenarios), saved AI key, username, invitations,
+// training data, then the sign-in account itself. Payment records and the
+// security audit log are kept, as the law requires for accounting/fraud.
+//
+// Organizations: an owner whose org still has other members must remove them
+// first (otherwise their team would be left without an owner). An org whose
+// only member is its owner is deleted with the account.
 
 import { NextResponse } from "next/server";
 import { adminAuth, adminDb } from "@/lib/firebase/admin";
@@ -13,71 +15,57 @@ import { logAudit } from "@/lib/firebase/audit";
 import { logError } from "@/lib/firebase/errorLog";
 
 export const runtime = "nodejs";
+export const maxDuration = 120;
 
-export async function GET(req: Request) {
-  try {
-    const caller = await requireUser(req);
-    const db = adminDb();
-
-    const [userSnap, analysesSnap] = await Promise.all([
-      db.collection("users").doc(caller.uid).get(),
-      db.collection("analyses").where("uid", "==", caller.uid).get(),
-    ]);
-
-    const analyses = await Promise.all(
-      analysesSnap.docs.map(async (doc) => {
-        const scenarios = await doc.ref.collection("scenarios").get();
-        return { ...doc.data(), scenarios: scenarios.docs.map((s) => s.data()) };
-      })
-    );
-
-    await logAudit({ uid: caller.uid, email: caller.email, action: "account.dataExported" });
-    return NextResponse.json({
-      exportedAt: new Date().toISOString(),
-      account: userSnap.data() ?? null,
-      analyses,
-    });
-  } catch (err) {
-    if (err instanceof HttpError) return NextResponse.json({ error: err.message }, { status: err.status });
-    await logError("account.export", err);
-    return NextResponse.json({ error: "Could not export your data." }, { status: 500 });
-  }
+async function deleteQuery(q: FirebaseFirestore.Query) {
+  const db = adminDb();
+  for (const d of (await q.get()).docs) await db.recursiveDelete(d.ref);
 }
 
 export async function DELETE(req: Request) {
   try {
     const caller = await requireUser(req);
-    const db = adminDb();
+    const { confirm } = (await req.json().catch(() => ({}))) as { confirm?: unknown };
+    if (confirm !== "DELETE") throw new HttpError(400, 'Type DELETE to confirm.');
+    if (caller.admin) throw new HttpError(403, "Admin accounts can't be deleted from here — remove the admin role first.");
 
-    const userSnap = await db.collection("users").doc(caller.uid).get();
-    const orgId = userSnap.data()?.orgId as string | undefined;
+    const db = adminDb();
+    const userRef = db.collection("users").doc(caller.uid);
+    const user = (await userRef.get()).data() ?? {};
+
+    // Organization first, so we never leave a team without its owner.
+    const orgId = user.orgId as string | undefined;
     if (orgId) {
-      const orgSnap = await db.collection("organizations").doc(orgId).get();
-      if (orgSnap.data()?.ownerUid === caller.uid) {
-        throw new HttpError(
-          400,
-          "You own an organization — transfer ownership or delete the organization first, then delete your account."
-        );
+      const orgRef = db.collection("organizations").doc(orgId);
+      const org = (await orgRef.get()).data();
+      if (org?.ownerUid === caller.uid) {
+        const others = (await orgRef.collection("members").get()).docs.filter((d) => d.id !== caller.uid);
+        if (others.length > 0) {
+          throw new HttpError(409, "Your organization still has other members. Remove them on the Team page before deleting your account.");
+        }
+        await deleteQuery(db.collection("orgInvites").where("orgId", "==", orgId));
+        await db.recursiveDelete(orgRef); // members, API keys
+      } else {
+        await orgRef.collection("members").doc(caller.uid).delete();
       }
     }
 
-    const analysesSnap = await db.collection("analyses").where("uid", "==", caller.uid).get();
-    const batch = db.batch();
-    for (const doc of analysesSnap.docs) {
-      const scenarios = await doc.ref.collection("scenarios").get();
-      for (const s of scenarios.docs) batch.delete(s.ref);
-      batch.delete(doc.ref);
+    await deleteQuery(db.collection("analyses").where("uid", "==", caller.uid));
+    await deleteQuery(db.collection("orgInvites").where("uid", "==", caller.uid));
+    await deleteQuery(db.collection("trainingData").where("uid", "==", caller.uid));
+    await db.recursiveDelete(db.collection("usage").doc(caller.uid));
+    if (typeof user.username === "string") {
+      const u = db.collection("usernames").doc(user.username);
+      if ((await u.get()).data()?.uid === caller.uid) await u.delete();
     }
-    batch.delete(db.collection("users").doc(caller.uid));
-    await batch.commit();
+    await db.recursiveDelete(userRef); // profile + encrypted AI key
 
-    await logAudit({ uid: caller.uid, email: caller.email, action: "account.deleted" });
     await adminAuth().deleteUser(caller.uid);
-
-    return NextResponse.json({ ok: true });
+    await logAudit({ uid: caller.uid, action: "account.deleted" }).catch(() => {});
+    return NextResponse.json({ deleted: true });
   } catch (err) {
     if (err instanceof HttpError) return NextResponse.json({ error: err.message }, { status: err.status });
-    await logError("account.delete", err, {});
-    return NextResponse.json({ error: "Could not delete your account. Please try again or contact support." }, { status: 500 });
+    await logError("account.delete", err).catch(() => {});
+    return NextResponse.json({ error: "Couldn't delete the account. Please try again or contact us." }, { status: 500 });
   }
 }

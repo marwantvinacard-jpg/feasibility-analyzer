@@ -11,15 +11,19 @@
 // users are the only reachable audience for that regression.
 
 import { NextResponse } from "next/server";
-import { requireUser, HttpError } from "@/lib/firebase/verify";
+import { requireApprovedUser, HttpError } from "@/lib/firebase/verify";
 import { checkRateLimit } from "@/lib/rateLimit";
 import { logError } from "@/lib/firebase/errorLog";
+import { MAX_UPLOAD_BYTES, TEXT_LIMITS } from "@/lib/engine/inputLimits";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-const MAX_BYTES = 15 * 1024 * 1024; // 15 MB upload cap
-const MAX_CHARS = 20_000; // keep prompt cost sane
+// The old 15 MB cap was above what the host accepts (Vercel stops request
+// bodies at 4.5 MB before this route runs), so big files never got a readable
+// error. 4 MB works on every host and matches the check in the browser.
+const MAX_BYTES = MAX_UPLOAD_BYTES;
+const MAX_CHARS = TEXT_LIMITS.knowledge_base; // keep prompt cost sane
 const RATE_LIMIT = 15;
 const RATE_WINDOW_MS = 60_000;
 
@@ -41,13 +45,13 @@ function cellToText(v: unknown): string {
 export async function POST(req: Request) {
   let caller;
   try {
-    caller = await requireUser(req); // signed-in only — parsing documents isn't free
+    caller = await requireApprovedUser(req); // approved accounts only — parsing documents isn't free
   } catch (err) {
     const e = err as HttpError;
     return NextResponse.json({ error: e.message ?? "Unauthorized" }, { status: e.status ?? 401 });
   }
 
-  const rl = await checkRateLimit(caller.uid, RATE_LIMIT, RATE_WINDOW_MS);
+  const rl = await checkRateLimit(`ingest:${caller.uid}`, RATE_LIMIT, RATE_WINDOW_MS);
   if (!rl.allowed) {
     return NextResponse.json(
       { error: `Too many uploads. Try again in ${Math.ceil(rl.retryAfterMs / 1000)}s.` },
@@ -58,7 +62,7 @@ export async function POST(req: Request) {
   const form = await req.formData().catch(() => null);
   const file = form?.get("file");
   if (!(file instanceof File)) return NextResponse.json({ error: "No file provided." }, { status: 400 });
-  if (file.size > MAX_BYTES) return NextResponse.json({ error: "File is larger than 15 MB." }, { status: 413 });
+  if (file.size > MAX_BYTES) return NextResponse.json({ error: "File is larger than 4 MB." }, { status: 413 });
 
   const name = file.name || "document";
   const ext = name.toLowerCase().split(".").pop() || "";

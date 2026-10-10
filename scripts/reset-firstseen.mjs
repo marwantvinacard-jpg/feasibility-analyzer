@@ -1,7 +1,9 @@
 import { readFileSync } from "node:fs";
 import { initializeApp, cert } from "firebase-admin/app";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
+import { confirmProject } from "./_confirmProject.mjs";
 const sa = JSON.parse(readFileSync(new URL("../serviceAccountKey.json", import.meta.url), "utf8"));
+confirmProject(sa);
 initializeApp({ credential: cert(sa) });
 const db = getFirestore();
 const uname = process.argv[2];

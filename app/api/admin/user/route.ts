@@ -8,10 +8,10 @@ import { adminDb } from "@/lib/firebase/admin";
 import { requireAdmin, HttpError } from "@/lib/firebase/verify";
 import { logAudit } from "@/lib/firebase/audit";
 import { sendApprovalEmail, sendRejectionEmail } from "@/lib/email";
+import { APPROVAL_CREDITS } from "@/lib/approval";
 
 export const runtime = "nodejs";
 
-const APPROVAL_CREDITS = 3;
 
 export async function POST(req: Request) {
   try {
@@ -34,11 +34,13 @@ export async function POST(req: Request) {
         { merge: true }
       );
       const d = snap.data();
-      if (d?.email) sendApprovalEmail(d.email, d.name ?? "").catch(() => {});
+      // Awaited, not deferred: on Cloud Run the CPU is throttled after the reply,
+      // so deferred work can stall. Failures are logged inside send().
+      if (d?.email) await sendApprovalEmail(d.email, d.name ?? "");
     } else if (action === "reject") {
       await ref.set({ status: "rejected", updatedAt: new Date().toISOString() }, { merge: true });
       const d = snap.data();
-      if (d?.email) sendRejectionEmail(d.email, d.name ?? "").catch(() => {});
+      if (d?.email) await sendRejectionEmail(d.email, d.name ?? "");
     } else if (action === "grant") {
       await ref.update({ credits: FieldValue.increment(amount ?? APPROVAL_CREDITS) });
     } else {

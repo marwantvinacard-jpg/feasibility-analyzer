@@ -109,6 +109,8 @@ function Board({
     setSaving(true);
     try {
       await saveScenario(id, name.trim(), knobs as unknown as Record<string, number>);
+    } catch (e) {
+      window.alert(e instanceof Error && e.message ? e.message : t("common.error"));
     } finally {
       setSaving(false);
     }
@@ -120,8 +122,8 @@ function Board({
     if (!window.confirm(t("stress.confirmDeleteScenario", { name }))) return;
     try {
       await deleteScenario(id, scenarioId);
-    } catch {
-      window.alert(t("stress.deleteScenarioFailed"));
+    } catch (e) {
+      window.alert(e instanceof Error && e.message ? e.message : t("stress.deleteScenarioFailed"));
     }
   }
 

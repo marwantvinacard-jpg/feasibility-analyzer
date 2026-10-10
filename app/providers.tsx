@@ -6,6 +6,7 @@ import { LanguageProvider, useLanguage } from "@/lib/i18n/LanguageContext";
 import { ToastProvider } from "@/lib/toast";
 import { ThemeProvider } from "@/lib/theme";
 import { PostHogProvider } from "@/lib/posthog/PostHogProvider";
+import { CookieConsent } from "@/components/CookieConsent";
 
 /** Once signed in, the account's saved language preference wins (cross-device
  *  sync); a manual switch while signed in is written back to the profile. */
@@ -33,6 +34,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
             <PostHogProvider>
               <LanguageSync />
               {children}
+              <CookieConsent />
             </PostHogProvider>
           </ToastProvider>
         </SessionProvider>

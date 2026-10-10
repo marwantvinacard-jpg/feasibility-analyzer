@@ -8,6 +8,7 @@ export {
   creditsForTopup,
   PRO_PLAN,
   ORG_PLANS,
+  orgTrialCredits,
   PLATFORM_FEE_PERCENT,
   USD_PER_CREDIT,
   type WalletTier,

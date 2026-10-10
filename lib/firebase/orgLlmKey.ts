@@ -1,57 +1,58 @@
-// Encrypt-at-rest for an organization's shared AI API key. When an org owner
-// sets one, every approved member's analyses run on it instead of the
-// platform credit balance or a personal BYOK key (which still takes
-// priority — a member's own explicit choice wins over the org default).
-// Stored in the server-only organizations/{orgId}/secrets/llmKey doc
-// (Firestore rules deny all client access). Same AES-256-GCM scheme and key
-// as lib/firebase/byokKey.ts.
+// An organization's shared AI key. When the owner sets one, every member's
+// analyses run on it instead of the platform credit balance (a member's own
+// personal key, if they saved one, still wins — their explicit choice beats
+// the org default). Server-only.
+//
+// Stored at organizations/{orgId}/secrets/llmKey (the security rules deny all
+// browser access), encrypted exactly like a personal key (see lib/byok.ts) and
+// bound to the org: a copy pasted onto another org's record won't decrypt. The
+// org doc itself only carries `sharedAiKey: { provider, last4 }`, so members'
+// screens can show that runs are covered without ever seeing the key.
 
-import { randomBytes, createCipheriv, createDecipheriv } from "node:crypto";
+import { FieldValue } from "firebase-admin/firestore";
 import { adminDb } from "./admin";
+import { decryptSecret, encryptSecret, last4, type EncryptedSecret } from "../byok";
+import type { ByokProvider } from "../byokProviders";
 
-function encryptionKey(): Buffer {
-  const b64 = process.env.BYOK_ENCRYPTION_KEY;
-  if (!b64) throw new Error("BYOK_ENCRYPTION_KEY is not set — API keys cannot be stored without it.");
-  const key = Buffer.from(b64, "base64");
-  if (key.length !== 32) throw new Error("BYOK_ENCRYPTION_KEY must decode to exactly 32 bytes.");
-  return key;
-}
+export type StoredOrgKey = EncryptedSecret & { provider: ByokProvider; last4: string; updatedAt: number; updatedBy: string };
 
-function secretRef(orgId: string) {
-  return adminDb().collection("organizations").doc(orgId).collection("secrets").doc("llmKey");
-}
+const orgRef = (orgId: string) => adminDb().collection("organizations").doc(orgId);
+export const orgKeyRef = (orgId: string) => orgRef(orgId).collection("secrets").doc("llmKey");
+const binding = (orgId: string) => `org:${orgId}`;
 
-export async function saveOrgLlmKey(orgId: string, rawKey: string): Promise<void> {
-  const iv = randomBytes(12);
-  const cipher = createCipheriv("aes-256-gcm", encryptionKey(), iv);
-  const ciphertext = Buffer.concat([cipher.update(rawKey, "utf8"), cipher.final()]);
-  const authTag = cipher.getAuthTag();
-  await secretRef(orgId).set({
-    iv: iv.toString("base64"),
-    ciphertext: ciphertext.toString("base64"),
-    authTag: authTag.toString("base64"),
-    keyPreview: `${rawKey.slice(0, 6)}…${rawKey.slice(-4)}`,
-    savedAt: Date.now(),
-  });
+export async function saveOrgLlmKey(orgId: string, provider: ByokProvider, apiKey: string, updatedBy: string): Promise<void> {
+  const stored: StoredOrgKey = { ...encryptSecret(apiKey, binding(orgId)), provider, last4: last4(apiKey), updatedAt: Date.now(), updatedBy };
+  const batch = adminDb().batch();
+  batch.set(orgKeyRef(orgId), stored);
+  batch.update(orgRef(orgId), { sharedAiKey: { provider, last4: stored.last4 } });
+  await batch.commit();
 }
 
 export async function clearOrgLlmKey(orgId: string): Promise<void> {
-  await secretRef(orgId).delete();
+  const batch = adminDb().batch();
+  batch.delete(orgKeyRef(orgId));
+  batch.update(orgRef(orgId), { sharedAiKey: FieldValue.delete() });
+  await batch.commit();
 }
 
-/** Returns the preview string (e.g. "sk-abc1…9f2a") without ever decrypting, for display only. */
-export async function getOrgLlmKeyPreview(orgId: string): Promise<string | null> {
-  const snap = await secretRef(orgId).get();
-  return (snap.data()?.keyPreview as string | undefined) ?? null;
+/** What the owner sees: the provider and the last 4 characters, never the key. */
+export async function getOrgLlmKeyInfo(orgId: string): Promise<{ provider: ByokProvider; last4: string } | null> {
+  const d = (await orgKeyRef(orgId).get()).data() as StoredOrgKey | undefined;
+  return d ? { provider: d.provider, last4: d.last4 } : null;
 }
 
-/** Server-only: decrypts and returns the raw key for making an actual API call. */
-export async function getOrgLlmKey(orgId: string): Promise<string | null> {
-  const snap = await secretRef(orgId).get();
-  const data = snap.data();
-  if (!data) return null;
-  const decipher = createDecipheriv("aes-256-gcm", encryptionKey(), Buffer.from(data.iv, "base64"));
-  decipher.setAuthTag(Buffer.from(data.authTag, "base64"));
-  const plain = Buffer.concat([decipher.update(Buffer.from(data.ciphertext, "base64")), decipher.final()]);
-  return plain.toString("utf8");
+/**
+ * The decrypted key, for one run. Throws if it can't be read: tampered with,
+ * the server's BYOK_ENCRYPTION_KEY changed, or saved by an older version of
+ * the app in a different format — the owner then has to save it again.
+ */
+export function decryptOrgLlmKey(orgId: string, stored: StoredOrgKey): string {
+  if (stored.v !== 1 || !stored.provider) throw new Error("The organization's shared AI key needs to be saved again.");
+  return decryptSecret(stored, binding(orgId));
+}
+
+/** Loads and decrypts the org's key; null when none is set. */
+export async function readOrgLlmKey(orgId: string): Promise<{ provider: ByokProvider; apiKey: string } | null> {
+  const d = (await orgKeyRef(orgId).get()).data() as StoredOrgKey | undefined;
+  return d ? { provider: d.provider, apiKey: decryptOrgLlmKey(orgId, d) } : null;
 }

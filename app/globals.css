@@ -207,17 +207,29 @@ body {
 }
 
 /* Print: only the report body prints. */
+.print-locked-note {
+  display: none;
+}
 @media print {
   .no-print {
     display: none !important;
+  }
+  /* A study whose export isn't unlocked doesn't print; a note says why. */
+  .print-locked {
+    display: none !important;
+  }
+  .print-locked-note {
+    display: block !important;
+    padding: 2rem;
+    text-align: center;
   }
   body {
     background: white;
     color: black;
   }
 
-  /* "Export PDF" prints a clean, pre-built copy of the report (.print-root)
-     via the browser's own print engine — real text and real pagination, not
+  /* The stress test's "Download PDF" prints a clean, pre-built copy of its
+     report (.print-root) via the browser's own print engine — real text and real pagination, not
      a rasterized screenshot. Standard visibility-based print-isolation: an
      ancestor's `visibility: hidden` doesn't hide a descendant that sets it
      back to `visible`, so this works regardless of DOM nesting depth. */

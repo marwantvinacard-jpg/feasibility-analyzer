@@ -7,7 +7,8 @@
 import { collection, doc, onSnapshot } from "firebase/firestore";
 import { getFirebase } from "@/lib/firebase/client";
 import { getIdToken } from "@/lib/analyses";
-import type { Organization, OrgMember, ApiKeyDoc, OrgRole } from "@/lib/orgTypes";
+import type { Organization, OrgInvite, OrgMember, ApiKeyDoc, OrgRole } from "@/lib/orgTypes";
+import type { ByokProvider } from "@/lib/byokProviders";
 
 async function authedFetch(url: string, init: RequestInit = {}) {
   const token = await getIdToken();
@@ -20,8 +21,22 @@ async function authedFetch(url: string, init: RequestInit = {}) {
   return data;
 }
 
-export async function fetchMyOrg(): Promise<{ org: Organization | null; members: OrgMember[] }> {
+export async function fetchMyOrg(): Promise<{ org: Organization | null; members: OrgMember[]; invites: OrgInvite[] }> {
   return authedFetch("/api/org");
+}
+
+/** Invites addressed to the signed-in user. */
+export async function fetchMyInvites(): Promise<{ invites: OrgInvite[] }> {
+  return authedFetch("/api/org/invites");
+}
+
+export async function respondToInvite(orgId: string, action: "accept" | "decline"): Promise<void> {
+  await authedFetch("/api/org/invites", { method: "POST", body: JSON.stringify({ orgId, action }) });
+}
+
+/** Owner: withdraw an invite that hasn't been answered yet. */
+export async function cancelInvite(uid: string): Promise<void> {
+  await authedFetch(`/api/org/members?invite=${encodeURIComponent(uid)}`, { method: "DELETE" });
 }
 
 export async function createOrg(name: string): Promise<{ org: Organization }> {
@@ -32,7 +47,7 @@ export async function updateOrgBranding(patch: { name?: string; logoUrl?: string
   await authedFetch("/api/org", { method: "PATCH", body: JSON.stringify(patch) });
 }
 
-export async function inviteMember(identifier: string, role?: OrgRole): Promise<{ member: OrgMember }> {
+export async function inviteMember(identifier: string, role?: OrgRole): Promise<{ invite: OrgInvite }> {
   return authedFetch("/api/org/members", { method: "POST", body: JSON.stringify({ identifier, role }) });
 }
 
@@ -48,13 +63,14 @@ export async function revokeApiKey(id: string): Promise<void> {
   await authedFetch(`/api/org/keys?id=${encodeURIComponent(id)}`, { method: "DELETE" });
 }
 
-/** The org's shared AI API key (owner-set) — masked preview only, never the raw secret. */
+/** The org's shared AI API key (owner-set) — provider and last 4 only, never the raw secret. */
 export async function fetchOrgLlmKey(): Promise<{ set: boolean; preview: string | null }> {
   return authedFetch("/api/org/llm-key");
 }
 
-export async function saveOrgLlmKey(apiKey: string): Promise<void> {
-  await authedFetch("/api/org/llm-key", { method: "POST", body: JSON.stringify({ apiKey }) });
+/** Checked with the provider before it's saved; throws with the reason if it's rejected. */
+export async function saveOrgLlmKey(apiKey: string, provider: ByokProvider = "openai"): Promise<void> {
+  await authedFetch("/api/org/llm-key", { method: "POST", body: JSON.stringify({ apiKey, provider }) });
 }
 
 export async function clearOrgLlmKey(): Promise<void> {

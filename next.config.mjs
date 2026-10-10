@@ -7,13 +7,17 @@ const nextConfig = {
   // their real (nested) dependencies at runtime. firebase-admin in particular
   // must be external, or bundling flattens jwks-rsa→jose into an ESM/CJS clash
   // (ERR_REQUIRE_ESM) that crashes the API routes.
-  serverExternalPackages: ["openai", "pdf-parse", "firebase-admin"],
+  serverExternalPackages: ["openai", "pdf-parse", "firebase-admin", "puppeteer-core", "@sparticuz/chromium"],
   // Enforced in production only. Verified zero violations against a real
   // production build (next build + next start) covering the public pages,
   // login, signup, and the authenticated dashboard/settings with live
   // Firestore calls. Payment (Stripe Checkout/webhook) is server-only in
-  // this app — nothing client-side to violate — but re-check after any
-  // change that loads a new third-party script or connects to a new origin.
+  // this app — nothing client-side to violate — and the PDF export is
+  // rendered on the server. Google sign-in (signInWithPopup) loads Google's
+  // gapi script and an iframe from the Firebase auth domain, and PostHog
+  // loads its config/extensions from its assets host — both are allowed
+  // below. Re-check after any change that loads a new third-party script or
+  // connects to a new origin.
   // Skipped in dev: `next dev`'s Fast Refresh relies on eval() for its own
   // module reloading, which this policy correctly blocks — enforcing it
   // there doesn't test anything real and breaks HMR (a form losing state
@@ -27,16 +31,22 @@ const nextConfig = {
       { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
     ];
     if (process.env.NODE_ENV === "production") {
+      // A custom auth domain (or PostHog host) is baked in at build time, like
+      // every other NEXT_PUBLIC_ value.
+      const authDomain = process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN;
+      const authFrame = authDomain && !authDomain.endsWith(".firebaseapp.com") ? ` https://${authDomain}` : "";
+      const posthogHost = process.env.NEXT_PUBLIC_POSTHOG_HOST;
+      const posthog = posthogHost && !/\.posthog\.com\/?$/.test(posthogHost) ? ` ${posthogHost.replace(/\/$/, "")}` : "";
       const csp = [
         "default-src 'self'",
         // Next.js's own hydration bootstrap is inline; a nonce-based policy is
         // the stricter alternative but needs per-request middleware to set up.
-        "script-src 'self' 'unsafe-inline'",
+        `script-src 'self' 'unsafe-inline' https://apis.google.com https://*.posthog.com${posthog}`,
         "style-src 'self' 'unsafe-inline'",
         "img-src 'self' data: blob: https:",
         "font-src 'self' data:",
-        "connect-src 'self' https://*.googleapis.com https://securetoken.googleapis.com https://identitytoolkit.googleapis.com https://firestore.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://us.i.posthog.com https://*.ingest.sentry.io https://*.sentry.io",
-        "frame-src 'self'",
+        `connect-src 'self' https://*.googleapis.com https://securetoken.googleapis.com https://identitytoolkit.googleapis.com https://firestore.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://*.posthog.com${posthog} https://*.ingest.sentry.io https://*.sentry.io`,
+        `frame-src 'self' https://*.firebaseapp.com${authFrame}`,
         "object-src 'none'",
         "base-uri 'self'",
         "frame-ancestors 'self'",

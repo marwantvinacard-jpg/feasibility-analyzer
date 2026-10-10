@@ -33,8 +33,19 @@ test("scoreRisks: riskFeasibilityScore is the inverse (higher = safer)", () => {
   assert.equal(result.riskFeasibilityScore, 100 - result.overallRiskScore);
 });
 
-test("scoreRisks: empty risk list doesn't crash and scores as zero risk", () => {
+test("scoreRisks: an empty register is 'not assessed' and scores a neutral 50, never 100/100 'Low'", () => {
   const result = scoreRisks({ risks: [], dealbreaker_risks: [] });
-  assert.equal(result.overallRiskScore, 0);
-  assert.equal(result.riskLevel, "Low");
+  assert.equal(result.assessed, false);
+  assert.equal(result.overallRiskScore, 50);
+  assert.equal(result.riskFeasibilityScore, 50);
+  assert.notEqual(result.riskLevel, "Low");
+});
+
+test("scoreRisks: a real register is marked assessed", () => {
+  const result = scoreRisks({
+    risks: [{ category: "Market", description: "d", impact: 40, probability: 50, mitigation: "m", contingency: "c" }],
+    dealbreaker_risks: [],
+  });
+  assert.equal(result.assessed, true);
+  assert.equal(result.overallRiskScore, 20);
 });

@@ -14,7 +14,7 @@ import { useToast } from "@/lib/toast";
 import { cn } from "@/lib/ui";
 
 function VerifyEmailBanner() {
-  const { user, resendVerificationEmail } = useSession();
+  const { user, resendVerification } = useSession();
   const toast = useToast();
   const [dismissed, setDismissed] = useState(false);
   const [sending, setSending] = useState(false);
@@ -34,7 +34,7 @@ function VerifyEmailBanner() {
           onClick={async () => {
             setSending(true);
             try {
-              await resendVerificationEmail();
+              await resendVerification();
               toast.show("Verification email sent.", "success");
             } catch {
               toast.show("Could not send the email — try again shortly.", "error");
@@ -70,7 +70,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     { href: "/app/team", label: t("nav.team"), icon: "user" },
     { href: "/app/benchmarks", label: t("nav.benchmarks"), icon: "chart" },
     { href: "/app/api-access", label: t("nav.apiAccess"), icon: "key" },
-    { href: "/app/legal", label: t("nav.legal"), icon: "legal" },
+    { href: "/terms", label: t("nav.legal"), icon: "legal" },
   ];
 
   useEffect(() => {

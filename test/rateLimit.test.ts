@@ -1,30 +1,45 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { checkRateLimit } from "@/lib/rateLimit";
+import { checkRateLimit, type RateLimitStore } from "@/lib/rateLimit";
 import { capBusinessInput } from "@/lib/engine/types";
 import type { BusinessInput } from "@/lib/engine/types";
 
+// The real stores (Firestore, Upstash) are shared services; the window logic
+// is tested here against an in-memory stand-in. The Firestore store itself is
+// covered by the emulator tests.
+function memoryStore(): RateLimitStore {
+  const counts = new Map<string, number>();
+  return {
+    async hit(key, windowStart) {
+      const k = `${key}_${windowStart}`;
+      const n = (counts.get(k) ?? 0) + 1;
+      counts.set(k, n);
+      return n;
+    },
+  };
+}
+
 test("checkRateLimit: allows up to the limit, then blocks within the window", async () => {
-  const key = `test-${Date.now()}-${Math.random()}`;
+  const stores = [memoryStore()];
   for (let i = 0; i < 3; i++) {
-    const r = await checkRateLimit(key, 3, 60_000);
+    const r = await checkRateLimit("test", 3, 60_000, stores);
     assert.equal(r.allowed, true, `request ${i + 1} of 3 should be allowed`);
   }
-  const blocked = await checkRateLimit(key, 3, 60_000);
+  const blocked = await checkRateLimit("test", 3, 60_000, stores);
   assert.equal(blocked.allowed, false);
   assert.ok(blocked.retryAfterMs > 0);
 });
 
 test("checkRateLimit: a fresh key always gets a clean window", async () => {
-  const r = await checkRateLimit(`fresh-${Date.now()}-${Math.random()}`, 1, 60_000);
+  const r = await checkRateLimit("fresh", 1, 60_000, [memoryStore()]);
   assert.equal(r.allowed, true);
   assert.equal(r.remaining, 0);
 });
 
 test("checkRateLimit: different keys never share a bucket", async () => {
-  const base = `iso-${Date.now()}-${Math.random()}`;
-  await checkRateLimit(`${base}-a`, 1, 60_000);
-  const other = await checkRateLimit(`${base}-b`, 1, 60_000);
+  const stores = [memoryStore()];
+  await checkRateLimit("iso-a", 1, 60_000, stores);
+  const other = await checkRateLimit("iso-b", 1, 60_000, stores);
   assert.equal(other.allowed, true, "a different key must not be affected by another key's usage");
 });
 

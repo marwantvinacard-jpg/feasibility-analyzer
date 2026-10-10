@@ -8,7 +8,8 @@
 
 import { FieldValue } from "firebase-admin/firestore";
 import { runFeasibility } from "@/lib/engine/runFeasibility";
-import { createLlm, isMockExplicit, isProductionEnv } from "@/lib/engine/factory";
+import { createLlm } from "@/lib/engine/factory";
+import type { LlmProvider } from "@/lib/engine/provider";
 import { SerpApiProvider } from "@/lib/engine/search";
 import { adminDb } from "@/lib/firebase/admin";
 import { requireApiKey } from "@/lib/firebase/apiKeyAuth";
@@ -16,12 +17,15 @@ import { HttpError } from "@/lib/firebase/verify";
 import { logAudit } from "@/lib/firebase/audit";
 import { logError } from "@/lib/firebase/errorLog";
 import { withTrainingLog, type TrainingEntry } from "@/lib/engine/trainingLog";
-import { capBusinessInput, type BusinessInput } from "@/lib/engine/types";
+import type { BusinessInput } from "@/lib/engine/types";
 import { checkRateLimit } from "@/lib/rateLimit";
+import { trainingAllowed } from "@/lib/trainingConsent";
+import { readJsonBody, validateBusinessInput } from "@/lib/engine/validateInput";
+import { completeRun, failRun, RunTimeoutError, withTimeBudget } from "@/lib/runLifecycle";
 
 export const runtime = "nodejs";
-// See app/api/analyze/route.ts for the worst-case latency arithmetic behind this number.
-export const maxDuration = 240;
+// Must be a literal for Next.js; keep in sync with RUN_MAX_DURATION_S (lib/runLimits.ts).
+export const maxDuration = 300;
 
 // Each call already costs a credit, which caps total exposure — this bounds
 // *burst rate* on top of that, per instance (see lib/rateLimit.ts).
@@ -37,17 +41,22 @@ export async function POST(req: Request) {
     return json({ error: e.message ?? "Unauthorized" }, e.status ?? 401);
   }
 
-  const rl = await checkRateLimit(apiCaller.keyId, RATE_LIMIT, RATE_WINDOW_MS);
+  // Per organization, not per key: creating more API keys used to multiply the limit.
+  const rl = await checkRateLimit(`v1:${apiCaller.orgId}`, RATE_LIMIT, RATE_WINDOW_MS);
   if (!rl.allowed) {
     return json(
-      { error: `Rate limit exceeded (${RATE_LIMIT} requests/minute per key). Try again in ${Math.ceil(rl.retryAfterMs / 1000)}s.` },
+      { error: `Rate limit exceeded (${RATE_LIMIT} requests/minute per organization). Try again in ${Math.ceil(rl.retryAfterMs / 1000)}s.` },
       429
     );
   }
 
-  const { input: rawInput } = (await req.json().catch(() => ({}))) as { input?: BusinessInput };
-  if (!rawInput?.business_idea) return json({ error: "Missing 'input.business_idea'." }, 400);
-  const input = capBusinessInput(rawInput);
+  // Size + shape checks happen before any credit is taken or model called.
+  const body = await readJsonBody(req);
+  if (!body.ok) return json({ error: body.error }, body.status);
+  if (!body.body?.input?.business_idea) return json({ error: "Missing 'input.business_idea'." }, 400);
+  const checked = validateBusinessInput(body.body.input);
+  if (!checked.ok) return json({ error: checked.error }, checked.status);
+  const input: BusinessInput = checked.input;
 
   const db = adminDb();
   const ownerRef = db.collection("users").doc(apiCaller.ownerUid);
@@ -60,11 +69,24 @@ export async function POST(req: Request) {
       const credits = (snap.data()?.credits as number) ?? 0;
       if (credits < 1) throw new HttpError(402, "The organization is out of credits.");
       tx.update(ownerRef, { credits: credits - 1 });
-      return { charged: true, trainingOptOut: snap.data()?.trainingOptOut === true };
+      return { charged: true, trainingOptOut: !trainingAllowed(snap.data()) }; // opt-in only
     }));
   } catch (err) {
     const e = err as HttpError;
     return json({ error: e.message ?? "Not allowed" }, e.status ?? 403);
+  }
+
+  // Built before the record exists: a server with no AI provider stops here,
+  // refunded, instead of returning mock "reports".
+  let baseLlm: LlmProvider;
+  try {
+    baseLlm = createLlm();
+  } catch (err) {
+    await Promise.allSettled([
+      charged ? ownerRef.update({ credits: FieldValue.increment(1) }) : Promise.resolve(),
+      logError("v1.analyze.config", err, { orgId: apiCaller.orgId }),
+    ]);
+    return json({ error: "The analysis service isn't available right now. You haven't been charged." }, 503);
   }
 
   const ref = db.collection("analyses").doc();
@@ -88,19 +110,35 @@ export async function POST(req: Request) {
     meta: { business_idea: input.business_idea },
   });
 
-  const baseLlm = createLlm();
-  if (baseLlm.mock && !isMockExplicit() && isProductionEnv()) {
-    logError("v1.analyze.accidentalMock", new Error("No AI provider configured in production — serving mock output"), {
-      orgId: apiCaller.orgId,
-    }).catch(() => {});
-  }
   const trainingEntries: TrainingEntry[] = [];
   const llm = withTrainingLog(baseLlm, (e) => trainingEntries.push(e));
-  const search = new SerpApiProvider({ mock: llm.mock || !process.env.SERPAPI_API_KEY });
+  // No mock fallback when the key is missing — see app/api/analyze/route.ts.
+  const search = new SerpApiProvider({ mock: llm.mock });
 
   try {
-    const result = await runFeasibility(input, { llm, search });
-    await ref.update({ status: "complete", result });
+    // Stops itself (refunded) before the platform time limit; a hard kill is
+    // cleaned up by the stale-run sweep (lib/runLifecycle.ts).
+    const result = await withTimeBudget(runFeasibility(input, { llm, search }));
+    if (!(await completeRun(db, id, { result }))) {
+      return json({ error: "The analysis was stopped before it finished. The credit has been refunded." }, 504);
+    }
+    if (result.research?.failed) {
+      logError("v1.analyze.research", new Error(`${result.research.failed}/${result.research.queries} web searches failed`), {
+        analysisId: id,
+        stagesWithoutResearch: result.research.stagesWithoutResearch,
+        sampleError: result.research.sampleError ?? null,
+      }).catch(() => {});
+    }
+    if (result.suspiciousInput) {
+      logError("v1.analyze.suspiciousInput", new Error("Submitted text looked like instructions to the AI"), { analysisId: id }).catch(() => {});
+    }
+    if (result.failedStages?.length) {
+      // Sections that still failed after retries (rate limits, bad model output).
+      logError("v1.analyze.stages", new Error(`${result.failedStages.length} section(s) failed`), {
+        analysisId: id,
+        failedStages: result.failedStages,
+      }).catch(() => {});
+    }
     if (trainingEntries.length > 0 && !trainingOptOut) {
       const batch = db.batch();
       for (const entry of trainingEntries) {
@@ -110,13 +148,13 @@ export async function POST(req: Request) {
     }
     return json({ analysisId: id, result }, 200);
   } catch (err) {
+    const timedOut = err instanceof RunTimeoutError;
     const message = err instanceof Error ? err.message : "Analysis failed";
     await Promise.allSettled([
-      ref.update({ status: "failed", error: message }),
-      charged ? ownerRef.update({ credits: FieldValue.increment(1) }) : Promise.resolve(),
-      logError("v1.analyze", err, { analysisId: id, orgId: apiCaller.orgId }),
+      failRun(db, id, message), // marks failed + refunds the credit, exactly once
+      logError(timedOut ? "v1.analyze.timeout" : "v1.analyze", err, { analysisId: id, orgId: apiCaller.orgId }),
     ]);
-    return json({ error: message }, 500);
+    return json({ analysisId: id, error: message }, timedOut ? 504 : 500);
   }
 }
 

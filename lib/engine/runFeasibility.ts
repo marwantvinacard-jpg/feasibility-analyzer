@@ -11,7 +11,8 @@ import { SerpApiProvider } from "./search";
 import { computeFinancials } from "./financial";
 import { scoreRisks } from "./risk";
 import { computeCategoryScores, overallAssessment, summarize } from "./scorer";
-import { generateReport, type ReportContent } from "./report";
+import { fallbackReport, generateReport, type ReportContent } from "./report";
+import { looksLikeInjection } from "./untrusted";
 import { generateStudy, type FinancialStudy } from "./study";
 import { generateCrossCheck, type CrossCheckResult } from "./crossCheck";
 import type { FinancialModel } from "./financialModel";
@@ -47,6 +48,8 @@ export interface RunOptions {
 
 export interface FullResult extends FeasibilityResult {
   report: ReportContent;
+  /** True when the AI report writer failed twice and `report` is the score-based summary. */
+  reportFallback?: boolean;
   /**
    * The 15-section financial feasibility study. Absent when the model or
    * narrative step failed, and absent on analyses run before the study existed —
@@ -74,7 +77,7 @@ export async function runFeasibility(
   opts: RunOptions = {}
 ): Promise<FullResult> {
   const llm = opts.llm ?? createLlm();
-  const search = opts.search ?? new SerpApiProvider();
+  const search = opts.search ?? new SerpApiProvider({ mock: llm.mock });
   const onProgress = opts.onProgress ?? (() => {});
 
   const stageStatus = Object.fromEntries(ALL_STAGES.map((s) => [s, "pending"])) as Record<
@@ -120,15 +123,30 @@ export async function runFeasibility(
   const sources: Source[] = [];
   let tokensIn = 0;
   let tokensOut = 0;
+  const research: NonNullable<FeasibilityResult["research"]> = { queries: 0, failed: 0, stagesWithoutResearch: [] };
+  const failedStages: NonNullable<FeasibilityResult["failedStages"]> = [];
   for (const out of [...outputs, modelOut, stakeholdersOut]) {
+    if (!out.ok) failedStages.push({ stage: out.stage, error: (out.error ?? "unknown error").slice(0, 300) });
     if (out.ok && out.data && out.stage !== "financial_model") (stages as any)[out.stage] = out.data;
     sources.push(...out.sources);
     tokensIn += out.tokensIn;
     tokensOut += out.tokensOut;
+    if (out.research) {
+      research.queries += out.research.queries;
+      research.failed += out.research.failed;
+      if (!research.sampleError && out.research.errors[0]) research.sampleError = out.research.errors[0].slice(0, 300);
+      if (out.research.queries > 0 && out.research.failed === out.research.queries) {
+        research.stagesWithoutResearch.push(out.stage);
+      }
+    }
   }
 
   // 3) Deterministic risk scoring from the structured rows.
   const riskScoring = scoreRisks(stages.risk ?? { risks: [], dealbreaker_risks: [] });
+  // A risk call that "succeeded" with an empty register is still no assessment.
+  if (riskScoring.assessed === false && !failedStages.some((f) => f.stage === "risk")) {
+    failedStages.push({ stage: "risk", error: "The risk analysis returned an empty risk register." });
+  }
 
   // 4) Category scores, weighted overall, verdict, and the summary lists.
   const { scores } = computeCategoryScores(stages, financials, riskScoring);
@@ -138,19 +156,46 @@ export async function runFeasibility(
   // 5) Narrative content — the feasibility report, and the financial study when
   //    a model was produced. Independent calls, so they run together.
   const model = modelOut.ok ? (modelOut.data as FinancialModel) : null;
-  // report.content is a required field on the final result (unlike the
-  // financial study, which degrades gracefully to null) — a single transient
-  // failure here would otherwise discard 8 fully-computed, already-paid-for
-  // scoring stages over one narrative hiccup. One bounded retry costs little
-  // and covers the common transient case; a genuine failure still throws.
+  const reportCtx = {
+    input,
+    stages,
+    financials,
+    riskScoring,
+    scores,
+    overall,
+    stagesWithoutResearch: research.stagesWithoutResearch,
+    failedStages: failedStages.filter((f) => (ALL_STAGES as readonly string[]).includes(f.stage)).map((f) => f.stage),
+  };
+  // The report writer used to be the one call that could fail the whole paid
+  // run (after 11 other calls had already been paid for). Now: one more try on
+  // any error (bad JSON, schema mismatch, truncation), then a summary built
+  // from the real scores — the user still gets their report.
+  let reportFallback = false;
+  const writeReport = async () => {
+    try {
+      return await generateReport(llm, reportCtx);
+    } catch {
+      try {
+        return await generateReport(llm, reportCtx);
+      } catch (err) {
+        reportFallback = true;
+        failedStages.push({ stage: "report", error: (err instanceof Error ? err.message : String(err)).slice(0, 300) });
+        return {
+          content: fallbackReport({ ...reportCtx, strengths, criticalIssues, conditions, nextSteps }),
+          tokensIn: 0,
+          tokensOut: 0,
+        };
+      }
+    }
+  };
+  // Alongside them, an independent second-opinion pass (lib/engine/crossCheck.ts)
+  // — shown next to the scores, never changing them; skipped if it fails.
   const [report, studyOut, crossCheckOut] = await Promise.all([
-    generateReport(llm, { input, stages, financials, riskScoring, scores, overall }).catch(() =>
-      generateReport(llm, { input, stages, financials, riskScoring, scores, overall })
-    ),
+    writeReport(),
     model
       ? generateStudy(llm, { input, model, stages, riskScoring }).catch(() => null)
       : Promise.resolve(null),
-    generateCrossCheck(llm, { input, stages, financials, riskScoring, scores, overall }).catch(() => null),
+    generateCrossCheck(llm, reportCtx).catch(() => null),
   ]);
   tokensIn += report.tokensIn + (studyOut?.tokensIn ?? 0) + (crossCheckOut?.tokensIn ?? 0);
   tokensOut += report.tokensOut + (studyOut?.tokensOut ?? 0) + (crossCheckOut?.tokensOut ?? 0);
@@ -177,7 +222,17 @@ export async function runFeasibility(
       tokensOut,
       costCents: estimateCostCents(tokensIn, tokensOut),
     },
+    research,
+    failedStages,
+    ...(looksLikeInjection(
+      [input.knowledge_base, input.study_protocol, input.business_idea, input.problem_solved, input.product_service, input.unique_advantage, input.competitors]
+        .filter(Boolean)
+        .join("\n")
+    )
+      ? { suspiciousInput: true }
+      : {}),
     report: report.content,
+    ...(reportFallback ? { reportFallback: true } : {}),
     ...(studyOut ? { study: studyOut.study } : {}),
     ...(crossCheckOut ? { crossCheck: crossCheckOut.result } : {}),
   };

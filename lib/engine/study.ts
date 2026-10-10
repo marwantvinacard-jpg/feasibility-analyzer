@@ -13,6 +13,8 @@
 import { z } from "zod";
 import type { LlmProvider } from "./provider";
 import { languageBlock } from "./specialists";
+import { retryIfRateLimited } from "./concurrency";
+import { fence } from "./untrusted";
 import type { FinancialModel } from "./financialModel";
 import { buildProjections, type Projections } from "./projections";
 import type { BusinessInput, RiskScoring, StageResults } from "./types";
@@ -109,7 +111,7 @@ export async function generateStudy(
   });
 
   const user =
-    `BUSINESS: ${JSON.stringify(ctx.input)}\n\n` +
+    `BUSINESS:\n${fence("business data", JSON.stringify(ctx.input))}\n\n` +
     `FINANCIAL MODEL (drivers and assumptions): ${JSON.stringify(ctx.model)}\n\n` +
     `COMPUTED PROJECTIONS — use these figures verbatim:\n${JSON.stringify(
       summarizeForPrompt(projections)
@@ -120,13 +122,15 @@ export async function generateStudy(
     `RISK REGISTER: ${JSON.stringify(ctx.riskScoring.rankedRisks.slice(0, 8))}` +
     languageBlock(ctx.input);
 
-  const { data, tokensIn, tokensOut } = await llm.structured<StudyNarrative>({
-    system: STUDY_PROMPT,
-    user,
-    schema: StudyNarrativeSchema,
-    schemaName: "financial_study",
-    mockValue: mockNarrative(ctx.input, projections),
-  });
+  const { data, tokensIn, tokensOut } = await retryIfRateLimited(() =>
+    llm.structured<StudyNarrative>({
+      system: STUDY_PROMPT,
+      user,
+      schema: StudyNarrativeSchema,
+      schemaName: "financial_study",
+      mockValue: mockNarrative(ctx.input, projections),
+    })
+  );
 
   return {
     study: { model: ctx.model, projections, narrative: data, narrativeGeneratedAt: Date.now() },

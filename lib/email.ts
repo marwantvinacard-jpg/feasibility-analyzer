@@ -5,18 +5,51 @@
 // no email goes out, not a thrown error that fails the approval or analysis.
 
 import { logError } from "./firebase/errorLog";
+import { isProductionDeployment } from "./runtimeEnv";
 
-const FROM = process.env.EMAIL_FROM || "FeasibilityAI <onboarding@resend.dev>";
+/** Resend's shared test sender. It only delivers to the Resend account owner's own address. */
+const TEST_SENDER = "FeasibilityAI <onboarding@resend.dev>";
+
+const isProduction = isProductionDeployment;
+
+// Log each setup problem once per server instance, not once per email.
+const reportedConfigProblems = new Set<string>();
+async function reportConfigProblem(problem: string) {
+  if (reportedConfigProblems.has(problem)) return;
+  reportedConfigProblems.add(problem);
+  await logError("email.config", new Error(problem));
+}
+
+/**
+ * The sender to use, or null when production email isn't set up properly. In
+ * production, silently falling back to the test sender meant approval, invite
+ * and "report ready" emails looked sent but never reached anyone.
+ */
+export function emailSender(): string | null {
+  if (process.env.EMAIL_FROM) return process.env.EMAIL_FROM;
+  return isProduction() ? null : TEST_SENDER;
+}
 
 async function send(to: string, subject: string, html: string): Promise<void> {
   const apiKey = process.env.RESEND_API_KEY;
-  if (!apiKey) return; // not configured — deferred like SERPAPI_API_KEY/Stripe
+  if (!apiKey) {
+    // Fine in dev/staging; in production it means no user ever gets an email.
+    if (isProduction()) await reportConfigProblem("RESEND_API_KEY is not set: no transactional emails are being sent.");
+    return;
+  }
+  const from = emailSender();
+  if (!from) {
+    await reportConfigProblem(
+      "EMAIL_FROM is not set: production emails would go from Resend's test sender, which only delivers to the Resend account owner. Set EMAIL_FROM to an address on a domain verified in Resend."
+    );
+    return;
+  }
 
   try {
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ from: FROM, to, subject, html }),
+      body: JSON.stringify({ from, to, subject, html }),
     });
     if (!res.ok) {
       // Previously swallowed silently — a bad key, an unverified sending
@@ -75,6 +108,18 @@ export async function sendAnalysisReadyEmail(to: string, name: string, analysisI
       "Your feasibility report is ready.",
       `<p style="color:#4A453D;font-size:14px;line-height:1.6;">Hi ${escapeHtml(name)}, the analysis for "<strong>${escapeHtml(truncate(businessIdea, 80))}</strong>" has finished. View the full breakdown — score, financials, risks, and recommendation.</p>
        <a href="${appUrl()}/app/analysis/${analysisId}" style="display:inline-block;margin-top:16px;background:#6C5CE7;color:#fff;padding:10px 20px;border-radius:10px;text-decoration:none;font-weight:600;font-size:14px;">View report</a>`
+    )
+  );
+}
+
+export async function sendOrgInviteEmail(to: string, name: string, orgName: string, invitedBy: string): Promise<void> {
+  await send(
+    to,
+    `You've been invited to join ${truncate(orgName, 60)} on FeasibilityAI`,
+    layout(
+      "You have an organization invite.",
+      `<p style="color:#4A453D;font-size:14px;line-height:1.6;">Hi ${escapeHtml(name)}, ${escapeHtml(invitedBy || "an organization owner")} invited you to join <strong>${escapeHtml(orgName)}</strong>. If you join, everyone in that organization can see the analyses you run. Nothing is shared unless you accept.</p>
+       <a href="${appUrl()}/app" style="display:inline-block;margin-top:16px;background:#6C5CE7;color:#fff;padding:10px 20px;border-radius:10px;text-decoration:none;font-weight:600;font-size:14px;">Review invite</a>`
     )
   );
 }

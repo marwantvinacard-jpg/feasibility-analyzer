@@ -6,6 +6,8 @@
 
 import { OpenAIProvider, type LlmProvider } from "./provider";
 import { OllamaProvider } from "./ollama";
+import { withConcurrencyLimit } from "./concurrency";
+import { isProductionDeployment } from "../runtimeEnv";
 
 export type ProviderName = "mock" | "openai" | "gemini" | "groq" | "cerebras" | "openrouter" | "omniroute" | "ollama";
 
@@ -17,7 +19,9 @@ interface HostedPreset {
 
 // OpenAI-compatible hosted providers. Keys come from env; models overridable via
 // FEASIBILITY_MODEL. Free tiers (per research): Gemini 2.5 Flash, Groq, Cerebras.
-const HOSTED: Record<Exclude<ProviderName, "mock" | "ollama">, HostedPreset> = {
+export type HostedProviderName = Exclude<ProviderName, "mock" | "ollama">;
+
+export const HOSTED: Record<HostedProviderName, HostedPreset> = {
   openai: { defaultModel: "gpt-4o", keyEnv: "OPENAI_API_KEY" },
   gemini: {
     baseURL: "https://generativelanguage.googleapis.com/v1beta/openai/",
@@ -58,19 +62,11 @@ export function activeProviderName(): ProviderName {
 }
 
 /**
- * True only when mock mode was deliberately requested (FEASIBILITY_PROVIDER=mock
- * or FEASIBILITY_MOCK=true). If mock is active WITHOUT either of these — every
- * provider env var is simply absent — that's an accidental fallback, not a
- * choice, and callers that charge a credit per run should treat it as one.
+ * Thrown when a production server has no real AI provider. Before, a missing
+ * key (or FEASIBILITY_MOCK=true) quietly switched to MOCK — paying customers
+ * got canned sample reports and were charged for them.
  */
-export function isMockExplicit(): boolean {
-  return process.env.FEASIBILITY_PROVIDER?.toLowerCase() === "mock" || process.env.FEASIBILITY_MOCK === "true";
-}
-
-/** Best-effort "is this a real deployment" check — Vercel sets VERCEL_ENV; anything else falls back to NODE_ENV. */
-export function isProductionEnv(): boolean {
-  return (process.env.VERCEL_ENV ?? process.env.NODE_ENV) === "production";
-}
+export class LlmConfigError extends Error {}
 
 export interface LlmFactoryOpts {
   /** Slow the mock provider so the web UI shows believable live progress. */
@@ -83,8 +79,17 @@ export function createLlm(opts: LlmFactoryOpts = {}): LlmProvider {
   const name = opts.provider ?? activeProviderName();
   const model = process.env.FEASIBILITY_MODEL;
 
-  if (name === "mock") return new OpenAIProvider({ mock: true, mockDelayMs: opts.mockDelayMs });
-  if (name === "ollama") return new OllamaProvider({ model });
+  if (name === "mock") {
+    // Code that explicitly asks for mock (tests, the static sample report) is
+    // fine; mock chosen by environment config never is, in production.
+    if (!opts.provider && isProductionDeployment()) {
+      throw new LlmConfigError(
+        "No AI provider is configured on this server (set OPENAI_API_KEY or another provider key, and don't set FEASIBILITY_MOCK / FEASIBILITY_PROVIDER=mock in production)."
+      );
+    }
+    return new OpenAIProvider({ mock: true, mockDelayMs: opts.mockDelayMs });
+  }
+  if (name === "ollama") return withConcurrencyLimit(new OllamaProvider({ model }));
 
   const preset = HOSTED[name as keyof typeof HOSTED];
   if (!preset) {
@@ -94,5 +99,20 @@ export function createLlm(opts: LlmFactoryOpts = {}): LlmProvider {
   if (!apiKey) {
     throw new Error(`Provider "${name}" selected but ${preset.keyEnv} is not set (in .env.local).`);
   }
-  return new OpenAIProvider({ apiKey, baseURL: preset.baseURL, model: model ?? preset.defaultModel });
+  // Real providers share the per-instance call limiter (see concurrency.ts).
+  // mock: false explicitly — otherwise FEASIBILITY_MOCK=true would silently
+  // turn even a real, keyed provider into the mock.
+  return withConcurrencyLimit(
+    new OpenAIProvider({ apiKey, baseURL: preset.baseURL, model: model ?? preset.defaultModel, mock: false })
+  );
+}
+
+/**
+ * A real provider using a customer's own key (bring-your-own-key). Never mock,
+ * and it shares the same per-instance call limiter as platform calls.
+ */
+export function createLlmForKey(provider: HostedProviderName, apiKey: string): LlmProvider {
+  const preset = HOSTED[provider];
+  if (!preset) throw new Error(`Unknown provider "${provider}".`);
+  return withConcurrencyLimit(new OpenAIProvider({ apiKey, baseURL: preset.baseURL, model: preset.defaultModel, mock: false }));
 }

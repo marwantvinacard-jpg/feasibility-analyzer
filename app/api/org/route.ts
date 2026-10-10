@@ -6,7 +6,7 @@ import { NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebase/admin";
 import { requireUser, HttpError } from "@/lib/firebase/verify";
 import { logAudit } from "@/lib/firebase/audit";
-import type { Organization, OrgMember } from "@/lib/orgTypes";
+import type { Organization, OrgInvite, OrgMember } from "@/lib/orgTypes";
 
 export const runtime = "nodejs";
 
@@ -16,15 +16,24 @@ export async function GET(req: Request) {
     const db = adminDb();
     const userSnap = await db.collection("users").doc(caller.uid).get();
     const orgId = userSnap.data()?.orgId as string | undefined;
-    if (!orgId) return NextResponse.json({ org: null, members: [] });
+    if (!orgId) return NextResponse.json({ org: null, members: [], invites: [] });
 
     const orgSnap = await db.collection("organizations").doc(orgId).get();
-    if (!orgSnap.exists) return NextResponse.json({ org: null, members: [] });
+    if (!orgSnap.exists) return NextResponse.json({ org: null, members: [], invites: [] });
 
     const membersSnap = await db.collection("organizations").doc(orgId).collection("members").get();
     const members = membersSnap.docs.map((d) => d.data() as OrgMember);
 
-    return NextResponse.json({ org: orgSnap.data() as Organization, members });
+    // The owner also sees invites still waiting for an answer.
+    const org = orgSnap.data() as Organization;
+    const invites =
+      org.ownerUid === caller.uid
+        ? (await db.collection("orgInvites").where("orgId", "==", orgId).get()).docs
+            .map((d) => d.data() as OrgInvite)
+            .sort((a, b) => b.createdAt - a.createdAt)
+        : [];
+
+    return NextResponse.json({ org, members, invites });
   } catch (err) {
     if (err instanceof HttpError) return NextResponse.json({ error: err.message }, { status: err.status });
     return NextResponse.json({ error: "Server error" }, { status: 500 });

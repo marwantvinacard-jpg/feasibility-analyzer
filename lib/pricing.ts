@@ -49,6 +49,16 @@ export interface OrgPlan {
   highlight?: boolean;
 }
 
+/**
+ * Credits an org gets during its 14-day free trial, as a share of the plan's
+ * monthly credits. The trial used to hand over the FULL month on day one, before
+ * any payment — take 500 credits, cancel, keep them. The full monthly amount now
+ * arrives with the first real payment when the trial ends.
+ */
+export const ORG_TRIAL_CREDIT_SHARE = 0.1;
+export const orgTrialCredits = (plan: Pick<OrgPlan, "creditsPerMonth">) =>
+  Math.max(1, Math.round(plan.creditsPerMonth * ORG_TRIAL_CREDIT_SHARE));
+
 export const ORG_PLANS: OrgPlan[] = [
   { key: "starter", name: "Starter", monthlyUsd: 199, creditsPerMonth: 50, seats: 3, apiAccess: true },
   { key: "growth", name: "Growth", monthlyUsd: 499, creditsPerMonth: 150, seats: 10, apiAccess: true, highlight: true },

@@ -1,8 +1,8 @@
 // Firebase Admin SDK (server-only). Powers privileged operations the client is
 // forbidden from doing by the security rules: creating analyses, granting
 // credits, approving accounts, writing the audit log. Credentials load from
-// FIREBASE_SERVICE_ACCOUNT_JSON (prod) or the gitignored serviceAccountKey.json
-// (local dev). Server-only — never import from a client component.
+// FIREBASE_SERVICE_ACCOUNT_JSON, the gitignored serviceAccountKey.json (local
+// dev), or — on Firebase App Hosting — the runtime's built-in credentials. Server-only — never import from a client component.
 
 import { getApps, initializeApp, cert, type App } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
@@ -22,6 +22,9 @@ function loadServiceAccount(): Record<string, unknown> | null {
 
 let app: App | null = null;
 
+/** Firebase App Hosting sets FIREBASE_CONFIG; any Cloud Run service sets K_SERVICE. */
+const runningOnGoogleCloud = () => !!(process.env.FIREBASE_CONFIG || process.env.K_SERVICE);
+
 export function adminApp(): App {
   if (app) return app;
   if (getApps().length) {
@@ -29,13 +32,21 @@ export function adminApp(): App {
     return app;
   }
   const sa = loadServiceAccount();
-  if (!sa) {
-    throw new Error(
-      "Firebase Admin credentials missing. Set FIREBASE_SERVICE_ACCOUNT_JSON or place serviceAccountKey.json in the project root."
-    );
+  if (sa) {
+    app = initializeApp({ credential: cert(sa as any) });
+    return app;
   }
-  app = initializeApp({ credential: cert(sa as any) });
-  return app;
+  // On Google Cloud (Firebase App Hosting / Cloud Run) the runtime's own
+  // service account is available automatically (Application Default
+  // Credentials) — no key file to upload, rotate or leak. The emulators need
+  // no credentials either.
+  if (runningOnGoogleCloud() || process.env.FIRESTORE_EMULATOR_HOST) {
+    app = initializeApp();
+    return app;
+  }
+  throw new Error(
+    "Firebase Admin credentials missing. Set FIREBASE_SERVICE_ACCOUNT_JSON or place serviceAccountKey.json in the project root (not needed on Firebase App Hosting)."
+  );
 }
 
 export const adminAuth = () => getAuth(adminApp());

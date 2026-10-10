@@ -1,127 +1,92 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Badge, Button } from "@/components/kit";
 import { Icon } from "@/components/icons";
 import { useSession } from "@/lib/session";
 import { cn } from "@/lib/ui";
 import { useT } from "@/lib/i18n/LanguageContext";
 import { useToast } from "@/lib/toast";
+import { deleteMyAccount, downloadMyData, openBillingPortal, removeByokKey, saveByokKey } from "@/lib/analyses";
+import { BYOK_PROVIDER_LABELS, type ByokProvider } from "@/lib/byokProviders";
 
 export default function SettingsPage() {
-  const { user, setKeyMode, setTrainingOptOut, getIdToken, logout } = useSession();
+  const { user, setKeyMode, setTrainingOptOut, logout } = useSession();
   const [trainingSaving, setTrainingSaving] = useState(false);
   const t = useT();
   const toast = useToast();
   const [key, setKey] = useState("");
-  const [keyPreview, setKeyPreview] = useState<string | null>(null);
-  const [keySaving, setKeySaving] = useState(false);
-  const [keyLoaded, setKeyLoaded] = useState(false);
+  const [provider, setProvider] = useState<ByokProvider>("openai");
+  const [keyBusy, setKeyBusy] = useState(false);
+  const [keyError, setKeyError] = useState("");
+  const [dataBusy, setDataBusy] = useState(false);
+  const [deleteText, setDeleteText] = useState("");
+  const [dataError, setDataError] = useState("");
   const [portalLoading, setPortalLoading] = useState(false);
-  const [exporting, setExporting] = useState(false);
-  const [deleting, setDeleting] = useState(false);
 
-  async function exportMyData() {
-    setExporting(true);
-    try {
-      const token = await getIdToken();
-      const res = await fetch("/api/account?export=1", { headers: { Authorization: `Bearer ${token}` } });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Export failed.");
-      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "feasibilityai-data-export.json";
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch (e) {
-      toast.show(e instanceof Error ? e.message : "Export failed.", "error");
-    } finally {
-      setExporting(false);
-    }
-  }
-
-  async function deleteMyAccount() {
-    if (!window.confirm("Permanently delete your account and every analysis you own? This cannot be undone.")) return;
-    if (!window.confirm("Really sure? Type-to-confirm isn't required, but there is no undo after this.")) return;
-    setDeleting(true);
-    try {
-      const token = await getIdToken();
-      const res = await fetch("/api/account", { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error ?? "Could not delete your account.");
-      await logout();
-      window.location.href = "/";
-    } catch (e) {
-      toast.show(e instanceof Error ? e.message : "Could not delete your account.", "error");
-      setDeleting(false);
-    }
-  }
-
-  async function openBillingPortal() {
+  // Stripe's own Customer Portal: cancel, change card, invoices.
+  async function manageBilling() {
     setPortalLoading(true);
     try {
-      const token = await getIdToken();
-      const res = await fetch("/api/stripe/portal", { method: "POST", headers: { Authorization: `Bearer ${token}` } });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error ?? "Could not open the billing portal.");
-      window.location.href = data.url;
+      await openBillingPortal();
     } catch (e) {
-      toast.show(e instanceof Error ? e.message : "Could not open the billing portal.", "error");
+      toast.show(e instanceof Error ? e.message : t("settings.billingFailed"), "error");
       setPortalLoading(false);
     }
   }
 
-  useEffect(() => {
-    if (!user || user.keyMode !== "byok" || keyLoaded) return;
-    (async () => {
-      try {
-        const token = await getIdToken();
-        const res = await fetch("/api/settings/byok-key", { headers: { Authorization: `Bearer ${token}` } });
-        const data = await res.json().catch(() => ({}));
-        if (res.ok) setKeyPreview(data.preview ?? null);
-      } finally {
-        setKeyLoaded(true);
-      }
-    })();
-  }, [user, keyLoaded, getIdToken]);
-
-  async function saveKey() {
-    if (key.trim().length < 8) return;
-    setKeySaving(true);
+  async function exportData() {
+    setDataBusy(true);
+    setDataError("");
     try {
-      const token = await getIdToken();
-      const res = await fetch("/api/settings/byok-key", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ key: key.trim() }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error ?? "Could not save the key.");
-      setKeyPreview(data.preview ?? null);
+      await downloadMyData();
+    } catch (e) {
+      setDataError(e instanceof Error ? e.message : t("settings.dataFailed"));
+    } finally {
+      setDataBusy(false);
+    }
+  }
+
+  async function deleteAccount() {
+    if (!window.confirm(t("settings.deleteConfirm"))) return;
+    setDataBusy(true);
+    setDataError("");
+    try {
+      await deleteMyAccount(deleteText.trim());
+      await logout().catch(() => {});
+      window.location.assign("/");
+    } catch (e) {
+      setDataError(e instanceof Error ? e.message : t("settings.dataFailed"));
+      setDataBusy(false);
+    }
+  }
+
+  // The key is sent once, checked with the provider and encrypted on the
+  // server; the browser only ever gets back the provider and last 4 characters.
+  async function saveKey() {
+    setKeyBusy(true);
+    setKeyError("");
+    try {
+      await saveByokKey(provider, key.trim());
       setKey("");
       toast.show(t("settings.keySaved"), "success");
     } catch (e) {
-      toast.show(e instanceof Error ? e.message : t("settings.keySaveFailed"), "error");
+      setKeyError(e instanceof Error ? e.message : t("settings.byokSaveFailed"));
     } finally {
-      setKeySaving(false);
+      setKeyBusy(false);
     }
   }
 
   async function removeKey() {
-    if (!window.confirm(t("settings.confirmRemoveKey"))) return;
-    setKeySaving(true);
+    setKeyBusy(true);
+    setKeyError("");
     try {
-      const token = await getIdToken();
-      const res = await fetch("/api/settings/byok-key", { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
-      if (!res.ok) throw new Error("Could not remove the key.");
-      setKeyPreview(null);
-      toast.show(t("settings.keyRemoved"), "success");
+      await removeByokKey();
+      toast.show(t("settings.byokRemoved"), "success");
     } catch (e) {
-      toast.show(e instanceof Error ? e.message : t("settings.keySaveFailed"), "error");
+      setKeyError(e instanceof Error ? e.message : t("settings.byokSaveFailed"));
     } finally {
-      setKeySaving(false);
+      setKeyBusy(false);
     }
   }
 
@@ -154,7 +119,7 @@ export default function SettingsPage() {
               <div className="text-sm font-medium capitalize">{user.subscriptionStatus}</div>
               <p className="mt-0.5 text-xs text-muted">{t("settings.billingHint")}</p>
             </div>
-            <Button variant="ghost" onClick={openBillingPortal} disabled={portalLoading}>
+            <Button variant="ghost" onClick={manageBilling} disabled={portalLoading}>
               {portalLoading ? t("common.loading") : t("settings.manageBilling")}
             </Button>
           </div>
@@ -181,33 +146,48 @@ export default function SettingsPage() {
         </div>
 
         {user.keyMode === "byok" && (
-          <div className="mt-4 rounded-xl border border-border bg-surface-2 p-4">
-            <label htmlFor="byok-key" className="mb-1.5 block text-sm font-medium">{t("settings.yourApiKey")}</label>
-            {keyPreview ? (
-              <div className="flex items-center justify-between gap-2 rounded-lg border border-border bg-paper px-3 py-2">
-                <span className="inline-flex items-center gap-1.5 font-mono text-sm">
-                  <Icon name="check" size={14} strokeWidth={2.5} className="text-go" /> {keyPreview}
+          <div className="mt-4 space-y-3 rounded-xl border border-border bg-surface-2 p-4">
+            {user.byokLast4 ? (
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="inline-flex items-center gap-1.5 text-sm text-go">
+                  <Icon name="check" size={14} strokeWidth={2.5} />
+                  {t("settings.byokSavedAs", {
+                    provider: BYOK_PROVIDER_LABELS[user.byokProvider as ByokProvider] ?? user.byokProvider ?? "",
+                    last4: user.byokLast4,
+                  })}
                 </span>
-                <Button variant="ghost" onClick={removeKey} disabled={keySaving}>
-                  {t("common.remove")}
+                <Button variant="ghost" className="text-sm" onClick={removeKey} disabled={keyBusy}>
+                  {t("settings.byokRemove")}
                 </Button>
               </div>
             ) : (
-              <div className="flex gap-2">
-                <input
-                  id="byok-key"
-                  className="input font-mono"
-                  type="password"
-                  placeholder={t("settings.keyPlaceholder")}
-                  value={key}
-                  onChange={(e) => setKey(e.target.value)}
-                />
-                <Button variant="ghost" onClick={saveKey} disabled={keySaving || key.trim().length < 8}>
-                  {keySaving ? t("common.saving") : t("common.save")}
-                </Button>
-              </div>
+              <p className="text-sm text-warn">{t("settings.byokNeedsKey")}</p>
             )}
-            <p className="mt-2 text-xs text-faint">{t("settings.keyStoredHint")}</p>
+            <div className="grid gap-2 sm:grid-cols-[10rem_1fr_auto]">
+              <select
+                className="input"
+                aria-label={t("settings.byokProvider")}
+                value={provider}
+                onChange={(e) => setProvider(e.target.value as ByokProvider)}
+              >
+                {(Object.keys(BYOK_PROVIDER_LABELS) as ByokProvider[]).map((p) => (
+                  <option key={p} value={p}>{BYOK_PROVIDER_LABELS[p]}</option>
+                ))}
+              </select>
+              <input
+                className="input font-mono"
+                type="password"
+                autoComplete="off"
+                aria-label={t("settings.yourApiKey")}
+                placeholder={t("settings.keyPlaceholder")}
+                value={key}
+                onChange={(e) => { setKey(e.target.value); setKeyError(""); }}
+              />
+              <Button variant="ghost" onClick={saveKey} disabled={keyBusy || key.trim().length < 20}>
+                {keyBusy ? t("settings.byokChecking") : user.byokLast4 ? t("settings.byokReplace") : t("common.save")}
+              </Button>
+            </div>
+            <p className={cn("text-xs", keyError ? "text-stop" : "text-faint")}>{keyError || t("settings.keyStoredHint")}</p>
           </div>
         )}
       </section>
@@ -254,32 +234,32 @@ export default function SettingsPage() {
         </div>
       </section>
 
-      {/* Your data */}
-      <section className="card border-stop/25 p-5">
-        <h2 className="label text-stop">{t("settings.dangerZone")}</h2>
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <div className="text-sm font-medium">{t("settings.exportTitle")}</div>
-            <p className="mt-0.5 text-xs text-muted">{t("settings.exportHint")}</p>
-          </div>
-          <Button variant="ghost" onClick={exportMyData} disabled={exporting}>
-            {exporting ? t("common.loading") : t("settings.exportButton")}
+      {/* Your data: access + erasure (Privacy Policy → Your rights) */}
+      <section className="card p-5">
+        <h2 className="label">{t("settings.yourData")}</h2>
+        <p className="mt-1 text-sm text-muted">{t("settings.yourDataHint")}</p>
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <Button variant="ghost" onClick={exportData} disabled={dataBusy}>
+            <Icon name="doc" size={15} /> {t("settings.downloadData")}
           </Button>
         </div>
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
-          <div>
-            <div className="text-sm font-medium text-stop">{t("settings.deleteTitle")}</div>
-            <p className="mt-0.5 text-xs text-muted">{t("settings.deleteHint")}</p>
+        <div className="mt-5 rounded-xl border border-stop/30 bg-stop/5 p-4">
+          <div className="text-sm font-semibold text-stop">{t("settings.deleteAccount")}</div>
+          <p className="mt-1 text-xs text-muted">{t("settings.deleteAccountHint")}</p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <input
+              className="input max-w-[12rem]"
+              placeholder="DELETE"
+              aria-label={t("settings.deleteTypeLabel")}
+              value={deleteText}
+              onChange={(e) => setDeleteText(e.target.value)}
+            />
+            <Button onClick={deleteAccount} disabled={dataBusy || deleteText.trim() !== "DELETE"} className="bg-stop">
+              {t("settings.deleteAccount")}
+            </Button>
           </div>
-          <Button
-            variant="ghost"
-            className="border-stop/40 text-stop hover:bg-stop/10"
-            onClick={deleteMyAccount}
-            disabled={deleting}
-          >
-            {deleting ? t("common.loading") : t("settings.deleteButton")}
-          </Button>
         </div>
+        {dataError && <p className="mt-3 text-sm text-stop">{dataError}</p>}
       </section>
 
       <p className="text-center text-xs text-faint">{t("settings.footerNote")}</p>

@@ -7,6 +7,8 @@ import { useSession } from "@/lib/session";
 import { fetchMyOrg, createOrg, updateOrgBranding, fetchOrgLlmKey, saveOrgLlmKey, clearOrgLlmKey } from "@/lib/org";
 import type { Organization } from "@/lib/orgTypes";
 import { OrgPlans, PLAN_LABEL } from "@/components/OrgPlans";
+import { PendingInvites } from "@/components/PendingInvites";
+import { BYOK_PROVIDER_LABELS, type ByokProvider } from "@/lib/byokProviders";
 
 export default function OrgPage() {
   const { user } = useSession();
@@ -27,6 +29,7 @@ export default function OrgPage() {
   const [llmKeyPreview, setLlmKeyPreview] = useState<string | null>(null);
   const [llmKeyLoaded, setLlmKeyLoaded] = useState(false);
   const [llmKeyInput, setLlmKeyInput] = useState("");
+  const [llmKeyProvider, setLlmKeyProvider] = useState<ByokProvider>("openai");
   const [llmKeySaving, setLlmKeySaving] = useState(false);
   const [llmKeyError, setLlmKeyError] = useState("");
 
@@ -74,7 +77,7 @@ export default function OrgPage() {
     setLlmKeySaving(true);
     setLlmKeyError("");
     try {
-      await saveOrgLlmKey(llmKeyInput.trim());
+      await saveOrgLlmKey(llmKeyInput.trim(), llmKeyProvider);
       setLlmKeyInput("");
       await loadLlmKey();
     } catch (e) {
@@ -140,6 +143,8 @@ export default function OrgPage() {
       </div>
 
       {error && <p className="text-sm text-stop">{error}</p>}
+
+      {!org && <PendingInvites onJoined={load} />}
 
       {!org ? (
         <div className="card space-y-4 p-6">
@@ -209,12 +214,22 @@ export default function OrgPage() {
               ) : (
                 <div>
                   <label htmlFor="org-llm-key" className="mb-1.5 block text-sm font-medium">API key</label>
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2 sm:flex-nowrap">
+                    <select
+                      className="input sm:w-44"
+                      aria-label="AI provider"
+                      value={llmKeyProvider}
+                      onChange={(e) => setLlmKeyProvider(e.target.value as ByokProvider)}
+                    >
+                      {(Object.keys(BYOK_PROVIDER_LABELS) as ByokProvider[]).map((p) => (
+                        <option key={p} value={p}>{BYOK_PROVIDER_LABELS[p]}</option>
+                      ))}
+                    </select>
                     <input
                       id="org-llm-key"
                       className="input flex-1"
                       type="password"
-                      placeholder="sk-…"
+                      placeholder="Paste the API key"
                       value={llmKeyInput}
                       onChange={(e) => setLlmKeyInput(e.target.value)}
                       autoComplete="off"
@@ -223,7 +238,7 @@ export default function OrgPage() {
                       {llmKeySaving ? "Saving…" : "Save"}
                     </Button>
                   </div>
-                  <p className="mt-1.5 text-xs text-faint">Stored encrypted server-side. Never shown again after saving.</p>
+                  <p className="mt-1.5 text-xs text-faint">Checked with the provider, then stored encrypted server-side. Only the last 4 characters are ever shown.</p>
                 </div>
               )}
             </div>

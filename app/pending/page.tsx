@@ -1,21 +1,29 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AuthShell } from "@/components/AuthShell";
 import { Button } from "@/components/kit";
 import { Icon } from "@/components/icons";
 import { useSession } from "@/lib/session";
+import { friendlyAuthError } from "@/lib/authErrors";
 import { useT } from "@/lib/i18n/LanguageContext";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 
+// A pending account lands here. With automatic approval (the default) it only
+// needs a verified email: Google sign-ins go straight through, email/password
+// signups verify via the link we emailed them. With SIGNUP_APPROVAL=manual the
+// page falls back to "an admin will review your account".
+type Mode = "checking" | "verify" | "manual";
+
 export default function PendingPage() {
-  const { user, ready, logout, getIdToken, checkEmailVerified, resendVerificationEmail } = useSession();
+  const { user, ready, logout, activateAccount, resendVerification } = useSession();
   const t = useT();
   const router = useRouter();
-  const [checking, setChecking] = useState(false);
-  const [checkError, setCheckError] = useState("");
-  const [resent, setResent] = useState(false);
+  const [mode, setMode] = useState<Mode>("checking");
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  const triedFor = useRef<string | null>(null);
 
   useEffect(() => {
     if (!ready) return;
@@ -23,40 +31,74 @@ export default function PendingPage() {
     else if (user.status === "approved") router.replace("/app");
   }, [ready, user, router]);
 
-  // A signup that's already email-verified (every Google sign-in, or an
-  // email/password one that clicked the link before landing here) gets
-  // approved automatically on arrival — no need to even see the button.
+  // Try to activate once as soon as we know who this is. On success the
+  // session's live user doc flips to "approved" and the effect above redirects.
   useEffect(() => {
-    if (ready && user?.status === "pending" && user.emailVerified) checkNow();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, user?.status, user?.emailVerified]);
+    if (!user || user.status !== "pending" || triedFor.current === user.uid) return;
+    triedFor.current = user.uid;
+    activateAccount()
+      .then((r) => setMode(r === "needs-verification" ? "verify" : r === "manual" ? "manual" : "checking"))
+      .catch(() => setMode("manual"));
+  }, [user, activateAccount]);
 
-  async function checkNow() {
-    setChecking(true);
-    setCheckError("");
+  async function checkAgain() {
+    setBusy(true);
+    setNote("");
     try {
-      const verified = await checkEmailVerified();
-      if (verified) {
-        const token = await getIdToken();
-        const res = await fetch("/api/account/auto-approve", { method: "POST", headers: { Authorization: `Bearer ${token}` } });
-        if (!res.ok) {
-          const data = await res.json().catch(() => ({}));
-          throw new Error(data.error ?? "Could not approve your account yet.");
-        }
-        // The account doc's onSnapshot listener picks up the status change
-        // and the redirect effect above fires — no need to navigate here.
-      } else {
-        setCheckError(t("auth.notVerifiedYet"));
-      }
+      const r = await activateAccount();
+      if (r === "needs-verification") setNote(t("auth.verifyNotYet"));
+      else if (r === "manual") setMode("manual");
     } catch (e) {
-      setCheckError(e instanceof Error ? e.message : "Something went wrong — try again.");
+      setNote(friendlyAuthError(e));
     } finally {
-      setChecking(false);
+      setBusy(false);
+    }
+  }
+
+  async function resend() {
+    setBusy(true);
+    setNote("");
+    try {
+      await resendVerification();
+      setNote(t("auth.verifyResent"));
+    } catch (e) {
+      setNote(friendlyAuthError(e));
+    } finally {
+      setBusy(false);
     }
   }
 
   if (!ready || !user || user.status === "approved") return null;
   const rejected = user.status === "rejected";
+
+  if (!rejected && mode === "checking") {
+    return (
+      <AuthShell title={t("auth.almostTitle")} subtitle="" topRight={<LanguageSwitcher />}>
+        <p className="py-6 text-center text-sm text-muted">{t("common.loading")}</p>
+      </AuthShell>
+    );
+  }
+
+  if (!rejected && mode === "verify") {
+    return (
+      <AuthShell title={t("auth.verifyTitle")} subtitle={t("auth.verifyBody", { name: user.name })} topRight={<LanguageSwitcher />}>
+        <div className="flex flex-col items-center py-4 text-center">
+          <span className="grid h-14 w-14 place-items-center rounded-2xl bg-brand/10 text-brand">
+            <Icon name="check" size={26} />
+          </span>
+          <p className="mt-4 text-sm text-muted">{t("auth.verifyNote", { email: user.email })}</p>
+          <Button className="mt-5 w-full" onClick={checkAgain} disabled={busy}>
+            {busy ? t("auth.verifyChecking") : t("auth.verifyContinue")}
+          </Button>
+          <button onClick={resend} disabled={busy} className="mt-3 text-sm text-brand hover:underline">
+            {t("auth.verifyResend")}
+          </button>
+          {note && <p className="mt-3 text-sm text-muted">{note}</p>}
+          <button onClick={() => logout()} className="mt-6 text-sm text-faint hover:text-ink">{t("auth.signOut")}</button>
+        </div>
+      </AuthShell>
+    );
+  }
 
   return (
     <AuthShell
@@ -71,28 +113,6 @@ export default function PendingPage() {
         <p className="mt-4 text-sm text-muted">
           {rejected ? t("auth.rejectedNote") : t("auth.pendingNote", { email: user.email })}
         </p>
-
-        {!rejected && (
-          <>
-            <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
-              <Button onClick={checkNow} disabled={checking}>
-                {checking ? t("auth.checking") : t("auth.iVerified")}
-              </Button>
-              <Button
-                variant="ghost"
-                disabled={resent}
-                onClick={async () => {
-                  await resendVerificationEmail().catch(() => {});
-                  setResent(true);
-                }}
-              >
-                {resent ? t("auth.emailResent") : t("auth.resendEmail")}
-              </Button>
-            </div>
-            {checkError && <p className="mt-3 text-sm text-stop">{checkError}</p>}
-          </>
-        )}
-
         <button onClick={() => logout()} className="mt-6 text-sm text-faint hover:text-ink">{t("auth.signOut")}</button>
       </div>
     </AuthShell>

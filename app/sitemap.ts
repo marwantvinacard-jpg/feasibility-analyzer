@@ -4,7 +4,7 @@ const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://feasibility-analyzer
 
 // Only the public, unauthenticated pages — everything under /app is
 // per-account and behind auth, so it has no business in a public sitemap.
-const PUBLIC_ROUTES = ["", "/login", "/signup", "/methodology", "/sample-report"];
+const PUBLIC_ROUTES = ["", "/login", "/signup", "/methodology", "/sample-report", "/terms", "/privacy", "/dpa"];
 
 export default function sitemap(): MetadataRoute.Sitemap {
   return PUBLIC_ROUTES.map((path) => ({

@@ -24,6 +24,8 @@ export interface AnalysisDoc {
   error?: string;
   /** true when a credit was charged (so failures can refund exactly once). */
   charged?: boolean;
+  /** Who paid: "byok" = the customer's own AI key, "org" = their organization's shared key (no credit charged either way). */
+  keyMode?: "platform" | "byok" | "org";
 
   /** Analyst sign-off — the difference between an AI opinion and a fundable study. */
   reviewStatus?: ReviewStatus;
@@ -40,3 +42,49 @@ export interface ScenarioDoc {
   createdAt: number;
   createdBy: string; // email
 }
+
+/**
+ * The slice of an analysis the dashboard and Benchmarks actually use. A full
+ * analysis doc carries the whole report, the 15-section study, 60-month
+ * projections and uploaded document text (often 100 KB+); listing screens
+ * fetch only these fields, via GET /api/analyses (Firestore field selection).
+ */
+export interface AnalysisSummary {
+  id: string;
+  uid: string;
+  orgId?: string;
+  source?: "api";
+  createdAt: number;
+  status: AnalysisStatus;
+  error?: string;
+  reviewStatus?: ReviewStatus;
+  exportUnlocked?: boolean;
+  input: Pick<BusinessInput, "business_idea" | "location" | "client_name" | "business_type" | "currency">;
+  result?: {
+    overall: FullResult["overall"];
+    categoryScores: FullResult["categoryScores"];
+    study?: { projections: { funding: { total: number }; capexTotal: number } };
+  };
+}
+
+/** Firestore field paths that make up an AnalysisSummary (keep in sync with the type above). */
+export const ANALYSIS_SUMMARY_FIELDS = [
+  "id",
+  "uid",
+  "orgId",
+  "source",
+  "createdAt",
+  "status",
+  "error",
+  "reviewStatus",
+  "exportUnlocked",
+  "input.business_idea",
+  "input.location",
+  "input.client_name",
+  "input.business_type",
+  "input.currency",
+  "result.overall",
+  "result.categoryScores",
+  "result.study.projections.funding.total",
+  "result.study.projections.capexTotal",
+] as const;

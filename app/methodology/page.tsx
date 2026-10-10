@@ -152,7 +152,7 @@ export default function MethodologyPage() {
             The arithmetic is exact given the inputs; the inputs themselves — market size, pricing, cost structure —
             are estimates, whether you supplied them or the AI specialists inferred them from public information.
             You remain responsible for independently verifying anything decision-critical. See the full
-            <Link href="/app/legal" className="text-brand underline"> methodology &amp; liability disclaimer</Link> for details.
+            <Link href="/terms" className="text-brand underline"> methodology &amp; liability disclaimer</Link> for details.
           </p>
         </section>
 

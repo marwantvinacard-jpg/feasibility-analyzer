@@ -6,12 +6,12 @@
 // never disagrees with the numbers already computed by the engine.
 
 import { DIMENSION_META, cn, scoreTone, toneStroke, verdictTone, money, type Tone } from "@/lib/ui";
-import type { AnalysisDoc } from "@/lib/analysisTypes";
+import type { AnalysisSummary } from "@/lib/analysisTypes";
 import type { CategoryScores } from "@/lib/engine/types";
 import { Icon } from "@/components/icons";
 import { useT } from "@/lib/i18n/LanguageContext";
 
-export function DashboardInsights({ items }: { items: AnalysisDoc[] }) {
+export function DashboardInsights({ items }: { items: AnalysisSummary[] }) {
   const t = useT();
   const completed = items.filter((a) => a.status === "complete" && a.result);
   if (completed.length === 0) return null;
@@ -68,7 +68,7 @@ export function DashboardInsights({ items }: { items: AnalysisDoc[] }) {
   );
 }
 
-function ScoreTrend({ items }: { items: AnalysisDoc[] }) {
+function ScoreTrend({ items }: { items: AnalysisSummary[] }) {
   const w = 100 / Math.max(items.length, 1);
   return (
     <div className="mt-4 flex h-28 items-end gap-1.5 sm:gap-2">

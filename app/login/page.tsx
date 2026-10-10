@@ -7,39 +7,17 @@ import { AuthShell } from "@/components/AuthShell";
 import { Button } from "@/components/kit";
 import { useSession } from "@/lib/session";
 import { friendlyAuthError } from "@/lib/authErrors";
-import { resolveIdentifierToEmail } from "@/lib/firebase/usernames";
 import { useT } from "@/lib/i18n/LanguageContext";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 
 export default function LoginPage() {
-  const { signInEmail, signInGoogle, sendPasswordReset } = useSession();
+  const { signInEmail, signInGoogle } = useSession();
   const t = useT();
   const router = useRouter();
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const [resetStatus, setResetStatus] = useState("");
-
-  async function forgotPassword() {
-    setError("");
-    setResetStatus("");
-    if (!identifier.trim()) {
-      setError("Enter your email or username above first.");
-      return;
-    }
-    setBusy(true);
-    try {
-      const email = await resolveIdentifierToEmail(identifier.trim());
-      await sendPasswordReset(email);
-      setResetStatus(`If an account exists for ${identifier.trim()}, a reset link was just sent.`);
-    } catch {
-      // Same message on failure as success — don't reveal whether the identifier exists.
-      setResetStatus(`If an account exists for ${identifier.trim()}, a reset link was just sent.`);
-    } finally {
-      setBusy(false);
-    }
-  }
 
   async function run(fn: () => Promise<void>) {
     setError("");
@@ -73,13 +51,10 @@ export default function LoginPage() {
         <div>
           <div className="mb-1.5 flex items-center justify-between">
             <label htmlFor="login-password" className="block text-sm font-medium">{t("auth.passwordLabel")}</label>
-            <button type="button" onClick={forgotPassword} disabled={busy} className="text-xs font-medium text-brand hover:underline">
-              Forgot password?
-            </button>
+            <Link href="/forgot-password" className="text-xs text-brand hover:underline">{t("auth.forgotLink")}</Link>
           </div>
           <input id="login-password" className="input" type="password" placeholder={t("auth.passwordPlaceholder")} value={password} onChange={(e) => setPassword(e.target.value)} required />
         </div>
-        {resetStatus && <p className="text-sm text-go">{resetStatus}</p>}
         {error && <p className="text-sm text-stop">{error}</p>}
         <Button type="submit" className="w-full" disabled={busy}>{busy ? t("auth.loggingIn") : t("auth.logIn")}</Button>
       </form>
@@ -88,6 +63,11 @@ export default function LoginPage() {
         <span className="h-px flex-1 bg-border" /> {t("auth.orContinueWith")} <span className="h-px flex-1 bg-border" />
       </div>
       <Button variant="ghost" className="w-full" onClick={() => run(signInGoogle)} disabled={busy}>{t("auth.continueWithGoogle")}</Button>
+      <p className="mt-3 text-center text-xs text-faint">
+        {t("auth.continuingAgrees")}{" "}
+        <Link href="/terms" className="underline">{t("auth.terms")}</Link> {t("auth.and")}{" "}
+        <Link href="/privacy" className="underline">{t("auth.privacy")}</Link>.
+      </p>
     </AuthShell>
   );
 }

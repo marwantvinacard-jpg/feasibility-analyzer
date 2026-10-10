@@ -2,7 +2,7 @@
 // into immediately with a USERNAME, not an email — "admin" / a password you
 // choose. This is meant to get you in the door on a fresh Firebase project.
 //
-//   npx tsx scripts/bootstrap-admin.ts admin ChangeMeImmediately123
+//   npx tsx scripts/bootstrap-admin.ts admin '<a strong password, 12+ chars>'
 //
 // ⚠ SECURITY: this account can approve users, grant credits, and read every
 // analysis. The moment you're in, either change its password (Firebase
@@ -17,12 +17,9 @@ const INTERNAL_EMAIL = "admin@feasibility.local"; // placeholder domain — neve
 async function main() {
   const username = (process.argv[2] || "admin").toLowerCase();
   const password = process.argv[3];
-  if (!password || password.length < 4) {
-    throw new Error("Usage: npx tsx scripts/bootstrap-admin.ts <username> <password>  (password >= 4 chars)");
-  }
-  if (password === "admin" || password === "password" || password === "1234") {
-    console.warn(`⚠  "${password}" is a trivially guessable password. This is fine to test with LOCALLY,`);
-    console.warn("   but change it before anyone else can reach this deployment.");
+  // This account can approve users, grant credits and read every analysis.
+  if (!password || password.length < 12) {
+    throw new Error("Usage: npx tsx scripts/bootstrap-admin.ts <username> <password>  (password >= 12 chars)");
   }
 
   const auth = adminAuth();
@@ -54,7 +51,7 @@ async function main() {
     },
     { merge: true }
   );
-  await db.collection("usernames").doc(username).set({ uid, email: INTERNAL_EMAIL });
+  await db.collection("usernames").doc(username).set({ uid }); // uid only — emails are never stored here
 
   console.log(`\n✓ Log in at /login with:`);
   console.log(`    Email or username: ${username}`);

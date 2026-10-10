@@ -9,6 +9,19 @@
 import OpenAI from "openai";
 import type { z } from "zod";
 import { jsonSchemaFor } from "./schemas";
+import { UNTRUSTED_DATA_RULE } from "./untrusted";
+
+const envInt = (name: string, fallback: number) => {
+  const n = Number(process.env[name]);
+  return Number.isFinite(n) && n >= 0 ? Math.floor(n) : fallback;
+};
+
+/** Sampling temperature for every structured call (FEASIBILITY_TEMPERATURE, default 0.2). */
+export const LLM_TEMPERATURE = (() => {
+  const n = Number(process.env.FEASIBILITY_TEMPERATURE);
+  return Number.isFinite(n) && n >= 0 && n <= 2 ? n : 0.2;
+})();
+const LLM_SEED = 20260926;
 
 export interface StructuredCall<T> {
   /** System prompt (the specialist persona + rubric). */
@@ -50,6 +63,8 @@ export class OpenAIProvider implements LlmProvider {
   readonly model: string;
   private client: OpenAI | null;
   private mockDelayMs: number;
+  /** OpenAI itself (no custom baseURL) — the only provider we send `seed` to. */
+  private isOpenAI: boolean;
 
   constructor(
     opts: { apiKey?: string; model?: string; mock?: boolean; baseURL?: string; mockDelayMs?: number } = {}
@@ -59,17 +74,22 @@ export class OpenAIProvider implements LlmProvider {
     this.mockDelayMs = opts.mockDelayMs ?? Number(process.env.FEASIBILITY_MOCK_DELAY_MS ?? 0);
     const apiKey = opts.apiKey ?? process.env.OPENAI_API_KEY;
     const baseURL = opts.baseURL ?? process.env.FEASIBILITY_BASE_URL;
+    this.isOpenAI = !baseURL;
     // In mock mode we never touch the network, so a missing key is fine.
-    // A hard per-call timeout matters here specifically because the route's
-    // credit-refund logic lives in a try/catch around this call — without a
-    // timeout well under the route's `maxDuration`, a hanging provider gets
-    // killed by the platform first, which skips that catch block entirely
-    // (no refund, no user-visible error, analysis doc stuck at "running").
-    // Worst case is timeout * (maxRetries + 1): keep that product well under
-    // the calling routes' maxDuration even after adding search-fetch time on
-    // top (runFeasibility runs up to ~12 of these, several stages preceded by
-    // their own capped search calls) — 2 attempts * 30s = 60s per call.
-    this.client = this.mock ? null : new OpenAI({ apiKey, baseURL, timeout: 30_000, maxRetries: 1 });
+    // A hard per-call timeout matters: a hanging provider must fail the call
+    // on its own, well inside the run's time budget (lib/runLifecycle.ts), so
+    // the run can be settled — failed and refunded — instead of stuck. The SDK
+    // also retries 429s and 5xx itself with exponential backoff (honouring
+    // Retry-After); its defaults are 2 retries and a 10-minute timeout, far
+    // past the run's time limit.
+    this.client = this.mock
+      ? null
+      : new OpenAI({
+          apiKey,
+          baseURL,
+          timeout: envInt("FEASIBILITY_LLM_TIMEOUT_MS", 60_000),
+          maxRetries: envInt("FEASIBILITY_LLM_MAX_RETRIES", 3),
+        });
     if (!this.mock && !apiKey) {
       throw new Error(
         "No LLM API key set. Set OPENAI_API_KEY (or a compatible key + FEASIBILITY_BASE_URL) in .env.local, or run with FEASIBILITY_MOCK=true."
@@ -90,8 +110,14 @@ export class OpenAIProvider implements LlmProvider {
 
     const resp = await this.client!.chat.completions.create({
       model: call.model ?? this.model,
+      // Low temperature + a fixed seed: the same business idea should get the
+      // same verdict. At the default (1.0) repeat runs could land on different
+      // sides of the GO / NO-GO bands. (Providers don't promise bit-identical
+      // output even so; this makes large swings unlikely, not impossible.)
+      temperature: LLM_TEMPERATURE,
+      ...(this.isOpenAI ? { seed: LLM_SEED } : {}),
       messages: [
-        { role: "system", content: call.system },
+        { role: "system", content: call.system + UNTRUSTED_DATA_RULE },
         { role: "user", content: call.user },
       ],
       response_format: {

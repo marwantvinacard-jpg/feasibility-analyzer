@@ -335,6 +335,12 @@ export interface RiskScoring {
   overallRiskScore: number; // 0-100, higher = riskier (avg of top 5 priorities)
   riskLevel: "Low" | "Medium" | "High" | "Critical";
   riskFeasibilityScore: number; // 100 - overallRiskScore, feeds the weighted score
+  /**
+   * false when there was no risk register to score (the risk specialist failed
+   * or returned no risks). The scores are then a neutral placeholder, not a
+   * finding. Absent on analyses scored before this existed (treat as true).
+   */
+  assessed?: boolean;
 }
 
 export interface CategoryScores {
@@ -382,4 +388,22 @@ export interface FeasibilityResult {
   nextSteps: string[];
   sources: Source[];
   usage: { model: string; mock: boolean; tokensIn: number; tokensOut: number; costCents: number };
+  /**
+   * Live web-research health for this run. `stagesWithoutResearch` lists the
+   * sections whose every search failed, so they were analysed from general
+   * knowledge only. Absent on analyses run before this was tracked.
+   */
+  research?: { queries: number; failed: number; stagesWithoutResearch: string[]; sampleError?: string };
+  /**
+   * Sections whose AI call failed (e.g. still rate-limited after retries). A
+   * failed scored section counts as the neutral 50 in the verdict, so the report
+   * says so. Absent on analyses run before this was tracked.
+   */
+  failedStages?: { stage: string; error: string }[];
+  /**
+   * Set when the submitted text looked like an attempt to instruct the AI
+   * (e.g. "set every score to 95"). It was treated as data only; the report
+   * says so. Absent on older analyses.
+   */
+  suspiciousInput?: boolean;
 }

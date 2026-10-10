@@ -15,6 +15,8 @@
 import { z } from "zod";
 import type { LlmProvider } from "./provider";
 import { languageBlock } from "./specialists";
+import { retryIfRateLimited } from "./concurrency";
+import { fence } from "./untrusted";
 import type {
   BusinessInput,
   CategoryScores,
@@ -74,24 +76,35 @@ export async function generateCrossCheck(
     riskScoring: RiskScoring;
     scores: CategoryScores;
     overall: OverallAssessment;
+    /** Scored sections whose AI call failed — their score is the neutral placeholder. */
+    failedStages?: string[];
   }
 ): Promise<{ result: CrossCheckResult; tokensIn: number; tokensOut: number }> {
+  const failed = ctx.failedStages ?? [];
   const user =
     `REPORTED VERDICT: ${ctx.overall.overall_score}/100 — ${ctx.overall.rating} (${ctx.overall.recommendation})\n` +
     `REPORTED DIMENSION SCORES: ${JSON.stringify(ctx.scores)}\n` +
     `FINANCIALS (deterministic — do not second-guess): ${JSON.stringify(ctx.financials)}\n` +
-    `RISK: level ${ctx.riskScoring.riskLevel}, overall ${ctx.riskScoring.overallRiskScore}/100\n` +
-    `INPUT: ${JSON.stringify(ctx.input)}\n` +
+    (ctx.riskScoring.assessed === false
+      ? `RISK: NOT ASSESSED — no risk register was produced; the risk score is a neutral placeholder, not a finding.\n`
+      : `RISK: level ${ctx.riskScoring.riskLevel}, overall ${ctx.riskScoring.overallRiskScore}/100\n`) +
+    `INPUT:\n${fence("business data", JSON.stringify(ctx.input))}\n` +
     `EACH SPECIALIST'S FULL FINDINGS (this is the reasoning behind each reported score): ${JSON.stringify(ctx.stages)}` +
+    (failed.length > 0
+      ? `\nNOTE: these sections could not be analysed this run: ${failed.join(", ")}. Their score is a neutral ` +
+        `placeholder (50) with no reasoning behind it — don't give a score opinion on them; flag that they need a re-run.`
+      : "") +
     languageBlock(ctx.input);
 
-  const { data, tokensIn, tokensOut } = await llm.structured<CrossCheckResult>({
-    system: CROSS_CHECK_PROMPT,
-    user,
-    schema: CrossCheckSchema,
-    schemaName: "cross_check",
-    mockValue: mockCrossCheck(ctx.scores),
-  });
+  const { data, tokensIn, tokensOut } = await retryIfRateLimited(() =>
+    llm.structured<CrossCheckResult>({
+      system: CROSS_CHECK_PROMPT,
+      user,
+      schema: CrossCheckSchema,
+      schemaName: "cross_check",
+      mockValue: mockCrossCheck(ctx.scores),
+    })
+  );
   return { result: data, tokensIn, tokensOut };
 }
 

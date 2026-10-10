@@ -12,11 +12,14 @@ import { logAudit } from "@/lib/firebase/audit";
 import { logError } from "@/lib/firebase/errorLog";
 import { createLlm } from "@/lib/engine/factory";
 import { generateStudy } from "@/lib/engine/study";
+import { withTimeBudget } from "@/lib/runLifecycle";
 
 export const runtime = "nodejs";
-// Single generateStudy call, no search fan-out: worst case is the LLM
-// client's own 2-attempts * 30s ceiling, plus margin.
-export const maxDuration = 90;
+// Single generateStudy call, no search fan-out — but the LLM client retries
+// (lib/engine/provider.ts), so the call is given the same time budget as a
+// full run and stops itself (refunded) before the platform limit. Must be a
+// literal for Next.js; keep in sync with RUN_MAX_DURATION_S (lib/runLimits.ts).
+export const maxDuration = 300;
 
 export async function POST(req: Request) {
   const db = adminDb();
@@ -56,12 +59,14 @@ export async function POST(req: Request) {
 
   try {
     const llm = createLlm();
-    const { study: fresh } = await generateStudy(llm, {
-      input: data.input,
-      model: study.model,
-      stages: data.result.stages,
-      riskScoring: data.result.riskScoring,
-    });
+    const { study: fresh } = await withTimeBudget(
+      generateStudy(llm, {
+        input: data.input,
+        model: study.model,
+        stages: data.result.stages,
+        riskScoring: data.result.riskScoring,
+      })
+    );
 
     await ref.update({
       "result.study.narrative": fresh.narrative,

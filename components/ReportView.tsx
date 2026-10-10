@@ -30,6 +30,8 @@ export function ReportView({
   const t = useT();
   const { input, overall, categoryScores: cs, financials: f, riskScoring, report } = result;
   const cur = input.currency ?? "USD";
+  // Scored sections the AI couldn't analyse this run: they sit in the verdict as a neutral 50.
+  const failedScored = (result.failedStages ?? []).filter((s) => (ORDER as string[]).includes(s.stage));
   const vtone = verdictTone(overall.recommendation);
 
   // Analyses created before the financial study existed have no `study`, so the
@@ -57,6 +59,31 @@ export function ReportView({
           <span>
             <strong>{t("report.staleScoreTitle")}</strong> {t("report.staleScoreBody")}
           </span>
+        </div>
+      )}
+      {/* Kept in print too: the caveat belongs in the exported report. */}
+      {!result.usage.mock && (result.research?.stagesWithoutResearch.length ?? 0) > 0 && (
+        <div className="flex items-center gap-2.5 rounded-xl border border-warn/40 bg-warn/10 px-4 py-3 text-sm text-warn">
+          <Icon name="search" size={16} strokeWidth={2} className="shrink-0" />
+          <span>{t("report.researchUnavailable", { n: result.research!.stagesWithoutResearch.length })}</span>
+        </div>
+      )}
+      {!result.usage.mock && failedScored.length > 0 && (
+        <div className="flex items-center gap-2.5 rounded-xl border border-stop/40 bg-stop/10 px-4 py-3 text-sm text-stop">
+          <Icon name="risk" size={16} strokeWidth={2} className="shrink-0" />
+          <span>{t("report.stagesFailed", { n: failedScored.length })}</span>
+        </div>
+      )}
+      {result.suspiciousInput && (
+        <div className="flex items-center gap-2.5 rounded-xl border border-warn/40 bg-warn/10 px-4 py-3 text-sm text-warn">
+          <Icon name="risk" size={16} strokeWidth={2} className="shrink-0" />
+          <span>{t("report.suspiciousInput")}</span>
+        </div>
+      )}
+      {result.reportFallback && (
+        <div className="flex items-center gap-2.5 rounded-xl border border-warn/40 bg-warn/10 px-4 py-3 text-sm text-warn">
+          <Icon name="doc" size={16} strokeWidth={2} className="shrink-0" />
+          <span>{t("report.summaryFallback")}</span>
         </div>
       )}
       {/* Verdict hero */}
@@ -169,7 +196,15 @@ export function ReportView({
       {!print && <SensitivityPanel input={input} analysisId={analysisId} />}
 
       {/* Risk register */}
-      <Section title={t("report.riskRegister")} subtitle={t("report.riskRegisterSubtitle", { score: riskScoring.overallRiskScore, level: riskScoring.riskLevel })} badge="mixed">
+      <Section
+        title={t("report.riskRegister")}
+        subtitle={
+          riskScoring.assessed === false
+            ? t("report.riskNotAssessed")
+            : t("report.riskRegisterSubtitle", { score: riskScoring.overallRiskScore, level: riskScoring.riskLevel })
+        }
+        badge="mixed"
+      >
         <div className="space-y-2">
           {riskScoring.rankedRisks.slice(0, 8).map((r, i) => (
             <div key={i} className="rounded-xl border border-border bg-surface-2 p-3.5">
