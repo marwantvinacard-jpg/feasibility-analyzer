@@ -6,8 +6,7 @@
 
 import type { LlmProvider } from "./provider";
 import { createLlm } from "./factory";
-import type { SearchProvider } from "./search";
-import { SerpApiProvider } from "./search";
+import { createSearchProvider, type SearchProvider } from "./search";
 import { computeFinancials } from "./financial";
 import { scoreRisks } from "./risk";
 import { computeCategoryScores, overallAssessment, summarize } from "./scorer";
@@ -77,7 +76,7 @@ export async function runFeasibility(
   opts: RunOptions = {}
 ): Promise<FullResult> {
   const llm = opts.llm ?? createLlm();
-  const search = opts.search ?? new SerpApiProvider({ mock: llm.mock });
+  const search = opts.search ?? createSearchProvider({ mock: llm.mock });
   const onProgress = opts.onProgress ?? (() => {});
 
   const stageStatus = Object.fromEntries(ALL_STAGES.map((s) => [s, "pending"])) as Record<

@@ -13,7 +13,7 @@ import { sendAnalysisReadyEmail } from "./email";
 import { captureServerEvent } from "./posthog/server";
 import { runFeasibility } from "./engine/runFeasibility";
 import { createLlm, createLlmForKey } from "./engine/factory";
-import { SerpApiProvider } from "./engine/search";
+import { createSearchProvider } from "./engine/search";
 import { withTrainingLog, type TrainingEntry } from "./engine/trainingLog";
 import { ALL_STAGES, type BusinessInput, type StageName, type StageStatus } from "./engine/types";
 import { decryptSecret, type EncryptedSecret } from "./byok";
@@ -76,7 +76,7 @@ export async function executeAnalysis(analysisId: string): Promise<RunOutcome> {
   const trainingEntries: TrainingEntry[] = [];
   const tracked = withTrainingLog(llm, (e) => trainingEntries.push(e));
   // No mock search for real runs — see lib/engine/search.ts.
-  const search = new SerpApiProvider({ mock: tracked.mock });
+  const search = createSearchProvider({ mock: tracked.mock });
 
   async function saveTrainingData() {
     if (!keepTraining || trainingEntries.length === 0) return;

@@ -34,6 +34,19 @@ npm run engine -- fixtures/sample-input.json
 Live mode (needs a key): set `OPENAI_API_KEY` in `.env.local`, then
 `FEASIBILITY_MOCK=false npm run engine`.
 
+## Web search
+
+Research stages run a fixed set of Google queries and keep the top 5 results of each. The provider is selected only by `SEARCH_PROVIDER`. A present API key never switches the provider on its own.
+
+| `SEARCH_PROVIDER` | Provider | Key |
+|---|---|---|
+| unset or `serpapi` (default) | [SerpAPI](https://serpapi.com) | `SERPAPI_API_KEY` |
+| `serper` | [Serper.dev](https://serper.dev) | `SERPER_API_KEY` |
+
+`FEASIBILITY_MOCK=true` returns mock snippets for either provider. Any other value logs an error and skips live research; the report still runs, and estimates are labelled. Serper requests send `{"q": ...}` only, so each query uses Serper's default result count and costs 1 credit. A missing key or a non-2xx response fails that query; an empty organic list is just no hits.
+
+On Vercel, add `SERPER_API_KEY` as a **Sensitive** environment variable for **Production** only, and set `SEARCH_PROVIDER=serper`. To roll back, set `SEARCH_PROVIDER=serpapi` or unset it (the default is SerpAPI).
+
 ## What changed from the n8n workflow (bugs fixed in the port)
 
 1. **Structured outputs** on all specialists — no more regex-scraping JSON out of prose with a
@@ -60,7 +73,7 @@ Both must be rotated before live use. This repo reads them from env only and nev
 | `schemas.ts` | Zod schemas → OpenAI structured-output JSON schemas |
 | `prompts.ts` | Cleaned specialist system prompts |
 | `provider.ts` | LLM provider (OpenAI + mock) |
-| `search.ts` | Web search (SerpAPI + mock), capped per stage |
+| `search.ts` | Web search (SerpAPI or Serper via `SEARCH_PROVIDER`, plus mock), capped per stage |
 | `extractor.ts` | 10-field extraction + completeness gate |
 | `financial.ts` | Deterministic financial math + score |
 | `risk.ts` | Deterministic risk ranking + score |
