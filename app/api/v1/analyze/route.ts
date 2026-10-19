@@ -10,7 +10,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import { runFeasibility } from "@/lib/engine/runFeasibility";
 import { createLlm } from "@/lib/engine/factory";
 import type { LlmProvider } from "@/lib/engine/provider";
-import { SerpApiProvider } from "@/lib/engine/search";
+import { createSearchProvider } from "@/lib/engine/search";
 import { adminDb } from "@/lib/firebase/admin";
 import { requireApiKey } from "@/lib/firebase/apiKeyAuth";
 import { HttpError } from "@/lib/firebase/verify";
@@ -113,7 +113,7 @@ export async function POST(req: Request) {
   const trainingEntries: TrainingEntry[] = [];
   const llm = withTrainingLog(baseLlm, (e) => trainingEntries.push(e));
   // No mock fallback when the key is missing — see app/api/analyze/route.ts.
-  const search = new SerpApiProvider({ mock: llm.mock });
+  const search = createSearchProvider({ mock: llm.mock });
 
   try {
     // Stops itself (refunded) before the platform time limit; a hard kill is

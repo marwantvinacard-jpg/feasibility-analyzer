@@ -1,11 +1,14 @@
 // Web search. In n8n each research specialist had a SerpAPI tool wired in as
 // an ai_tool. Here we pre-fetch a small, capped set of stage-specific queries
 // and inject the snippets into that specialist's prompt as research context —
-// deterministic, cost-bounded, and easy to cache. Swappable provider so
-// SerpAPI can later be replaced by Brave/Tavily/Exa without touching callers.
+// deterministic, cost-bounded, and easy to cache.
 //
-// SECURITY: the SerpAPI key that was hard-coded in the n8n JSON must be rotated
-// and supplied via SERPAPI_API_KEY. Never commit it.
+// Provider is chosen only by SEARCH_PROVIDER (serpapi | serper). Unset keeps
+// SerpAPI. Which API key happens to be set never selects the provider.
+// FEASIBILITY_MOCK=true forces mock snippets for either one.
+//
+// SECURITY: keys come from SERPAPI_API_KEY / SERPER_API_KEY. Never commit or
+// log them.
 
 import type { BusinessInput, Source, StageName } from "./types";
 import { fence } from "./untrusted";
@@ -66,6 +69,95 @@ export class SerpApiProvider implements SearchProvider {
       url: r.link ?? "",
     }));
   }
+}
+
+interface SerperOrganic {
+  title?: string;
+  snippet?: string;
+  link?: string;
+}
+
+export class SerperProvider implements SearchProvider {
+  readonly mock: boolean;
+  private apiKey?: string;
+
+  constructor(opts: { apiKey?: string; mock?: boolean } = {}) {
+    this.mock = opts.mock ?? process.env.FEASIBILITY_MOCK === "true";
+    this.apiKey = opts.apiKey ?? process.env.SERPER_API_KEY;
+  }
+
+  async search(query: string, num = 5): Promise<SearchHit[]> {
+    if (this.mock) {
+      return [
+        {
+          title: `[mock] Result for "${query}"`,
+          snippet: `Mock research snippet for "${query}". Enable a real SERPER_API_KEY to fetch live data.`,
+          url: `https://example.com/search?q=${encodeURIComponent(query)}`,
+        },
+      ];
+    }
+    // Same contract as SerpApiProvider: a missing key fails the query so
+    // gatherResearch keeps the report and labels the section as estimates.
+    if (!this.apiKey) throw new Error("SERPER_API_KEY is not set");
+    // Body is only `{q}`. Serper's default result count costs 1 credit;
+    // sending `num` above the default would bill 2. Callers still see the top 5.
+    const res = await fetch("https://google.serper.dev/search", {
+      method: "POST",
+      headers: {
+        "X-API-KEY": this.apiKey,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ q: query }),
+      signal: AbortSignal.timeout(SEARCH_TIMEOUT_MS),
+    });
+    if (!res.ok) {
+      const detail = (await res.text()).slice(0, 200).split(this.apiKey).join("[redacted]");
+      throw new Error(`Serper ${res.status}: ${detail}`);
+    }
+    const json = (await res.json()) as { organic?: SerperOrganic[] };
+    const organic = Array.isArray(json.organic) ? json.organic : [];
+    return organic.slice(0, num).map((r) => ({
+      title: r.title ?? "",
+      snippet: r.snippet ?? "",
+      url: r.link ?? "",
+    }));
+  }
+}
+
+export type SearchProviderName = "serpapi" | "serper";
+
+function isSearchProviderName(value: string): value is SearchProviderName {
+  return value === "serpapi" || value === "serper";
+}
+
+/** Unknown SEARCH_PROVIDER: no network, and each query fails closed. */
+class ClosedSearchProvider implements SearchProvider {
+  readonly mock = false;
+  constructor(private readonly reason: string) {}
+  async search(): Promise<SearchHit[]> {
+    throw new Error(this.reason);
+  }
+}
+
+/**
+ * Build the web-search provider for a run.
+ *
+ * SEARCH_PROVIDER=serper|serpapi. Unset defaults to serpapi so existing
+ * deployments keep today's behaviour. An unknown value logs once and returns
+ * a provider whose searches fail (the report still runs, AI-only).
+ * FEASIBILITY_MOCK=true forces mock results for either provider and wins over
+ * an explicit `mock: false`. The factory does not look at which key is set.
+ */
+export function createSearchProvider(opts: { mock?: boolean } = {}): SearchProvider {
+  const raw = process.env.SEARCH_PROVIDER?.trim().toLowerCase() ?? "";
+  if (raw && !isSearchProviderName(raw)) {
+    const message = `Unknown SEARCH_PROVIDER "${raw}". Expected "serper" or "serpapi". Live web research is disabled.`;
+    console.error(message);
+    return new ClosedSearchProvider(message);
+  }
+  const mock = process.env.FEASIBILITY_MOCK === "true" || opts.mock === true;
+  if (raw === "serper") return new SerperProvider({ mock });
+  return new SerpApiProvider({ mock });
 }
 
 /** Stages that fetch research. The financial model is not a scoring dimension. */
