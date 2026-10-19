@@ -259,21 +259,23 @@ test("createSearchProvider: defaults to serpapi and does not follow whichever ke
 
 test("createSearchProvider: SEARCH_PROVIDER=serper uses Serper, including case and surrounding space", async () => {
   const realFetch = globalThis.fetch;
-  let seen: { url: string; init: RequestInit } | undefined;
+  const calls: { url: string; init: RequestInit }[] = [];
   globalThis.fetch = (async (url: string, init?: RequestInit) => {
-    seen = { url, init: init ?? {} };
+    calls.push({ url, init: init ?? {} });
     return new Response(JSON.stringify({ organic: [{ title: "T", snippet: "S", link: "https://serper.test" }] }), { status: 200 });
   }) as typeof fetch;
   try {
     for (const name of ["serper", "Serper", " serper "]) {
-      seen = undefined;
+      const before = calls.length;
       await withSearchEnv({ SEARCH_PROVIDER: name, SERPER_API_KEY: SERPER_KEY, SERPAPI_API_KEY: "serp-test-key" }, async () => {
         const p = createSearchProvider({ mock: false });
         assert.ok(p instanceof SerperProvider);
         assert.deepEqual(await p.search("q"), [{ title: "T", snippet: "S", url: "https://serper.test" }]);
       });
-      assert.equal(seen?.url, "https://google.serper.dev/search");
-      assert.equal(new Headers(seen?.init.headers).get("X-API-KEY"), SERPER_KEY);
+      const seen = calls[before];
+      assert.ok(seen);
+      assert.equal(seen.url, "https://google.serper.dev/search");
+      assert.equal(new Headers(seen.init.headers).get("X-API-KEY"), SERPER_KEY);
     }
   } finally {
     globalThis.fetch = realFetch;
